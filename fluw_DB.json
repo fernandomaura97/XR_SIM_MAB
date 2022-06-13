@@ -1,0 +1,752 @@
+[
+    {
+        "id": "90538e51293d2fc3",
+        "type": "tab",
+        "label": "Flow DUALBAND 13-6",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "c5b1dc4203506782",
+        "type": "switch",
+        "z": "90538e51293d2fc3",
+        "name": "IF == \"AA0\"",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "\"AA0\\n\"",
+                "vt": "jsonata"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 950,
+        "y": 480,
+        "wires": [
+            [
+                "96d842cbcb90a1a4"
+            ]
+        ]
+    },
+    {
+        "id": "08f3cacd9ee80d3d",
+        "type": "inject",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "\"AA0\\n\"",
+        "payloadType": "json",
+        "x": 650,
+        "y": 400,
+        "wires": [
+            [
+                "c5b1dc4203506782",
+                "18cc136f8f333fa8"
+            ]
+        ]
+    },
+    {
+        "id": "18cc136f8f333fa8",
+        "type": "debug",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 910,
+        "y": 400,
+        "wires": []
+    },
+    {
+        "id": "adc4c3737f177c56",
+        "type": "debug",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1950,
+        "y": 480,
+        "wires": []
+    },
+    {
+        "id": "e6384b97bea0168d",
+        "type": "serial out",
+        "z": "90538e51293d2fc3",
+        "d": true,
+        "name": "",
+        "serial": "6fff800f.c81fe",
+        "x": 2190,
+        "y": 640,
+        "wires": []
+    },
+    {
+        "id": "c999aa59af0be27d",
+        "type": "inject",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "\"BM,236\\n\"",
+        "payloadType": "json",
+        "x": 1920,
+        "y": 560,
+        "wires": [
+            [
+                "e6384b97bea0168d"
+            ]
+        ]
+    },
+    {
+        "id": "383a5ede1f93a77f",
+        "type": "serial in",
+        "z": "90538e51293d2fc3",
+        "d": true,
+        "name": "",
+        "serial": "6fff800f.c81fe",
+        "x": 510,
+        "y": 700,
+        "wires": [
+            [
+                "c5b1dc4203506782",
+                "bbd5be67d74219f3",
+                "bebbf8b74b42bb6f",
+                "c31b3e1bd4cb09f4"
+            ]
+        ]
+    },
+    {
+        "id": "bbd5be67d74219f3",
+        "type": "debug",
+        "z": "90538e51293d2fc3",
+        "name": "SERIAL INPUT",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 840,
+        "y": 580,
+        "wires": []
+    },
+    {
+        "id": "c29a0af87a41b013",
+        "type": "template",
+        "z": "90538e51293d2fc3",
+        "name": "Stringify",
+        "field": "payload",
+        "fieldType": "msg",
+        "format": "handlebars",
+        "syntax": "mustache",
+        "template": "BM,{{bitmask}}\n",
+        "output": "str",
+        "x": 1800,
+        "y": 480,
+        "wires": [
+            [
+                "adc4c3737f177c56",
+                "e6384b97bea0168d"
+            ]
+        ]
+    },
+    {
+        "id": "9bfdba81a5858d21",
+        "type": "trigger",
+        "z": "90538e51293d2fc3",
+        "name": "T_cycle - 5s",
+        "op1": "",
+        "op2": "",
+        "op1type": "nul",
+        "op2type": "pay",
+        "duration": "1",
+        "extend": false,
+        "overrideDelay": false,
+        "units": "s",
+        "reset": "",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 1250,
+        "y": 480,
+        "wires": [
+            [
+                "2845682be2b9b8a2"
+            ]
+        ]
+    },
+    {
+        "id": "a0f062504a382352",
+        "type": "debug",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1290,
+        "y": 1120,
+        "wires": []
+    },
+    {
+        "id": "422f7772388ae9ce",
+        "type": "inject",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "props": [],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 510,
+        "y": 1040,
+        "wires": [
+            [
+                "09d43f4cb50eef8a"
+            ]
+        ]
+    },
+    {
+        "id": "0988e5d344d3a1bf",
+        "type": "template",
+        "z": "90538e51293d2fc3",
+        "name": "MSG_DB_ID1",
+        "field": "payload",
+        "fieldType": "msg",
+        "format": "handlebars",
+        "syntax": "mustache",
+        "template": "{\n\"Nodeid_DB\": 1,\n\"Temperature1\": {{payload.T1}},\n\"Humidity1\": {{payload.H1}},\n\"Temperature2\": {{payload.T2}},\n\"Humidity2\": {{payload.H2}}\n}\n",
+        "output": "json",
+        "x": 1020,
+        "y": 920,
+        "wires": [
+            [
+                "a0cf6dec0e6f425b"
+            ]
+        ]
+    },
+    {
+        "id": "09d43f4cb50eef8a",
+        "type": "function",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "func": "\nmsg.payload = {};\nmsg.payload.temp1 = (Math.floor( Math.random() * 100*(32 - 28)) + 28*100)/100;\nmsg.payload.temp2 = (Math.floor( Math.random() * 100*(32 - 28)) + 28*100)/100;\nmsg.payload.hum1 = Math.floor(Math.random() * 10*(70-50)+500)/10;\nmsg.payload.hum2 =  Math.floor(Math.random() * 10*(70-50)+500)/10;\nmsg.payload.temp3 =(Math.floor( Math.random() * 100*(32 - 28)) + 28*100)/100;\nmsg.payload.temp4 =(Math.floor( Math.random() * 100*(32 - 28)) + 28*100)/100;\nmsg.payload.hum3 = Math.floor(Math.random() * 10*(70-50)+500)/10;\nmsg.payload.hum4 =  Math.floor(Math.random() * 10*(70-50)+500)/10;\n\n\n\nreturn msg;\n\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 640,
+        "y": 1040,
+        "wires": [
+            [
+                "52405de9b26e5c55",
+                "0988e5d344d3a1bf"
+            ]
+        ]
+    },
+    {
+        "id": "a0cf6dec0e6f425b",
+        "type": "function",
+        "z": "90538e51293d2fc3",
+        "name": "Set timestamp to payload.time",
+        "func": "\n\nvar time = new Date().toISOString();\nmsg.payload.time = time; \nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1270,
+        "y": 920,
+        "wires": [
+            [
+                "fe7e10912e79e18d"
+            ]
+        ]
+    },
+    {
+        "id": "d2aef5b40621c72a",
+        "type": "template",
+        "z": "90538e51293d2fc3",
+        "name": "POST template",
+        "field": "payload",
+        "fieldType": "msg",
+        "format": "handlebars",
+        "syntax": "mustache",
+        "template": "{\n\"write_api_key\": \"2AFUJH8PFHWU98TV\",\n\t\"updates\": [{\n\t\t\t\"created_at\": \"{{payload.1.time}}\",\n\t\t\t\"field1\": {{payload.1.Nodeid_DB}},\n\t\t\t\"field2\": {{payload.1.Temperature1}},\n\t\t\t\"field3\": {{payload.1.Humidity1}},\n\t\t\t\"field4\":  {{payload.1.Temperature2}},\n\t\t\t\"field5\": {{payload.1.Humidity2}}\n\t\t},\n\t\t{\n\t\t\t\"created_at\": \"{{payload.2.time}}\",\n\t\t\t\"field1\": {{payload.2.Nodeid_DB}},\n\t\t\t\"field2\": {{payload.2.Temperature1}},\n\t\t\t\"field3\": {{payload.2.Humidity1}},\n\t\t\t\"field4\":  {{payload.2.Temperature2}},\n\t\t\t\"field5\": {{payload.2.Humidity2}}\n\t\t}\n\t]\n\t\n}\n",
+        "output": "json",
+        "x": 1720,
+        "y": 920,
+        "wires": [
+            [
+                "ef3631564ba1b7e8"
+            ]
+        ]
+    },
+    {
+        "id": "2817418088c561d3",
+        "type": "template",
+        "z": "90538e51293d2fc3",
+        "name": "MSG_DB_ID2",
+        "field": "payload",
+        "fieldType": "msg",
+        "format": "handlebars",
+        "syntax": "mustache",
+        "template": "{\n\"Nodeid_DB\": 2,\n\"Temperature1\": {{payload.T1}},\n\"Humidity1\": {{payload.H1}},\n\"Temperature2\": {{payload.T2}},\n\"Humidity2\": {{payload.H2}}\n}\n",
+        "output": "json",
+        "x": 1020,
+        "y": 1040,
+        "wires": [
+            [
+                "a0f062504a382352",
+                "9e86df5006cc9bb0"
+            ]
+        ]
+    },
+    {
+        "id": "fe7e10912e79e18d",
+        "type": "join",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "mode": "custom",
+        "build": "object",
+        "property": "payload",
+        "propertyType": "msg",
+        "key": "payload.Nodeid_DB",
+        "joiner": "\\n",
+        "joinerType": "str",
+        "accumulate": false,
+        "timeout": "",
+        "count": "2",
+        "reduceRight": false,
+        "reduceExp": "",
+        "reduceInit": "",
+        "reduceInitType": "",
+        "reduceFixup": "",
+        "x": 1550,
+        "y": 920,
+        "wires": [
+            [
+                "8deb33078912d90e",
+                "d2aef5b40621c72a"
+            ]
+        ]
+    },
+    {
+        "id": "8deb33078912d90e",
+        "type": "debug",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1690,
+        "y": 980,
+        "wires": []
+    },
+    {
+        "id": "52405de9b26e5c55",
+        "type": "trigger",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "op1": "",
+        "op2": "",
+        "op1type": "nul",
+        "op2type": "pay",
+        "duration": "2",
+        "extend": false,
+        "overrideDelay": false,
+        "units": "s",
+        "reset": "",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 840,
+        "y": 1040,
+        "wires": [
+            [
+                "2817418088c561d3"
+            ]
+        ]
+    },
+    {
+        "id": "9e86df5006cc9bb0",
+        "type": "function",
+        "z": "90538e51293d2fc3",
+        "name": "Set timestamp to payload.time",
+        "func": "\n\nvar time = new Date().toISOString();\nmsg.payload.time = time; \nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1330,
+        "y": 1040,
+        "wires": [
+            [
+                "fe7e10912e79e18d"
+            ]
+        ]
+    },
+    {
+        "id": "ef3631564ba1b7e8",
+        "type": "http request",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "body",
+        "url": "https://api.thingspeak.com/channels/1764122/bulk_update.json",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "authType": "",
+        "senderr": false,
+        "x": 1890,
+        "y": 920,
+        "wires": [
+            [
+                "ab5349160ab644e7"
+            ]
+        ]
+    },
+    {
+        "id": "ab5349160ab644e7",
+        "type": "debug",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2030,
+        "y": 1000,
+        "wires": []
+    },
+    {
+        "id": "2845682be2b9b8a2",
+        "type": "http request",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "method": "GET",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "https://api.thingspeak.com/channels/1762776/feeds.json?api_key=JE1VU7NBZBI9KCLQ&results=1",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "authType": "",
+        "senderr": false,
+        "x": 1410,
+        "y": 480,
+        "wires": [
+            [
+                "1580f6456ee1aa77"
+            ]
+        ]
+    },
+    {
+        "id": "1580f6456ee1aa77",
+        "type": "function",
+        "z": "90538e51293d2fc3",
+        "name": "Build BM from TS values",
+        "func": "\n//if (msg.payload.feeds[0].field2)!=NULL){}\nvar n_cycles1 = msg.payload.feeds[0].field1; //n_cycles is last non-null value\nvar n_cycles2 = msg.payload.feeds[0].field2;\nvar n_cycles3 = msg.payload.feeds[0].field3;\nvar n_cycles4 = msg.payload.feeds[0].field4;\n\nmsg.payload = {};\nmsg.payload.c1 = n_cycles1;\nmsg.payload.c2 = n_cycles2; \nmsg.payload.c3 = n_cycles3;\nmsg.payload.c4 = n_cycles4\n\n\n\n//flow.set('oldTSvalue', n_cycles);\n\nvar counter1 = flow.get(\"counter1\");\nvar counter2 = flow.get(\"counter2\");\nvar counter3 = flow.get(\"counter3\");\nvar counter4 = flow.get(\"counter4\");\n\nnode.warn([\"c1: \" + counter1 , \"TS1: \" + n_cycles1] );\nnode.warn([\"c2: \" + counter2, \"TS2: \" +n_cycles2]);\nnode.warn([\"c3: \" + counter3 , \"TS3: \" + n_cycles3]);\nnode.warn([\"c4: \" + counter4 , \"TS4: \" + n_cycles4]);\n\nif(counter1 >= n_cycles1)\n{\n    node.warn(\"c1 expired\");\n    flow.set('counter1', 0);\n    msg.bitmask = msg.bitmask | 0b10000000; //once\n    flow.set('bitmask',msg.bitmask);\n}\nelse{\n    msg.bitmask &= ~(1 << 0); //Set last nodeid to 1, so we have a sensor measuring all the time\n    flow.set('bitmask',msg.bitmask);\n}\n\nif(counter2 >= n_cycles2)\n{\n    node.warn(\"c2 expired\");\n    flow.set('counter2', 0);\n    msg.bitmask = msg.bitmask | 0b01000000; //once\n    flow.set('bitmask',msg.bitmask);\n}\nelse{\n    msg.bitmask &= ~(1 << 1); //Set to 0 the bit\n}\nif(counter3 >= n_cycles3)\n{\n    node.warn(\"c3 expired\");\n    flow.set('counter3', 0);\n    msg.bitmask = msg.bitmask | 0b00100000; //once\n    flow.set('bitmask',msg.bitmask);\n}\nelse{\n    msg.bitmask &= ~(1 << 2); //Set bit to 0 \n    flow.set('bitmask',msg.bitmask);\n}\n\nif(counter4 >= n_cycles4)\n{\n    node.warn(\"c4 expired\");\n    flow.set('counter4', 0);\n    msg.bitmask = msg.bitmask | 0b00010000; //once\n    flow.set('bitmask',msg.bitmask);\n}\nelse{\n    msg.bitmask &= ~(1 << 3); //Set bit to 0\n    flow.set('bitmask',msg.bitmask)\n}\n\n//Maybe add more counters? \n\nnode.warn(\"DBG bitmask: \" + msg.bitmask);\n\nreturn msg;\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1610,
+        "y": 480,
+        "wires": [
+            [
+                "c29a0af87a41b013"
+            ]
+        ]
+    },
+    {
+        "id": "96d842cbcb90a1a4",
+        "type": "function",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "func": "\n\nvar counter1 = flow.get(\"counter1\")||0;\nvar counter2 = flow.get(\"counter2\")||0;\nvar counter3 = flow.get(\"counter3\")||0;\nvar counter4 = flow.get(\"counter4\")||0;\n\ncounter1 += 1;\ncounter2 += 1;\ncounter3 +=1;\ncounter4 +=1; \n\nflow.set(\"counter1\", counter1);\nflow.set(\"counter2\", counter2);\nflow.set(\"counter3\", counter3);\nflow.set(\"counter4\", counter4);\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1100,
+        "y": 480,
+        "wires": [
+            [
+                "9bfdba81a5858d21"
+            ]
+        ]
+    },
+    {
+        "id": "bebbf8b74b42bb6f",
+        "type": "switch",
+        "z": "90538e51293d2fc3",
+        "name": "Lost Message Counter",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "cont",
+                "v": "\"LMC\"",
+                "vt": "jsonata"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 1040,
+        "y": 700,
+        "wires": [
+            [
+                "2e4883dcd9f44d7e"
+            ]
+        ]
+    },
+    {
+        "id": "f475f6fbcef5d9d0",
+        "type": "inject",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "\"LMC,59870\\n\"",
+        "payloadType": "json",
+        "x": 760,
+        "y": 760,
+        "wires": [
+            [
+                "bebbf8b74b42bb6f"
+            ]
+        ]
+    },
+    {
+        "id": "3d6f613707204643",
+        "type": "debug",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1430,
+        "y": 740,
+        "wires": []
+    },
+    {
+        "id": "65bcea3c84df1d6b",
+        "type": "debug",
+        "z": "90538e51293d2fc3",
+        "name": "LOST MESSAGE COUNTER",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "jsonata",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1760,
+        "y": 700,
+        "wires": []
+    },
+    {
+        "id": "6109247f1e9660d9",
+        "type": "file",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "filename": "/home/pradeepkumar/Documents/contiki-ng/logs node-red/log_LMC.txt",
+        "appendNewline": true,
+        "createDir": false,
+        "overwriteFile": "false",
+        "encoding": "none",
+        "x": 1890,
+        "y": 780,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "2e4883dcd9f44d7e",
+        "type": "function",
+        "z": "90538e51293d2fc3",
+        "name": "",
+        "func": "//msg.Time = new Date();\n\nvar output = msg.payload.split(\",\");\n\nvar string = output[0];\nvar lmc = parseInt(output[1]);\n\nvar msg1 = {payload:lmc}; \nmsg1.payload.Time = new Date();\nreturn msg1;\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "// Code added here will be run once\n// whenever the node is started.\n\nvar msgstart = { string: \"Beggining of test\" , date: new Date() }\n\nreturn msgstart;",
+        "finalize": "",
+        "libs": [],
+        "x": 1460,
+        "y": 700,
+        "wires": [
+            [
+                "65bcea3c84df1d6b",
+                "6109247f1e9660d9"
+            ]
+        ]
+    },
+    {
+        "id": "c31b3e1bd4cb09f4",
+        "type": "switch",
+        "z": "90538e51293d2fc3",
+        "name": "is JSON?",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "istype",
+                "v": "json",
+                "vt": "json"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 620,
+        "y": 840,
+        "wires": [
+            [
+                "c2d6dd3ef70d43fb"
+            ]
+        ]
+    },
+    {
+        "id": "c2d6dd3ef70d43fb",
+        "type": "json",
+        "z": "90538e51293d2fc3",
+        "name": "JSON Parser",
+        "property": "payload",
+        "action": "",
+        "pretty": false,
+        "x": 830,
+        "y": 840,
+        "wires": [
+            [
+                "52405de9b26e5c55",
+                "0988e5d344d3a1bf"
+            ]
+        ]
+    },
+    {
+        "id": "afebe8fae6c00ca5",
+        "type": "template",
+        "z": "90538e51293d2fc3",
+        "name": "_old_MSG_DB_ID1 (sim)",
+        "field": "payload",
+        "fieldType": "msg",
+        "format": "handlebars",
+        "syntax": "mustache",
+        "template": "{\n\"Nodeid_DB\": 1,\n\"Temperature1\": {{payload.temp1}},\n\"Humidity1\": {{payload.hum1}},\n\"Temperature2\": {{payload.temp2}},\n\"Humidity2\": {{payload.hum2}}\n}\n",
+        "output": "json",
+        "x": 1050,
+        "y": 1220,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f570ed7330a616e1",
+        "type": "template",
+        "z": "90538e51293d2fc3",
+        "name": "_old_MSG_DB_ID2 (sim)",
+        "field": "payload",
+        "fieldType": "msg",
+        "format": "handlebars",
+        "syntax": "mustache",
+        "template": "{\n\"Nodeid_DB\": 2,\n\"Temperature1\": {{payload.temp3}},\n\"Humidity1\": {{payload.hum3}},\n\"Temperature2\": {{payload.temp4}},\n\"Humidity2\": {{payload.hum4}}\n}\n",
+        "output": "json",
+        "x": 1050,
+        "y": 1280,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "6fff800f.c81fe",
+        "type": "serial-port",
+        "serialport": "/dev/ttyUSB0",
+        "serialbaud": "115200",
+        "databits": "8",
+        "parity": "none",
+        "stopbits": "1",
+        "waitfor": "",
+        "dtr": "none",
+        "rts": "none",
+        "cts": "none",
+        "dsr": "none",
+        "newline": "\\n",
+        "bin": "false",
+        "out": "char",
+        "addchar": "",
+        "responsetimeout": "10000"
+    }
+]
