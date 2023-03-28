@@ -7,6 +7,8 @@
 		
 #include "definitions.h"
 
+#define ADAPTIVE_HEUR 0 		//set to 1 for heuristic adaptive control
+
 component XRServer : public TypeII
 {
 	
@@ -75,6 +77,7 @@ component XRServer : public TypeII
 		double received_frames_MAB = 0;
 		double RTT_MAB = 0;
 		
+		double m_owdg; // measure of filtered delay gradient 
 
 		struct csvfer_t{    ///TODO: CSV OUTPUTS
 			double mean_frame_delay_;
@@ -84,14 +87,14 @@ component XRServer : public TypeII
 			double packet_delay_99_;
 			double ratio_frames_;
 
-			double MAB_r[10]
+			double MAB_r[10];
 			int current_action = 0;
 			double sent_frames_MAB = 0;
 			double received_frames_MAB = 0;
 			double RTT_MAB = 0;
 		}csv_fer;
 
-		std::vector <csv_fer_t> vector_csv;
+		std::vector <csvfer_t> vector_csv;
 
 
 };
@@ -201,14 +204,15 @@ void XRServer :: new_packet(trigger_t &)
 	XR_packet.frame_generation_time = last_frame_generation_time;
 
 	rtt_counter +=1;
-
+	
+	/*            ///ROUTINE TO MAKE 1 PACKET IN N BE FOR FEEDBACK AND KALMAN (UNUSED)
 	if (rtt_counter >=10){
 		rtt_counter = 0;
 		XR_packet.rtt = true;
 		XR_packet.send_time = SimTime() 
-		
 	}
 	else{XR_packet.rtt = false;}
+	*/
 
 	if(tx_packets_per_frame == auxNumberPacketsPerFrame) 
 	{
@@ -254,18 +258,19 @@ void XRServer :: in(data_packet &packet)
 		rx_packet_controlRTT++;
 
 		RTT_MAB = (RTT_MAB + RTT)/2;   						// UPDATE METRICS OF RTT: INSERT KALMAN RESULTS HERE
-	
 		avRxFrames = (avRxFrames + packet.frames_received)/2;
 
 		received_frames_MAB++;
+		m_owdg = packet.m_owdg; //kalman filter estimate of One Way Delay Gradient!
 
 	}
-
-
+	/* IF WE UPDATE KALMAN FILTER FROM DIFFERENT ROUTINE, USE THIS INSTEAD 
 	if(packet.feedback == true){
-		m_owdg = packet.Kalman_p.m_current;
+		m_owdg = packet.m_owdg; 
 
 	}
+	*/
+
 	received_packets++;
 
 };
@@ -274,7 +279,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t &)
 {
 
 
-	#if ADAPTIVE_HEUR 1
+	#if ADAPTIVE_HEUR==1
   /*
        if(traces_on) 
        printf("%f - XR server %d : Rate Control ------------------- with Losses = %f | RTT = %f\n",SimTime(),id,avRxFrames/generated_video_frames,controlRTT);

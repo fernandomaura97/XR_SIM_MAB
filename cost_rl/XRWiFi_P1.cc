@@ -3,6 +3,8 @@
 #include <time.h>
 #include <math.h>
 
+#include <iostream>
+
 #include "./COST/cost.h"
 
 #include <deque>
@@ -345,8 +347,11 @@ void XRWiFisim:: Stop()
 
 
 	/* TEST AREA */
+	
 
 
+	//TODO: CSV OUTPUT
+	/*
 	std::ofstream file("fersim/vectors.csv", std::ios_base::app);
 	// std::ofstream file("fersim/vectors.csv");
 
@@ -362,6 +367,7 @@ void XRWiFisim:: Stop()
 	// }
 	file.close();
  
+	*/
 	
 	
 	

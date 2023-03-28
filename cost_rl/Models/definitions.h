@@ -49,6 +49,22 @@ struct data_packet
 	double TimeReceivedAtTheClient;
 	double video_frame_seq;
 	double frames_received;
+
+
+	bool feedback;
+	bool rtt;
+
+	double m_owdg;
+
+	struct Kalman_t{
+				double OW_Delay;
+				double K_gain;
+				double m_current; 
+				double m_prev; 
+				double residual_z;
+			}Kalman_p; 
+
+
 }; 
 
 
