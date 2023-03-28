@@ -20,7 +20,7 @@ component XRServer : public TypeII
 		inport void in(data_packet &packet);	
 
 		// Timer
-		Timer <trigger_t> inter_video_f
+		Timer <trigger_t> inter_video_frame;
 		Timer <trigger_t> inter_packet_timer;
 		Timer <trigger_t> rate_control;
 
@@ -45,6 +45,9 @@ component XRServer : public TypeII
 		int destination_app;
 		double last_frame_generation_time;
 		int rate_control_activated;
+
+		int rtt_counter; 
+
 
 	private:
 		double tau; //
@@ -71,6 +74,25 @@ component XRServer : public TypeII
 		double sent_frames_MAB = 0;
 		double received_frames_MAB = 0;
 		double RTT_MAB = 0;
+		
+
+		struct csvfer_t{
+			double mean_frame_delay_;
+			double frame_perc_99_;
+
+			double mean_packet_delay_;
+			double packet_delay_99_;
+			double ratio_frames_;
+
+			double MAB_r[10]
+			int current_action = 0;
+			double sent_frames_MAB = 0;
+			double received_frames_MAB = 0;
+			double RTT_MAB = 0;
+		}csv_fer;
+
+		std::vector<csv_fer_t> vector_csv;
+
 
 };
 
@@ -178,6 +200,14 @@ void XRServer :: new_packet(trigger_t &)
 	XR_packet.sent_time = SimTime();
 	XR_packet.frame_generation_time = last_frame_generation_time;
 
+	rtt_counter +=1;
+
+	if (rtt_counter >=10){
+		rtt_counter = 0;
+		XR_packet.rtt = true;
+	}
+	else{XR_packet.rtt = false;}
+
 	if(tx_packets_per_frame == auxNumberPacketsPerFrame) 
 	{
 		XR_packet.first_video_frame_packet = 1;
@@ -202,12 +232,6 @@ void XRServer :: new_packet(trigger_t &)
 
 	tx_packets_per_frame--;
 
-	// ** Spread packets over the frame duration
-	//double max_time_between_2_packets = inter_frame_time / (NumberPacketsPerFrame-1);
-	//printf("%f %f \n",max_time_between_2_packets,Random(max_time_between_2_packets));
-	//if(tx_packets_per_frame > 0) inter_packet_timer.Set(SimTime()+Random(max_time_between_2_packets));
-
-
 	// Constant time between packets	
 	if(tx_packets_per_frame > 0) inter_packet_timer.Set(SimTime()+10E-6);
 
@@ -215,7 +239,6 @@ void XRServer :: new_packet(trigger_t &)
 
 void XRServer :: in(data_packet &packet)
 {
-	
 	if(traces_on) printf("%f - XR server %d : Uplink Packet received\n",SimTime(),id);
 	// Compute RTT & losses
 	if(packet.last_video_frame_packet == 1)
@@ -228,12 +251,11 @@ void XRServer :: in(data_packet &packet)
 		controlRTT = (controlRTT + RTT)/2;
 		rx_packet_controlRTT++;
 
-		RTT_MAB = (RTT_MAB + RTT)/2;
+		RTT_MAB = (RTT_MAB + RTT)/2;   						// UPDATE METRICS OF RTT: INSERT KALMAN RESULTS HERE
 
 		avRxFrames = (avRxFrames + packet.frames_received)/2;
 
 		received_frames_MAB++;
-
 
 	}
 	received_packets++;
@@ -244,97 +266,89 @@ void XRServer :: AdaptiveVideoControl(trigger_t &)
 {
 
 
+	#if ADAPTIVE_HEUR 1
+  /*
+       if(traces_on) 
+       printf("%f - XR server %d : Rate Control ------------------- with Losses = %f | RTT = %f\n",SimTime(),id,avRxFrames/generated_video_frames,controlRTT);
 
-	/*
+       //double new_load = Load;       
+       //if((test_frames_received[id]/generated_video_frames) > 0.95 )
+       if(avRxFrames/generated_video_frames > 0.95)
+       {
+               //if(test_average_delay_decision[id] > (double) 1/fps)
+               if(controlRTT > (double) 1/fps)         
+               {
+                       double p_do_something = (100E6 - new_load)/100E6;
+                       //p_do_something = 0.25;
+                       if(Random() >= p_do_something)  
+                       {               
+                               if(traces_on) printf("%f - XR server %d : Decrease Load Delay\n",SimTime(),id);
+                               //fps=MAX(30,fps/2);
+                               new_load = MAX(10E6,new_load-10E6);
+                               load_changes++;
+                       }
+               }
+               else
+               {
+                       double p_do_something = (100E6 - new_load)/100E6;
+                       //p_do_something = 0.25;
+                       if(Random() <= p_do_something)  
+                       {               
+                               if(traces_on) printf("%f - XR server %d : Increase Load Delay\n",SimTime(),id);
+                               new_load = MIN(100E6,new_load+10E6);
+                               load_changes++;
+                       }
+                       else
+                       {
+                               
+                               // do nothing to leave room to others
+                               double time_next = inter_video_frame.GetTime();
 
-	if(traces_on) 
-	printf("%f - XR server %d : Rate Control ------------------- with Losses = %f | RTT = %f\n",SimTime(),id,avRxFrames/generated_video_frames,controlRTT);
+                               inter_video_frame.Cancel();
+                               
+                               //double update_time = time_next+Random((double)1/fps);
+                               double update_time = time_next + Random((double) 1.5/fps);
 
-	//double new_load = Load;	
-	//if((test_frames_received[id]/generated_video_frames) > 0.95 )
-	if(avRxFrames/generated_video_frames > 0.95)
-	{
-		//if(test_average_delay_decision[id] > (double) 1/fps)
-		if(controlRTT > (double) 1/fps)		
-		{
-			double p_do_something = (100E6 - new_load)/100E6;
-			//p_do_something = 0.25;
-			if(Random() >= p_do_something)	
-			{		
-				if(traces_on) printf("%f - XR server %d : Decrease Load Delay\n",SimTime(),id);
-				//fps=MAX(30,fps/2);
-				new_load = MAX(10E6,new_load-10E6);
-				load_changes++;
-			}
-		}
-		else
-		{
-			double p_do_something = (100E6 - new_load)/100E6;
-			//p_do_something = 0.25;
-			if(Random() <= p_do_something)	
-			{		
-				if(traces_on) printf("%f - XR server %d : Increase Load Delay\n",SimTime(),id);
-				new_load = MIN(100E6,new_load+10E6);
-				load_changes++;
-			}
-			else
-			{
-				
-				// do nothing to leave room to others
-				double time_next = inter_video_frame.GetTime();
+                               if(traces_on) 
+                               printf("%f - XR server %d : Do nothing - Time Next Frame = %f | Updated = %f | Random Values = %f\n",SimTime(),id,time_next,update_time,Random((double) 1.5/fps));
 
-				inter_video_frame.Cancel();
-				
-				//double update_time = time_next+Random((double)1/fps);
-				double update_time = time_next + Random((double) 1.5/fps);
+                               inter_video_frame.Set(update_time);
+                               
+                               
+                       }                       
 
-				if(traces_on) 
-				printf("%f - XR server %d : Do nothing - Time Next Frame = %f | Updated = %f | Random Values = %f\n",SimTime(),id,time_next,update_time,Random((double) 1.5/fps));
+                       //fps=MIN(240,2*fps);
+               }
+       
+       }
+       else
+       {
+                       if(traces_on) printf("%f - XR server : Decrease Load Losses\n",SimTime());
+                       //fps=MAX(30,fps/2);
+                       new_load = MAX(10E6,new_load-10E6);
+                       load_changes++;
 
-				inter_video_frame.Set(update_time);
-				
-				
-			}			
-
-			//fps=MIN(240,2*fps);
-		}
-	
-	}
-	else
-	{
-			if(traces_on) printf("%f - XR server : Decrease Load Losses\n",SimTime());
-			//fps=MAX(30,fps/2);
-			new_load = MAX(10E6,new_load-10E6);
-			load_changes++;
-
-	}
-
-
-	NumberPacketsPerFrame = ceil((new_load/L_data)/fps);
-	//tau = (double) L_data/new_load;
-	Load = new_load;
-	if(traces_on) printf("%f - XR server %d : Time to check fps | New Load = %f (%f - %f - %f) | Losses = %f \n",SimTime(),id,new_load,(double) 1/fps,controlRTT,test_average_delay_decision[id],(test_frames_received[id]/generated_video_frames));
+       }
 
 
-	*/
+       NumberPacketsPerFrame = ceil((new_load/L_data)/fps);
+       //tau = (double) L_data/new_load;
+       Load = new_load;
+       if(traces_on) printf("%f - XR server %d : Time to check fps | New Load = %f (%f - %f - %f) | Losses = %f \n",SimTime(),id,new_load,(double) 1/fps,controlRTT,test_average_delay_decision[id],(test_frames_received[id]/generated_video_frames));
 
-	// MAB based Load adaptation
 
-	// 1) Update Reward
+      */
+	 #endif
 
-	//MAB_rewards[current_action]=0.5*MAB_rewards[current_action] + 0.5*(test_frames_received[id]/generated_video_frames)*Load;
-	//MAB_rewards[current_action]=0.5*MAB_rewards[current_action] + 0.5*(test_frames_received[id]/generated_video_frames);
-	//MAB_rewards[current_action]=0.5*MAB_rewards[current_action] + 0.5*(Load/controlRTT);
-	//MAB_rewards[current_action]=0.5*MAB_rewards[current_action] + 0.5*(MIN(1,received_frames_MAB/sent_frames_MAB));
-	MAB_rewards[current_action]=(MIN(1,received_frames_MAB/sent_frames_MAB)*Load);
+	MAB_rewards[current_action]=(MIN(1,received_frames_MAB/sent_frames_MAB)*Load);    /// UPDATE REWARD OF CURRENT ACTION 
+
 
 	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,MAB_rewards[current_action],current_action,received_frames_MAB,sent_frames_MAB);
 	
 	sent_frames_MAB = 0;
 	received_frames_MAB = 0;
 	RTT_MAB = 0;
-
-
+		
 	// 2) Next Action
 	int next_action = -1;
 	if(Random()<=0.25)
@@ -350,7 +364,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t &)
 
 		// Get the maximum 
 		int index_max = 0;
-		double max_reward = MAB_rewards[0];
+		double max_reward = MAB_rewards[0]; 
 		for (int r=0;r<10;r++)
 		{
 			printf("%d %f\n",r,MAB_rewards[r]);

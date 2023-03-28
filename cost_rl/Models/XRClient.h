@@ -43,6 +43,26 @@ component XRClient : public TypeII
 
 	 	std::vector<double> packet_times;
 		std::vector<double> frame_times;
+
+		struct Kalman_t{
+			double t_prev, T_prev;
+			double t_current, T_current;
+			double OW_Delay;
+
+			double K_gain;
+			double m_current; 
+			double m_prev; 
+			double residual_z;
+
+			double noise_estimation; 
+			double noise_prev; 
+			double P_current; 
+			double P_prev;
+			std::vector <double> v_OWDG; // "the good measure"
+			std::vector <double> v_jitter; //noisy measured jitter
+			std::vector <double> v_Kalman;	//measured gain
+			std::vector <double> v_simTime; //simtime
+		}Kalman; 
  		
 
 
