@@ -341,8 +341,34 @@ void XRWiFisim:: Stop()
 	XRWiFisim1_results = fopen("Results/PaperXRWiFiSim1.txt","at");
 	fprintf(XRWiFisim1_results,"%d %d %f %d %d %f %f %f %f %f %f %f %f %f %f %d\n",s_NXR,s_dist,s_LoadXR,s_NBG,BG_mode_,s_LoadBG,s_avVFDelay,s_99VFDelay,s_Fraction,s_Throughput,s_avMPDU,s_txprob,s_collprob,s_BufferSize,s_RSSI,s_Control);
 	fclose(XRWiFisim1_results);
- 
 	printf("RSSIs: %f %f %f\n",RSSI[0],RSSI[1],RSSI[2]);
+
+
+	/* TEST AREA */
+
+
+	std::ofstream file("fersim/vectors.csv", std::ios_base::app);
+	// std::ofstream file("fersim/vectors.csv");
+
+	if(!file.is_open()){
+		std::cout<< "failed to open"<< std::endl;
+	}
+
+	file << "Load, FPS, Packet Delay(avg) , Packet Delay(99%), Frame Delay (avg), Frame Delay (99%), Frames received[%]"<< std::endl;
+	// for(double i = 0; i < 5; i++) //every vector SHOULD be same size
+	// {
+	file << XRLOAD << "," <<  FPS << "," << XRc[0].csv_fer.mean_packet_delay_ << ","<< XRc[0].csv_fer.packet_delay_99_ << ","<< XRc[0].csv_fer.mean_frame_delay_ << "," << XRc[0].csv_fer.frame_perc_99_ <<"," <<  100*(XRc[0].csv_fer.ratio_frames_) << std::endl; 
+		
+	// }
+	file.close();
+ 
+	
+	
+	
+	
+	//TEST AREA END
+
+
 
 	/*
 	FILE *XRWiFisim1_results;

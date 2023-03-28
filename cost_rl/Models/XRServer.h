@@ -20,7 +20,7 @@ component XRServer : public TypeII
 		inport void in(data_packet &packet);	
 
 		// Timer
-		Timer <trigger_t> inter_video_frame;
+		Timer <trigger_t> inter_video_f
 		Timer <trigger_t> inter_packet_timer;
 		Timer <trigger_t> rate_control;
 
