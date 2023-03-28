@@ -76,7 +76,7 @@ component XRServer : public TypeII
 		double RTT_MAB = 0;
 		
 
-		struct csvfer_t{
+		struct csvfer_t{    ///TODO: CSV OUTPUTS
 			double mean_frame_delay_;
 			double frame_perc_99_;
 
@@ -91,7 +91,7 @@ component XRServer : public TypeII
 			double RTT_MAB = 0;
 		}csv_fer;
 
-		std::vector<csv_fer_t> vector_csv;
+		std::vector <csv_fer_t> vector_csv;
 
 
 };
@@ -116,15 +116,12 @@ void XRServer :: Start()
 	new_load = Load;
 
 	printf("XR Server Start() : Load %f | FPS = %f | Packets = %d\n",Load,fps,NumberPacketsPerFrame);
-	
 
 	for (int r=0;r<10;r++)
 	{
 		MAB_rewards[r]=0.0;
 		printf("%f ",MAB_rewards[r]);
 	}
-
-
 };
 	
 void XRServer :: Stop()
@@ -134,6 +131,11 @@ void XRServer :: Stop()
 	printf("Average RTT (last packet video frame) = %f \n",avRTT/rx_packet_controlRTT);
 	printf("Average Load = %f\n",av_Load/generated_video_frames);
 	printf("Number of Changes = %f | Rate of changes = %f\n",load_changes,load_changes/SimTime());
+
+
+	//MAKE EXCEL HERE
+
+
 
 };
 
@@ -182,8 +184,6 @@ void XRServer :: new_video_frame(trigger_t &)
 	
 }
 
-
-
 void XRServer :: new_packet(trigger_t &)
 {
 	//printf("%f - XR server %d : New packet\n",SimTime(),id);
@@ -205,6 +205,8 @@ void XRServer :: new_packet(trigger_t &)
 	if (rtt_counter >=10){
 		rtt_counter = 0;
 		XR_packet.rtt = true;
+		XR_packet.send_time = SimTime() 
+		
 	}
 	else{XR_packet.rtt = false;}
 
@@ -252,10 +254,16 @@ void XRServer :: in(data_packet &packet)
 		rx_packet_controlRTT++;
 
 		RTT_MAB = (RTT_MAB + RTT)/2;   						// UPDATE METRICS OF RTT: INSERT KALMAN RESULTS HERE
-
+	
 		avRxFrames = (avRxFrames + packet.frames_received)/2;
 
 		received_frames_MAB++;
+
+	}
+
+
+	if(packet.feedback == true){
+		m_owdg = packet.Kalman_p.m_current;
 
 	}
 	received_packets++;

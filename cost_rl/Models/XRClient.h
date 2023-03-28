@@ -44,6 +44,9 @@ component XRClient : public TypeII
 	 	std::vector<double> packet_times;
 		std::vector<double> frame_times;
 
+		double Kalman_measured_delay; 
+		double countt; 
+
 		struct Kalman_t{
 			double t_prev, T_prev;
 			double t_current, T_current;
@@ -63,7 +66,6 @@ component XRClient : public TypeII
 			std::vector <double> v_Kalman;	//measured gain
 			std::vector <double> v_simTime; //simtime
 		}Kalman; 
- 		
 
 
 	private:
@@ -84,6 +86,8 @@ component XRClient : public TypeII
 		double mean_VFD = 0;
 		double p99th_VFD = 0;
 
+		
+
 };
 
 void XRClient :: Setup()
@@ -99,6 +103,22 @@ void XRClient :: Start()
 	tau = (double) 1/(2*fps);
 	printf("%f\n",tau);
 	inter_packet_timer.Set(SimTime()+Exponential(tau));
+
+
+	//KALMAN FILTER FOR OWDG: INTIALIZE
+	Kalman.T_prev= 0;
+	Kalman.t_prev = 0; 
+
+	Kalman.m_current = 0; 
+	Kalman.P_current = 0.1; //set to 10^⁻1 for P(0) 
+	Kalman.noise_prev = 0; 
+	Kalman.residual_z = 0; 
+	Kalman.noise_estimation= 0; 
+	Kalman.P_prev = 0; 
+	Kalman.K_gain = 0; 
+
+	Kalman_measured_delay = 0; 
+	countt = 0;
 
 };
 	
@@ -196,6 +216,63 @@ void XRClient :: in(data_packet &packet)
 	// Probability of not receiving a video frame completely
 	//printf("Packet in the frame = %d\n",packet.num_packet_in_the_frame);
 
+
+	if(packet.rtt==true){
+			//set packet function to trigger in 50E-3 seconds, however queue may be implemented with stable rate (fps)
+			
+			countt +=1; 
+			sink_timer.Set(SimTime() + 50E-3); // TODO: This time of 50E-3 is arbitrary for the time it takes for the packet to exit the sink
+
+			rtt_packet.sink_time = SimTime() + 50E-3; 
+			
+			//here would be a good place for Wifi "backoff", delays etc
+			memcpy(&rtt_packet.L, &packet.L, sizeof(packet.L)); //copy all info inside packet into buffer struct
+			memcpy(&rtt_packet.q_elapsed, &packet.q_elapsed, sizeof(packet.q_elapsed));
+
+			//KALMAN
+
+			Kalman.t_current = SimTime();
+			Kalman.T_current = packet.send_time;
+
+			printf("\tt-1: %f, t: %f, T-1: %f, T: %f\n", Kalman.t_prev, Kalman.t_current, Kalman.T_prev, Kalman.T_current);
+			
+			Kalman.OW_Delay = (Kalman.t_current - Kalman.t_prev) - (Kalman.T_current - Kalman.T_prev); //measured OW delay (d_m)
+
+			Kalman.K_gain = (Kalman.P_prev +Q_NOISE) /( Kalman.P_prev + Q_NOISE + Kalman.noise_estimation); 
+			
+			Kalman.m_current = (1-Kalman.K_gain)*Kalman.m_prev + Kalman.K_gain *Kalman.OW_Delay; 
+			
+			Kalman.residual_z = Kalman.OW_Delay - Kalman.m_prev;
+			
+			Kalman.noise_estimation = (0.95 * Kalman.noise_prev) +pow(Kalman.residual_z,2)*0.05; // Estimation of the measurement noise variance : sigma_n² (Beta = 0.95) 
+			
+			Kalman.P_current = (1-Kalman.K_gain)*(Kalman.P_prev + Q_NOISE); //system error variance = Expected value of (avg_m - m(ti))²
+
+			printf("One way delay(10 packets): %f, K_gain: %f, MEASURED DELAY %f\n\n", Kalman.OW_Delay, Kalman.K_gain, Kalman.m_current);
+			
+			//Add all stats to vector for every instance, for posterior analysis
+			Kalman.v_OWDG.push_back(Kalman.m_current);
+			Kalman.v_jitter.push_back(Kalman.OW_Delay);
+			Kalman.v_Kalman.push_back(Kalman.K_gain);
+			Kalman.v_simTime.push_back(SimTime());	
+
+			//update variables for (t-1) in next execution
+			Kalman.T_prev = Kalman.T_current; 
+			Kalman.t_prev = Kalman.t_current;
+
+			Kalman.P_prev = Kalman.P_current; 
+			Kalman.m_prev = Kalman.m_current;
+			Kalman.noise_prev = Kalman.noise_estimation; 
+
+			Kalman_measured_delay += Kalman.m_current; 
+
+			packet.feedback = true; 
+			packet.Kalman_p = Kalman; //we set the packet's Kalman stats
+			//abs_m = std::fabs(Kalman.m_current); this was for threshold  unneeded
+		}
+	else{packet.feedback = false; }
+
+			//KALMAN FILTER END
 
 	if(packet.video_frame_seq < 10000)
 	{
