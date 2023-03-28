@@ -1,0 +1,12 @@
+./COST/cxx XRWiFi_P1.cc
+g++ -Wall -o XRWiFi_P1 XRWiFi_P1.cxx
+
+echo ./COST/cxx XRWiFisim_Exp0_BianchiValidation.cc
+echo g++ -Wall -o XRWiFisim_Exp0_BianchiValidation XRWiFisim_Exp0_BianchiValidation.cxx
+
+echo ./COST/cxx XRWiFisim_Exp1_RSSI_SingleXRplayer.cc
+echo g++ -Wall -o XRWiFisim_Exp1_RSSI_SingleXRplayer XRWiFisim_Exp1_RSSI_SingleXRplayer.cxx
+
+echo ./COST/cxx XRWiFisim.cc
+echo g++ -Wall -o XRWiFisim XRWiFisim.cxx
+
