@@ -439,7 +439,7 @@ void XRServer :: QLearning(trigger_t& t)
 	Load = 10E6*(state+1);
 };
 
-void XRServer :: AdaptiveVideoControl(trigger_t &)
+void XRServer :: AdaptiveVideoControl(trigger_t & t)
 {
 	#if ADAPTIVE_HEUR==1
   /*
