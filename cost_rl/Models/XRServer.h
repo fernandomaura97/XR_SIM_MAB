@@ -9,11 +9,17 @@
 #include <algorithm>	
 #include "definitions.h"
 
+using namespace std;
+
 #define ADAPTIVE_HEUR 0 		//set to 1 for heuristic adaptive control
 
 #define MAXLOAD 10E7 			// max load for reward calcs
 
-
+const int ITER_SIZE =1000;
+const int ACTION_SIZE= 3;
+const float ALPHA =0.1;
+const float GAMMA= 0.9;
+const int STATE_SIZE = 10;
 
 component XRServer : public TypeII
 {
@@ -25,6 +31,9 @@ component XRServer : public TypeII
 
 		//utilities
 		int overuse_detector(double mowdg, double threshold); //function to detect if mowdg is within limits of threshold. 
+		void GreedyControl();
+		void QLearning();
+		void update( double (&Q)[10][3], int state, int action, double reward, int next_state);
 
 	public: // Connections
 		outport void out(data_packet &packet);
@@ -38,8 +47,9 @@ component XRServer : public TypeII
 		inport inline void new_video_frame(trigger_t& t); // action that takes place when timer expires
 		inport inline void new_packet(trigger_t& t); // action that takes place when timer expires
 		inport inline void AdaptiveVideoControl(trigger_t& t); // action that takes place when timer expires
-		inport inline void GreedyControl(trigger_t& t);
-		inport inline void QLearning(trigger_t& t);
+		
+		
+	
 
 		XRServer () { 
 			connect inter_video_frame.to_component,new_video_frame; 
@@ -63,6 +73,7 @@ component XRServer : public TypeII
 
 		int rtt_counter; 
 		double QoE_metric; 
+		int next_action;
 
 
 	private:
@@ -88,7 +99,7 @@ component XRServer : public TypeII
 		double load_changes = 0;
 		
 		double MAB_rewards[10];
-		int current_action = 0;
+		//int current_action = 0;
 		double sent_frames_MAB = 0;
 		double received_frames_MAB = 0;
 		double RTT_MAB = 0;
@@ -113,15 +124,16 @@ component XRServer : public TypeII
 			double ratio_frames_;
 
 			double MAB_r[10];
-			int current_action = 0;
 			double sent_frames_MAB = 0;
 			double received_frames_MAB = 0;
 			double RTT_MAB = 0;
 		}csv_fer;
 
 		std::vector <csvfer_t> vector_csv;
-		std::vector<std::vector<double>> Q(STATE_SIZE, std::vector<double>(ACTION_SIZE));
+		//std::vector<std::vector<double>>Q_matrix(10, std::vector<double>(3));
+		double Q_matrix[10][3];
 
+	
 };
 
 void XRServer :: Setup()
@@ -210,7 +222,7 @@ void XRServer :: new_video_frame(trigger_t &)
 	// TO study if randomization helps	
 	//inter_video_frame.Set(SimTime()+(double)inter_frame_time/2+2*Random((double)inter_frame_time/2));
 	
-}
+};
 
 void XRServer :: new_packet(trigger_t &)
 {
@@ -337,11 +349,11 @@ void XRServer :: in(data_packet &packet)
 
 };
 
-void XRServer :: GreedyControl(trigger_t& t)
+void XRServer :: GreedyControl()
 {
 	
 	// 2) Next Action
-	int next_action = -1;
+	next_action = -1;
 	if(Random()<=0.25)
 	{
 		// Explore
@@ -374,22 +386,24 @@ void XRServer :: GreedyControl(trigger_t& t)
 };
 
 // Define the update function
-void update(std::vector<std::vector<double>>& Q, int state, int action, double reward, int next_state) {
+void XRServer::update( double (&Q)[10][3] , int state, int action, double reward, int next_state) {
     double old_value = Q[state][action];
-    double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
+    //double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
+	double next_max = *max_element(std::begin(Q[next_state]),  std::end(Q[next_state]));
     double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
     Q[state][action] = new_value;
 }
-void reward(int a, int b){}
-void XRServer :: QLearning(trigger_t& t)
+//void reward(int a, int b){}
+
+void XRServer :: QLearning()
 {
         // Reset the current state to 0
         state = 0;
+		next_action = 0;
 
         // Loop over steps in the episode
         while (state != STATE_SIZE - 1) {
             // Choose an action using an epsilon-greedy policy
-            int next_action = 0;
             double epsilon = 0.1;
 
             if(Random()<=0.25)
@@ -404,23 +418,23 @@ void XRServer :: QLearning(trigger_t& t)
 				printf("***************** EXPLOIT ****************************\n");
 
                 // Choose the action with the highest Q-value
-				for(int a = 0, a < ACTION_SIZE, a++)
+				for(int a = 0; a < ACTION_SIZE; a++)
 				{
-                next_action = Q[state][a] > Q[state][current_action] ? a : current_action;
+                next_action = Q_matrix[state][a] > Q_matrix[state][current_action] ? a : current_action;
 				}
             }
 
             // Calculate the reward and next state
             double r = reward(state, next_action);
-            int next_state = action == 0 ? state + 1 : state - 1;
+            int next_state = current_action == 0 ? state + 1 : state - 1;
 
             // Update the Q-value for the current state-action pair
-            update(Q, state, next_action, r, next_state);
+            update(Q_matrix, state, next_action, r, next_state);
 
             // Update the current state
 			current_action = next_action;
             state = next_state;
-
+		}
 		// {
 		// 			// Get the maximum 
 		// int index_max = 0;
@@ -519,7 +533,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	 #endif
 
 	MAB_rewards[current_action]=(MIN(1,received_frames_MAB/sent_frames_MAB)*Load);    /// UPDATE REWARD OF CURRENT ACTION 
-	GreedyControl(t);
+	GreedyControl();
 
 	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,MAB_rewards[current_action],current_action,received_frames_MAB,sent_frames_MAB);
 	
@@ -554,5 +568,10 @@ int XRServer::overuse_detector(double mowdg, double threshold)
 	}
 };
 
+
+double reward(int state, int next_a){
+	printf(""); //fill
+	return 0.0;
+}
 
 #endif

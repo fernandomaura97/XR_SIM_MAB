@@ -15,11 +15,6 @@
 #define DIFS 31E-6
 #define SIFS 16E-6
 
-#define STATE_SIZE 10
-#define ITER_SIZE 1000
-#define ACTION_SIZE 3
-#define ALPHA 0.1
-#define GAMMA 0.9
 
 struct data_packet
 {
