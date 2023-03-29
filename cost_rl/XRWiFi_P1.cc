@@ -410,9 +410,7 @@ int main(int argc, char *argv[])
 	printf("Input Parameters: XR sources: NXR = %d | fps = %d | XRLoad = %f | Distance = %d\n",NXR,fps,XRLoad,distanceXR);
 	printf("Input Parameters: BG sources: NBG = %d | BGLoad = %f | LBG = %d | BG traffic mode = %d\n",NBG,BGLoad,LBG,BG_mode);
 
-
 	XRWiFisim az;
-
  	az.Seed=seed;
 	az.StopTime(STime);
 	az.Setup(NXR,fps,XRLoad,10000,NBG,BGLoad,LBG,BG_mode,distanceXR,RCA);

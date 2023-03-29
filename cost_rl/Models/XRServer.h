@@ -38,8 +38,13 @@ component XRServer : public TypeII
 		inport inline void new_video_frame(trigger_t& t); // action that takes place when timer expires
 		inport inline void new_packet(trigger_t& t); // action that takes place when timer expires
 		inport inline void AdaptiveVideoControl(trigger_t& t); // action that takes place when timer expires
+<<<<<<< HEAD
+		//inport inline void GreedyControl(trigger_t& t);
+		
+=======
 		inport inline void GreedyControl(trigger_t& t);
 		inport inline void QLearning(trigger_t& t);
+>>>>>>> b9b527cfc826522c662e23494b23ea7f1941959b
 		XRServer () { 
 			connect inter_video_frame.to_component,new_video_frame; 
 			connect inter_packet_timer.to_component,new_packet;
@@ -271,21 +276,21 @@ void XRServer :: in(data_packet &packet)
 	// Compute RTT & losses
 	if(packet.feedback ==true){
 		
-		jitter_sum_quadratic += ((packet.m_owdg)**2); //Quadratic sum of value
+		//jitter_sum_quadratic += ((packet.m_owdg)**2); //Quadratic sum of value
 		int signal_overuse = overuse_detector( packet.m_owdg, packet.threshold_gamma);
 
 		if(signal_overuse == 1){ 
 			rw_threshold = 1;	//NORMAL IS REWARDED 4 TIMES AS UNDERUSE OR OVERUSE, FOR STABILITY
 		}
 		else if (signal_overuse == 2){
-			print("overuse");
+			printf("overuse");
 			rw_threshold = 0.25;
 		}
 		else if(signal_overuse == 0){
 			rw_threshold = 0.25; 
 		}
 
-		printf("Quadratic sum_jitter: %d, mowdg: %d", jitter_sum_quadratic, packet.m_owdg); 
+		printf("Quadratic sum_jitter: %f, mowdg: %f", jitter_sum_quadratic, packet.m_owdg); 
 	}
 
 	if(packet.last_video_frame_packet == 1)
@@ -333,7 +338,12 @@ void XRServer :: in(data_packet &packet)
 	received_packets++;
 
 };
+<<<<<<< HEAD
+//void XRServer :: GreedyControl(trigger_t& t)
+void XRServer :: AdaptiveVideoControl(trigger_t &)
+=======
 void XRServer :: GreedyControl(trigger_t& t)
+>>>>>>> b9b527cfc826522c662e23494b23ea7f1941959b
 {
 	
 	// 2) Next Action
@@ -415,7 +425,7 @@ void XRServer :: QLearning(trigger_t& t)
 
             // Update the current state
             state = next_state;
-{}
+		{
 					// Get the maximum 
 		int index_max = 0;
 		double max_reward = MAB_rewards[0];
