@@ -321,7 +321,6 @@ void XRServer :: in(data_packet &packet)
 
 		m_owdg = packet.m_owdg; //kalman filter estimate of One Way Delay Gradient!
 
-		
 		double packet_loss_ratio = 1 - received_frames_MAB/sent_frames_MAB;
 		
 		if(packet_loss_ratio<0.95){ 
@@ -333,7 +332,8 @@ void XRServer :: in(data_packet &packet)
 
 		//double QoS = ;  
 
-		//QoE_metric = 3.01 * exp( -4.473 * )
+		QoE_metric = 3.01 * exp( -4.473 * packet_loss_ratio) + 1.065; 
+
 
 		jitter_sum_quadratic = 0; 
 
@@ -426,7 +426,10 @@ void XRServer :: QLearning()
 
             // Calculate the reward and next state
             double r = reward(state, next_action);
-            int next_state = current_action == 0 ? state + 1 : state - 1;
+
+            //int next_state = current_action == 0 ? state + 1 : state - 1;
+			
+			// int next_state = updateState(state, next_action);
 
             // Update the Q-value for the current state-action pair
             update(Q_matrix, state, next_action, r, next_state);
@@ -573,5 +576,55 @@ double reward(int state, int next_a){
 	printf(""); //fill
 	return 0.0;
 }
+
+/*
+void updateState(int signal) {
+    switch (currentState) {
+        case HOLD:
+            if (signal == underuse_S) {
+                currentState = HOLD;
+            } 
+            else if(signal == normal_S) {
+                currentState = INCR;
+                // remain in current state
+            }
+            else if(signal == overuse_S){
+                currentState = DECR;
+            }
+            else{printf("????????????");}
+            break;
+        case DECR:
+            if (signal == underuse_S) {
+                currentState = HOLD;
+            } 
+            else if(signal == normal_S) {
+                currentState = HOLD;
+                // remain in current state
+            }
+            else if(signal == overuse_S){
+                currentState = DECR;
+            }
+            else{printf("????");}
+            break;
+			
+        case INCR:
+			if (signal == underuse_S) {
+                currentState = HOLD;
+            } 
+            else if(signal == normal_S) {
+                currentState = INCR;
+                // remain in current state
+            }
+            else if(signal == overuse_S){
+                currentState = DECR;
+            }
+            else{
+				printf("?");
+			}
+            break;     
+    }
+};
+*/
+
 
 #endif
