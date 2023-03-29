@@ -119,7 +119,7 @@ component XRServer : public TypeII
 		}csv_fer;
 
 		std::vector <csvfer_t> vector_csv;
-
+		std::vector<std::vector<double>> Q(STATE_SIZE, std::vector<double>(ACTION_SIZE));
 
 };
 
@@ -403,7 +403,7 @@ void XRServer :: QLearning(trigger_t& t)
 				printf("***************** EXPLOIT ****************************\n");
 
                 // Choose the action with the highest Q-value
-				for(int a = 0, a < 3, a++)
+				for(int a = 0, a < ACTION_SIZE, a++)
 				{
                 action = Q[state][a] > Q[state][action] ? a : action;
 				}
