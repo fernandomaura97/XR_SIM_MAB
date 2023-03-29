@@ -4,7 +4,9 @@
 
 #ifndef _XRServer_
 #define _XRServer_
-		
+
+#include <vector>
+#include <algorithm>	
 #include "definitions.h"
 
 #define ADAPTIVE_HEUR 0 		//set to 1 for heuristic adaptive control
@@ -36,8 +38,13 @@ component XRServer : public TypeII
 		inport inline void new_video_frame(trigger_t& t); // action that takes place when timer expires
 		inport inline void new_packet(trigger_t& t); // action that takes place when timer expires
 		inport inline void AdaptiveVideoControl(trigger_t& t); // action that takes place when timer expires
+<<<<<<< HEAD
 		//inport inline void GreedyControl(trigger_t& t);
 		
+=======
+		inport inline void GreedyControl(trigger_t& t);
+		inport inline void QLearning(trigger_t& t);
+>>>>>>> b9b527cfc826522c662e23494b23ea7f1941959b
 		XRServer () { 
 			connect inter_video_frame.to_component,new_video_frame; 
 			connect inter_packet_timer.to_component,new_packet;
@@ -331,7 +338,120 @@ void XRServer :: in(data_packet &packet)
 	received_packets++;
 
 };
+<<<<<<< HEAD
 //void XRServer :: GreedyControl(trigger_t& t)
+void XRServer :: AdaptiveVideoControl(trigger_t &)
+=======
+void XRServer :: GreedyControl(trigger_t& t)
+>>>>>>> b9b527cfc826522c662e23494b23ea7f1941959b
+{
+	
+	// 2) Next Action
+	int next_action = -1;
+	if(Random()<=0.25)
+	{
+		// Explore
+		printf("***************** EXPLORE ****************************\n");
+		next_action = Random(10);
+		
+	}
+	else
+	{
+		printf("***************** EXPLOIT ****************************\n");
+
+		// Get the maximum 
+		int index_max = 0;
+		double max_reward = MAB_rewards[0];
+		for (int r=0;r<10;r++)
+		{
+			printf("%d %f\n",r,MAB_rewards[r]);
+			if(max_reward < MAB_rewards[r])
+			{
+				index_max = r;
+				max_reward = MAB_rewards[r];
+			}
+		}
+		printf("The action with max reward is %d\n",index_max);
+		next_action = index_max;
+		
+	}
+
+	Load = 10E6*(next_action+1);
+};
+
+// Define the update function
+void update(vector<vector<double>>& Q, int state, int action, double reward, int next_state) {
+    double old_value = Q[state][action];
+    double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
+    double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
+    Q[state][action] = new_value;
+}
+
+void XRServer :: QLearning(trigger_t& t)
+{
+        // Reset the current state to 0
+        int state = 0;
+
+        // Loop over steps in the episode
+        while (state != STATE_SIZE - 1) {
+            // Choose an action using an epsilon-greedy policy
+            int next_action = 0;
+            double epsilon = 0.1;
+
+            if(Random()<=0.25)
+			{
+				// Explore
+				printf("***************** EXPLORE ****************************\n");
+				next_action = Random(10);
+		
+			} 	
+			else
+			{
+				printf("***************** EXPLOIT ****************************\n");
+
+                // Choose the action with the highest Q-value
+				for(int a = 0, a < 3, a++)
+				{
+                action = Q[state][a] > Q[state][action] ? a : action;
+				}
+            }
+
+            // Calculate the reward and next state
+            double r = reward(state, action);
+            int next_state = action == 0 ? state + 1 : state - 1;
+
+            // Update the Q-value for the current state-action pair
+            update(Q, state, action, r, next_state);
+
+            // Update the current state
+            state = next_state;
+        }
+    
+
+	
+	
+	{
+		printf("***************** EXPLOIT ****************************\n");
+
+		// Get the maximum 
+		int index_max = 0;
+		double max_reward = MAB_rewards[0];
+		for (int r=0;r<10;r++)
+		{
+			printf("%d %f\n",r,MAB_rewards[r]);
+			if(max_reward < MAB_rewards[r])
+			{
+				index_max = r;
+				max_reward = MAB_rewards[r];
+			}
+		}
+		printf("The action with max reward is %d\n",index_max);
+		next_action = index_max;
+		
+	}
+
+	Load = 10E6*(next_action+1);
+};
 void XRServer :: AdaptiveVideoControl(trigger_t &)
 {
 	#if ADAPTIVE_HEUR==1
@@ -409,7 +529,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t &)
 	 #endif
 
 	MAB_rewards[current_action]=(MIN(1,received_frames_MAB/sent_frames_MAB)*Load);    /// UPDATE REWARD OF CURRENT ACTION 
-
+	GreedyControl(t);
 
 	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,MAB_rewards[current_action],current_action,received_frames_MAB,sent_frames_MAB);
 	
@@ -418,36 +538,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t &)
 	RTT_MAB = 0;
 		
 	// 2) Next Action
-	int next_action = -1;
-	if(Random()<=0.25)
-	{
-		// Explore
-		printf("***************** EXPLORE ****************************\n");
-		next_action = Random(10);
-		
-	}
-	else
-	{
-		printf("***************** EXPLOIT ****************************\n");
-
-		// Get the maximum 
-		int index_max = 0;
-		double max_reward = MAB_rewards[0]; 
-		for (int r=0;r<10;r++)
-		{
-			printf("%d %f\n",r,MAB_rewards[r]);
-			if(max_reward < MAB_rewards[r])
-			{
-				index_max = r;
-				max_reward = MAB_rewards[r];
-			}
-		}
-		printf("The action with max reward is %d\n",index_max);
-		next_action = index_max;
-		
-	}
-
-	Load = 10E6*(next_action+1);
+	
 
 	printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
 	current_action = next_action;
