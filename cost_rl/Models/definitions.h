@@ -15,6 +15,7 @@
 #define DIFS 31E-6
 #define SIFS 16E-6
 
+// #define STATE_SIZE 10
 
 struct data_packet
 {
