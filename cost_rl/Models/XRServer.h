@@ -53,6 +53,7 @@ component XRServer : public TypeII
 		int destination;
 		double Load; // bps
 		int state; // current state
+		int current_action = 0;
 		double fps;
 		int node_attached;
 		int source_app;
@@ -383,7 +384,7 @@ void reward(int a, int b){}
 void XRServer :: QLearning(trigger_t& t)
 {
         // Reset the current state to 0
-        int state = 0;
+        state = 0;
 
         // Loop over steps in the episode
         while (state != STATE_SIZE - 1) {
@@ -405,19 +406,21 @@ void XRServer :: QLearning(trigger_t& t)
                 // Choose the action with the highest Q-value
 				for(int a = 0, a < ACTION_SIZE, a++)
 				{
-                action = Q[state][a] > Q[state][action] ? a : action;
+                next_action = Q[state][a] > Q[state][current_action] ? a : current_action;
 				}
             }
 
             // Calculate the reward and next state
-            double r = reward(state, action);
+            double r = reward(state, next_action);
             int next_state = action == 0 ? state + 1 : state - 1;
 
             // Update the Q-value for the current state-action pair
-            update(Q, state, action, r, next_state);
+            update(Q, state, next_action, r, next_state);
 
             // Update the current state
+			current_action = next_action;
             state = next_state;
+
 		// {
 		// 			// Get the maximum 
 		// int index_max = 0;
