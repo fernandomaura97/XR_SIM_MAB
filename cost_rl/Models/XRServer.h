@@ -334,12 +334,8 @@ void XRServer :: in(data_packet &packet)
 	received_packets++;
 
 };
-<<<<<<< HEAD
-//void XRServer :: GreedyControl(trigger_t& t)
-void XRServer :: AdaptiveVideoControl(trigger_t &)
-=======
+
 void XRServer :: GreedyControl(trigger_t& t)
->>>>>>> b9b527cfc826522c662e23494b23ea7f1941959b
 {
 	
 	// 2) Next Action
