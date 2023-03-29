@@ -9,6 +9,10 @@
 
 #define ADAPTIVE_HEUR 0 		//set to 1 for heuristic adaptive control
 
+#define MAXLOAD 10E7 			// max load for reward calcs
+
+
+
 component XRServer : public TypeII
 {
 	
@@ -16,6 +20,9 @@ component XRServer : public TypeII
 		void Setup();
 		void Start();
 		void Stop();
+
+		//utilities
+		int overuse_detector(double mowdg, double threshold) //function to detect if mowdg is within limits of threshold. 
 
 	public: // Connections
 		outport void out(data_packet &packet);
@@ -29,10 +36,8 @@ component XRServer : public TypeII
 		inport inline void new_video_frame(trigger_t& t); // action that takes place when timer expires
 		inport inline void new_packet(trigger_t& t); // action that takes place when timer expires
 		inport inline void AdaptiveVideoControl(trigger_t& t); // action that takes place when timer expires
-
-		// rl algorithms
 		inport inline void GreedyControl(trigger_t& t);
-
+		
 		XRServer () { 
 			connect inter_video_frame.to_component,new_video_frame; 
 			connect inter_packet_timer.to_component,new_packet;
@@ -52,6 +57,7 @@ component XRServer : public TypeII
 		int rate_control_activated;
 
 		int rtt_counter; 
+		double QoE_metric; 
 
 
 	private:
@@ -72,13 +78,24 @@ component XRServer : public TypeII
 		double new_load = 0;
 		double controlRTT = 0;
 		double rx_packet_controlRTT=0;
+		
 		double av_Load=0;
 		double load_changes = 0;
+		
 		double MAB_rewards[10];
 		int current_action = 0;
 		double sent_frames_MAB = 0;
 		double received_frames_MAB = 0;
 		double RTT_MAB = 0;
+		double jitter_sum_quadratic = 0; 
+		double jitter_metric = 0; 
+
+		double packet_loss_ratio = 0; 
+		double rw_pl;
+		double rw_threshold; 
+
+		int signal_overuse; 
+
 		
 		double m_owdg; // measure of filtered delay gradient 
 
@@ -250,6 +267,25 @@ void XRServer :: in(data_packet &packet)
 {
 	if(traces_on) printf("%f - XR server %d : Uplink Packet received\n",SimTime(),id);
 	// Compute RTT & losses
+	if(packet.feedback ==true){
+		
+		jitter_sum_quadratic += ((packet.m_owdg)**2); //Quadratic sum of value
+		int signal_overuse = overuse_detector( packet.m_owdg, packet.threshold_gamma);
+
+		if(signal_overuse == 1){ 
+			rw_threshold = 1;	//NORMAL IS REWARDED 4 TIMES AS UNDERUSE OR OVERUSE, FOR STABILITY
+		}
+		else if (signal_overuse == 2){
+			print("overuse");
+			rw_threshold = 0.25;
+		}
+		else if(signal_overuse == 0){
+			rw_threshold = 0.25; 
+		}
+
+		printf("Quadratic sum_jitter: %d, mowdg: %d", jitter_sum_quadratic, packet.m_owdg); 
+	}
+
 	if(packet.last_video_frame_packet == 1)
 	{
 		double RTT = SimTime() - packet.TimeSentAtTheServer;
@@ -260,11 +296,29 @@ void XRServer :: in(data_packet &packet)
 		controlRTT = (controlRTT + RTT)/2;
 		rx_packet_controlRTT++;
 
-		RTT_MAB = (RTT_MAB + RTT)/2;   						// UPDATE METRICS OF RTT: INSERT KALMAN RESULTS HERE
+		RTT_MAB = (RTT_MAB + RTT)/2;   					
+												
 		avRxFrames = (avRxFrames + packet.frames_received)/2;
 
 		received_frames_MAB++;
+
 		m_owdg = packet.m_owdg; //kalman filter estimate of One Way Delay Gradient!
+
+		
+		double packet_loss_ratio = 1 - received_frames_MAB/sent_frames_MAB;
+		
+		if(packet_loss_ratio<0.95){ 
+			rw_pl = 0;
+			}
+		else if (packet_loss_ratio > 0.95) {
+			rw_pl = Load/MAXLOAD; 				
+		}
+
+		//double QoS = ;  
+
+		//QoE_metric = 3.01 * exp( -4.473 * )
+
+		jitter_sum_quadratic = 0; 
 
 	}
 	/* IF WE UPDATE KALMAN FILTER FROM DIFFERENT ROUTINE, USE THIS INSTEAD 
@@ -278,17 +332,92 @@ void XRServer :: in(data_packet &packet)
 
 };
 
+//void XRServer :: AdaptiveVideoControl(trigger_t &)
 void XRServer :: GreedyControl(trigger_t& t)
 {
-	MAB_rewards[current_action]=(MIN(1,received_frames_MAB/sent_frames_MAB)*Load);
+	#if ADAPTIVE_HEUR==1
+  /*
+       if(traces_on) 
+       printf("%f - XR server %d : Rate Control ------------------- with Losses = %f | RTT = %f\n",SimTime(),id,avRxFrames/generated_video_frames,controlRTT);
+
+       //double new_load = Load;       
+       //if((test_frames_received[id]/generated_video_frames) > 0.95 )
+       if(avRxFrames/generated_video_frames > 0.95)
+       {
+               //if(test_average_delay_decision[id] > (double) 1/fps)
+               if(controlRTT > (double) 1/fps)         
+               {
+                       double p_do_something = (100E6 - new_load)/100E6;
+                       //p_do_something = 0.25;
+                       if(Random() >= p_do_something)  
+                       {               
+                               if(traces_on) printf("%f - XR server %d : Decrease Load Delay\n",SimTime(),id);
+                               //fps=MAX(30,fps/2);
+                               new_load = MAX(10E6,new_load-10E6);
+                               load_changes++;
+                       }
+               }
+               else
+               {
+                       double p_do_something = (100E6 - new_load)/100E6;
+                       //p_do_something = 0.25;
+                       if(Random() <= p_do_something)  
+                       {               
+                               if(traces_on) printf("%f - XR server %d : Increase Load Delay\n",SimTime(),id);
+                               new_load = MIN(100E6,new_load+10E6);
+                               load_changes++;
+                       }
+                       else
+                       {
+                               
+                               // do nothing to leave room to others
+                               double time_next = inter_video_frame.GetTime();
+
+                               inter_video_frame.Cancel();
+                               
+                               //double update_time = time_next+Random((double)1/fps);
+                               double update_time = time_next + Random((double) 1.5/fps);
+
+                               if(traces_on) 
+                               printf("%f - XR server %d : Do nothing - Time Next Frame = %f | Updated = %f | Random Values = %f\n",SimTime(),id,time_next,update_time,Random((double) 1.5/fps));
+
+                               inter_video_frame.Set(update_time);
+                               
+                               
+                       }                       
+
+                       //fps=MIN(240,2*fps);
+               }
+       
+       }
+       else
+       {
+                       if(traces_on) printf("%f - XR server : Decrease Load Losses\n",SimTime());
+                       //fps=MAX(30,fps/2);
+                       new_load = MAX(10E6,new_load-10E6);
+                       load_changes++;
+
+       }
+
+
+       NumberPacketsPerFrame = ceil((new_load/L_data)/fps);
+       //tau = (double) L_data/new_load;
+       Load = new_load;
+       if(traces_on) printf("%f - XR server %d : Time to check fps | New Load = %f (%f - %f - %f) | Losses = %f \n",SimTime(),id,new_load,(double) 1/fps,controlRTT,test_average_delay_decision[id],(test_frames_received[id]/generated_video_frames));
+
+
+      */
+	 #endif
+
+	MAB_rewards[current_action]=(MIN(1,received_frames_MAB/sent_frames_MAB)*Load);    /// UPDATE REWARD OF CURRENT ACTION 
+
 
 	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,MAB_rewards[current_action],current_action,received_frames_MAB,sent_frames_MAB);
 	
 	sent_frames_MAB = 0;
 	received_frames_MAB = 0;
 	RTT_MAB = 0;
-
-
+		
 	// 2) Next Action
 	int next_action = -1;
 	if(Random()<=0.25)
@@ -304,7 +433,7 @@ void XRServer :: GreedyControl(trigger_t& t)
 
 		// Get the maximum 
 		int index_max = 0;
-		double max_reward = MAB_rewards[0];
+		double max_reward = MAB_rewards[0]; 
 		for (int r=0;r<10;r++)
 		{
 			printf("%d %f\n",r,MAB_rewards[r]);
@@ -320,99 +449,7 @@ void XRServer :: GreedyControl(trigger_t& t)
 	}
 
 	Load = 10E6*(next_action+1);
-}
 
-void XRServer :: AdaptiveVideoControl(trigger_t & t)
-{
-
-
-
-	/*
-
-	if(traces_on) 
-	printf("%f - XR server %d : Rate Control ------------------- with Losses = %f | RTT = %f\n",SimTime(),id,avRxFrames/generated_video_frames,controlRTT);
-
-	//double new_load = Load;	
-	//if((test_frames_received[id]/generated_video_frames) > 0.95 )
-	if(avRxFrames/generated_video_frames > 0.95)
-	{
-		//if(test_average_delay_decision[id] > (double) 1/fps)
-		if(controlRTT > (double) 1/fps)		
-		{
-			double p_do_something = (100E6 - new_load)/100E6;
-			//p_do_something = 0.25;
-			if(Random() >= p_do_something)	
-			{		
-				if(traces_on) printf("%f - XR server %d : Decrease Load Delay\n",SimTime(),id);
-				//fps=MAX(30,fps/2);
-				new_load = MAX(10E6,new_load-10E6);
-				load_changes++;
-			}
-		}
-		else
-		{
-			double p_do_something = (100E6 - new_load)/100E6;
-			//p_do_something = 0.25;
-			if(Random() <= p_do_something)	
-			{		
-				if(traces_on) printf("%f - XR server %d : Increase Load Delay\n",SimTime(),id);
-				new_load = MIN(100E6,new_load+10E6);
-				load_changes++;
-			}
-			else
-			{
-				
-				// do nothing to leave room to others
-				double time_next = inter_video_frame.GetTime();
-
-				inter_video_frame.Cancel();
-				
-				//double update_time = time_next+Random((double)1/fps);
-				double update_time = time_next + Random((double) 1.5/fps);
-
-				if(traces_on) 
-				printf("%f - XR server %d : Do nothing - Time Next Frame = %f | Updated = %f | Random Values = %f\n",SimTime(),id,time_next,update_time,Random((double) 1.5/fps));
-
-				inter_video_frame.Set(update_time);
-				
-				
-			}			
-
-			//fps=MIN(240,2*fps);
-		}
-	
-	}
-	else
-	{
-			if(traces_on) printf("%f - XR server : Decrease Load Losses\n",SimTime());
-			//fps=MAX(30,fps/2);
-			new_load = MAX(10E6,new_load-10E6);
-			load_changes++;
-
-	}
-
-
-	NumberPacketsPerFrame = ceil((new_load/L_data)/fps);
-	//tau = (double) L_data/new_load;
-	Load = new_load;
-	if(traces_on) printf("%f - XR server %d : Time to check fps | New Load = %f (%f - %f - %f) | Losses = %f \n",SimTime(),id,new_load,(double) 1/fps,controlRTT,test_average_delay_decision[id],(test_frames_received[id]/generated_video_frames));
-
-
-	*/
-
-	// MAB based Load adaptation
-
-	// 1) Update Reward
-
-	//MAB_rewards[current_action]=0.5*MAB_rewards[current_action] + 0.5*(test_frames_received[id]/generated_video_frames)*Load;
-	//MAB_rewards[current_action]=0.5*MAB_rewards[current_action] + 0.5*(test_frames_received[id]/generated_video_frames);
-	//MAB_rewards[current_action]=0.5*MAB_rewards[current_action] + 0.5*(Load/controlRTT);
-	//MAB_rewards[current_action]=0.5*MAB_rewards[current_action] + 0.5*(MIN(1,received_frames_MAB/sent_frames_MAB));
-
-	#if ADAPTIVE_HEUR==1
-	GreedyControl(t);
-
-	
 	printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
 	current_action = next_action;
 
@@ -420,6 +457,22 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	
 };
 
+int XRServer::overuse_detector(double mowdg, double threshold)
+{
+	if(mowdg > threshold){
+		return 2;
+	}
+	else if( mowdg < (-threshold)){
+		return 0;  // UNDERUSE
+	}
+	else if((-threshold <= mowdg ) && (mowdg<=threshold)){
+		return 1;	//NORMAL
+	}
+	else{
+		throw std::runtime_error("THIS IS NOT SUPPOSED TO HAPPEN!!!");
+		return 999;
+	}
+};
 
 
 #endif

@@ -19,6 +19,9 @@ component XRClient : public TypeII
 		void Start();
 		void Stop();
 
+		//"utilities"
+		double K_gamma(double mowdf, double gamma_prev); 
+
 	public: // Connections
 		outport void out(data_packet &packet);
 		inport void in(data_packet &packet);	
@@ -46,6 +49,7 @@ component XRClient : public TypeII
 
 		double Kalman_measured_delay; 
 		double countt; 
+		double abs_m; 
 
 		struct Kalman_t{
 			double t_prev, T_prev;
@@ -66,6 +70,15 @@ component XRClient : public TypeII
 			std::vector <double> v_Kalman;	//measured gain
 			std::vector <double> v_simTime; //simtime
 		}Kalman; 
+
+		struct Threshold_t{
+			double gamma;
+			double gamma_prev;
+			double dT;
+			double abs_OWDG;
+			double K_gamma;
+		}Threshold;
+
 
 
 	private:
@@ -119,6 +132,8 @@ void XRClient :: Start()
 
 	Kalman_measured_delay = 0; 
 	countt = 0;
+	Threshold.gamma = 0; 
+	Threshold.gamma_prev = 0; 
 
 };
 	
@@ -337,21 +352,24 @@ void XRClient :: in(data_packet &packet)
 		Kalman.T_current = packet.sent_time;
 
 		printf("\tt-1: %f, t: %f, T-1: %f, T: %f\n", Kalman.t_prev, Kalman.t_current, Kalman.T_prev, Kalman.T_current);
-		
 		Kalman.OW_Delay = (Kalman.t_current - Kalman.t_prev) - (Kalman.T_current - Kalman.T_prev); //measured OW delay (d_m)
-
 		Kalman.K_gain = (Kalman.P_prev +Q_NOISE) /( Kalman.P_prev + Q_NOISE + Kalman.noise_estimation); 
-		
 		Kalman.m_current = (1-Kalman.K_gain)*Kalman.m_prev + Kalman.K_gain *Kalman.OW_Delay; 
-		
-		Kalman.residual_z = Kalman.OW_Delay - Kalman.m_prev;
-		
+		Kalman.residual_z = Kalman.OW_Delay - Kalman.m_prev;	
 		Kalman.noise_estimation = (0.95 * Kalman.noise_prev) +pow(Kalman.residual_z,2)*0.05; // Estimation of the measurement noise variance : sigma_n² (Beta = 0.95) 
-		
+	
 		Kalman.P_current = (1-Kalman.K_gain)*(Kalman.P_prev + Q_NOISE); //system error variance = Expected value of (avg_m - m(ti))²
 
 		printf("One way delay(10 packets): %f, K_gain: %f, MEASURED DELAY %f\n\n", Kalman.OW_Delay, Kalman.K_gain, Kalman.m_current);
-		
+		abs_m = std::fabs(Kalman.m_current);
+
+		//KALMAN FILTER END
+
+		//THRESHOLD CALCULATION
+		Threshold.gamma = Threshold.gamma_prev + Kalman.OW_Delay * K_gamma( Kalman.OW_Delay, Threshold.gamma_prev) * (abs_m - Threshold.gamma_prev);
+
+		printf("Threshold gamma: %f, Threshold(t-1): %f ", Threshold.gamma, Threshold.gamma_prev);
+
 		//Add all stats to vector for every instance, for posterior analysis
 		Kalman.v_OWDG.push_back(Kalman.m_current);
 		Kalman.v_jitter.push_back(Kalman.OW_Delay);
@@ -370,11 +388,27 @@ void XRClient :: in(data_packet &packet)
 
 		packet.feedback = true; 
 		packet.m_owdg = Kalman.m_current; //we set the packet's Kalman stats
+		packet.threshold_gamma = Threshold.gamma; 
+		
+		Threshold.gamma_prev = Threshold.gamma; 
+
 		out(XR_packet);	
 	}
 
 	
 };
 
+double XRClient::K_gamma(double mowdg, double gamma_prev){
+
+	double K_d = 0.01;		//    (ku,kd) = (0.01, 0.00018)
+	double K_u = 0.00018;		// "guarantees good trade-off between high throughput, delay reduction and inter-protocol fairness :) "
+
+	if(mowdg<gamma_prev){
+		return K_d;
+	}
+	else{
+		return K_u; 
+	}
+};
 
 #endif
