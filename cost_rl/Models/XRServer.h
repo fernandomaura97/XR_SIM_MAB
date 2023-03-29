@@ -22,7 +22,7 @@ component XRServer : public TypeII
 		void Stop();
 
 		//utilities
-		int overuse_detector(double mowdg, double threshold) //function to detect if mowdg is within limits of threshold. 
+		int overuse_detector(double mowdg, double threshold); //function to detect if mowdg is within limits of threshold. 
 
 	public: // Connections
 		outport void out(data_packet &packet);
@@ -36,7 +36,7 @@ component XRServer : public TypeII
 		inport inline void new_video_frame(trigger_t& t); // action that takes place when timer expires
 		inport inline void new_packet(trigger_t& t); // action that takes place when timer expires
 		inport inline void AdaptiveVideoControl(trigger_t& t); // action that takes place when timer expires
-		inport inline void GreedyControl(trigger_t& t);
+		//inport inline void GreedyControl(trigger_t& t);
 		
 		XRServer () { 
 			connect inter_video_frame.to_component,new_video_frame; 
@@ -269,21 +269,21 @@ void XRServer :: in(data_packet &packet)
 	// Compute RTT & losses
 	if(packet.feedback ==true){
 		
-		jitter_sum_quadratic += ((packet.m_owdg)**2); //Quadratic sum of value
+		//jitter_sum_quadratic += ((packet.m_owdg)**2); //Quadratic sum of value
 		int signal_overuse = overuse_detector( packet.m_owdg, packet.threshold_gamma);
 
 		if(signal_overuse == 1){ 
 			rw_threshold = 1;	//NORMAL IS REWARDED 4 TIMES AS UNDERUSE OR OVERUSE, FOR STABILITY
 		}
 		else if (signal_overuse == 2){
-			print("overuse");
+			printf("overuse");
 			rw_threshold = 0.25;
 		}
 		else if(signal_overuse == 0){
 			rw_threshold = 0.25; 
 		}
 
-		printf("Quadratic sum_jitter: %d, mowdg: %d", jitter_sum_quadratic, packet.m_owdg); 
+		printf("Quadratic sum_jitter: %f, mowdg: %f", jitter_sum_quadratic, packet.m_owdg); 
 	}
 
 	if(packet.last_video_frame_packet == 1)
@@ -331,9 +331,8 @@ void XRServer :: in(data_packet &packet)
 	received_packets++;
 
 };
-
-//void XRServer :: AdaptiveVideoControl(trigger_t &)
-void XRServer :: GreedyControl(trigger_t& t)
+//void XRServer :: GreedyControl(trigger_t& t)
+void XRServer :: AdaptiveVideoControl(trigger_t &)
 {
 	#if ADAPTIVE_HEUR==1
   /*
