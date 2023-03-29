@@ -55,7 +55,8 @@ struct data_packet
 	bool rtt;
 
 	double m_owdg;
-
+	double threshold_gamma; 
+	
 	struct Kalman_t{
 				double OW_Delay;
 				double K_gain;
@@ -64,6 +65,7 @@ struct data_packet
 				double residual_z;
 			}Kalman_p; 
 
+	
 
 }; 
 
