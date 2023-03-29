@@ -24,7 +24,7 @@ component XRServer : public TypeII
 		void Stop();
 
 		//utilities
-		int overuse_detector(double mowdg, double threshold) //function to detect if mowdg is within limits of threshold. 
+		int overuse_detector(double mowdg, double threshold); //function to detect if mowdg is within limits of threshold. 
 
 	public: // Connections
 		outport void out(data_packet &packet);
