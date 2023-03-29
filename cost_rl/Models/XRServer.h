@@ -417,26 +417,27 @@ void XRServer :: QLearning(trigger_t& t)
 
             // Update the current state
             state = next_state;
-		{
-					// Get the maximum 
-		int index_max = 0;
-		double max_reward = MAB_rewards[0];
-		for (int r=0;r<10;r++)
-		{
-			printf("%d %f\n",r,MAB_rewards[r]);
-			if(max_reward < MAB_rewards[r])
-			{
-				index_max = r;
-				max_reward = MAB_rewards[r];
-			}
-		}
-		printf("The action with max reward is %d\n",index_max);
-		next_action = index_max;
-		}
-        }
+		// {
+		// 			// Get the maximum 
+		// int index_max = 0;
+		// double max_reward = MAB_rewards[0];
+		// for (int r=0;r<10;r++)
+		// {
+		// 	printf("%d %f\n",r,MAB_rewards[r]);
+		// 	if(max_reward < MAB_rewards[r])
+		// 	{
+		// 		index_max = r;
+		// 		max_reward = MAB_rewards[r];
+		// 	}
+		// }
+		// printf("The action with max reward is %d\n",index_max);
+		// next_action = index_max;
+		// }
+        // }
     
 	Load = 10E6*(next_action+1);
 };
+
 void XRServer :: AdaptiveVideoControl(trigger_t &)
 {
 	#if ADAPTIVE_HEUR==1
