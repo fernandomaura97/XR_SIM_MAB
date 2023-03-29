@@ -52,6 +52,7 @@ component XRServer : public TypeII
 		int L_data;
 		int destination;
 		double Load; // bps
+		int state; // current state
 		double fps;
 		int node_attached;
 		int source_app;
@@ -344,7 +345,7 @@ void XRServer :: GreedyControl(trigger_t& t)
 	{
 		// Explore
 		printf("***************** EXPLORE ****************************\n");
-		next_action = Random(10);
+		next_action = Random(2);  
 		
 	}
 	else
@@ -372,13 +373,13 @@ void XRServer :: GreedyControl(trigger_t& t)
 };
 
 // Define the update function
-void update(vector<vector<double>>& Q, int state, int action, double reward, int next_state) {
+void update(std::vector<std::vector<double>>& Q, int state, int action, double reward, int next_state) {
     double old_value = Q[state][action];
     double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
     double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
     Q[state][action] = new_value;
 }
-
+void reward(int a, int b){}
 void XRServer :: QLearning(trigger_t& t)
 {
         // Reset the current state to 0
@@ -393,8 +394,8 @@ void XRServer :: QLearning(trigger_t& t)
             if(Random()<=0.25)
 			{
 				// Explore
-				printf("***************** EXPLORE ****************************\n");
-				next_action = Random(10);
+				// printf("***************** EXPLORE ****************************\n");
+				next_action = Random(2);
 		
 			} 	
 			else
@@ -435,7 +436,7 @@ void XRServer :: QLearning(trigger_t& t)
 		// }
         // }
     
-	Load = 10E6*(next_action+1);
+	Load = 10E6*(state+1);
 };
 
 void XRServer :: AdaptiveVideoControl(trigger_t &)
