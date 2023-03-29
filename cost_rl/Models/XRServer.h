@@ -36,6 +36,7 @@ component XRServer : public TypeII
 		inport inline void new_video_frame(trigger_t& t); // action that takes place when timer expires
 		inport inline void new_packet(trigger_t& t); // action that takes place when timer expires
 		inport inline void AdaptiveVideoControl(trigger_t& t); // action that takes place when timer expires
+		inport inline void GreedyControl(trigger_t& t);
 		
 		XRServer () { 
 			connect inter_video_frame.to_component,new_video_frame; 
@@ -331,10 +332,9 @@ void XRServer :: in(data_packet &packet)
 
 };
 
-void XRServer :: AdaptiveVideoControl(trigger_t &)
+//void XRServer :: AdaptiveVideoControl(trigger_t &)
+void XRServer :: GreedyControl(trigger_t& t)
 {
-
-
 	#if ADAPTIVE_HEUR==1
   /*
        if(traces_on) 
