@@ -419,7 +419,7 @@ void XRServer :: QLearning(trigger_t& t)
     
 
 	
-	else
+	
 	{
 		printf("***************** EXPLOIT ****************************\n");
 
