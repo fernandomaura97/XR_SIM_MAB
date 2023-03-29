@@ -38,13 +38,9 @@ component XRServer : public TypeII
 		inport inline void new_video_frame(trigger_t& t); // action that takes place when timer expires
 		inport inline void new_packet(trigger_t& t); // action that takes place when timer expires
 		inport inline void AdaptiveVideoControl(trigger_t& t); // action that takes place when timer expires
-<<<<<<< HEAD
-		//inport inline void GreedyControl(trigger_t& t);
-		
-=======
 		inport inline void GreedyControl(trigger_t& t);
 		inport inline void QLearning(trigger_t& t);
->>>>>>> b9b527cfc826522c662e23494b23ea7f1941959b
+
 		XRServer () { 
 			connect inter_video_frame.to_component,new_video_frame; 
 			connect inter_packet_timer.to_component,new_packet;
