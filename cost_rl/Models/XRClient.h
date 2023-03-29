@@ -389,6 +389,7 @@ void XRClient :: in(data_packet &packet)
 		packet.feedback = true; 
 		packet.m_owdg = Kalman.m_current; //we set the packet's Kalman stats
 		packet.threshold_gamma = Threshold.gamma; 
+		
 		Threshold.gamma_prev = Threshold.gamma; 
 
 		out(XR_packet);	
