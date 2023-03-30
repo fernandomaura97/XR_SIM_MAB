@@ -15,6 +15,10 @@ using namespace std;
 
 #define MAXLOAD 10E7 			// max load for reward calcs
 
+#define INC_CONTROL 1.02 	//how much we increase or decrease our load depending on action chosen. 
+#define DEC_CONTROL 0.98
+
+
 const int ITER_SIZE =1000;
 const int ACTION_SIZE= 3;
 const float ALPHA =0.1;
@@ -35,6 +39,8 @@ component XRServer : public TypeII
 		void QLearning();
 		void update( double (&Q)[10][3], int state, int action, double reward, int next_state);
 
+		double reward(double state, int action); 
+
 	public: // Connections
 		outport void out(data_packet &packet);
 		inport void in(data_packet &packet);	
@@ -49,7 +55,7 @@ component XRServer : public TypeII
 		inport inline void AdaptiveVideoControl(trigger_t& t); // action that takes place when timer expires
 		
 		
-	
+		
 
 		XRServer () { 
 			connect inter_video_frame.to_component,new_video_frame; 
@@ -75,7 +81,7 @@ component XRServer : public TypeII
 		double QoE_metric; 
 		int next_action;
 
-
+		double past_load; //just some var to store the last load in order to calculate next one. 
 	private:
 		double tau; //
 		double inter_frame_time;
@@ -286,21 +292,24 @@ void XRServer :: in(data_packet &packet)
 	// Compute RTT & losses
 	if(packet.feedback ==true){
 		
-		//jitter_sum_quadratic += ((packet.m_owdg)**2); //Quadratic sum of value
+		jitter_sum_quadratic += pow(packet.m_owdg, 2); //Quadratic sum of value
 		int signal_overuse = overuse_detector( packet.m_owdg, packet.threshold_gamma);
 
 		if(signal_overuse == 1){ 
-			rw_threshold = 1;	//NORMAL IS REWARDED 4 TIMES AS UNDERUSE OR OVERUSE, FOR STABILITY
+			rw_threshold = 1;	//NORMAL IS REWARDED 3 TIMES AS UNDERUSE OR OVERUSE, FOR STABILITY
+			printf("[dbg]NORMAL");
 		}
-		else if (signal_overuse == 2){
-			printf("overuse");
-			rw_threshold = 0.25;
+		else if (signal_overuse == 2){ 
+			printf("[dbg]OVERUSE\n");
+			rw_threshold = 0.25;  //overuse
 		}
 		else if(signal_overuse == 0){
-			rw_threshold = 0.25; 
-		}
+			rw_threshold = 0.25; //underuse reward
+			printf("[dbg]UNDERUSE\n");
 
-		printf("Quadratic sum_jitter: %f, mowdg: %f", jitter_sum_quadratic, packet.m_owdg); 
+		}
+		
+		printf("Quadratic sum_jitter: %f, mowdg: %f, threhsold: %f", jitter_sum_quadratic, packet.m_owdg, packet.threshold_gamma); 
 	}
 
 	if(packet.last_video_frame_packet == 1)
@@ -319,7 +328,7 @@ void XRServer :: in(data_packet &packet)
 
 		received_frames_MAB++;
 
-		m_owdg = packet.m_owdg; //kalman filter estimate of One Way Delay Gradient!
+		//m_owdg = packet.m_owdg; //kalman filter estimate of One Way Delay Gradient!
 
 		double packet_loss_ratio = 1 - received_frames_MAB/sent_frames_MAB;
 		
@@ -330,10 +339,13 @@ void XRServer :: in(data_packet &packet)
 			rw_pl = Load/MAXLOAD; 				
 		}
 
-		//double QoS = ;  
+		//double QoE_metric0 = 3.01 * exp(-4.473 * packet_loss_ratio) + 1.065; // metric only taking into account the packet loss ratio
 
-		QoE_metric = 3.01 * exp( -4.473 * packet_loss_ratio) + 1.065; 
+		QoE_metric = 3.01 * exp( -4.473 * (0.5 * packet_loss_ratio + 0.5 * rw_threshold )) + 1.065; // metric with webrtc congestion control added on top of packet loss
 
+		//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
+		
+		//double QoE_Boris = ((1/fps)/RTT_MAB) *(rw_pl) ;								//metric proposed by boris to leverage different metrics
 
 		jitter_sum_quadratic = 0; 
 
@@ -358,7 +370,11 @@ void XRServer :: GreedyControl()
 	{
 		// Explore
 		printf("***************** EXPLORE ****************************\n");
-		next_action = Random(2);  
+		next_action = Random(2); 
+		/*
+		//If action = 0: increase. 	
+		if a == 1: KEEP load, 
+		if a == 2: Decrease Load */
 		
 	}
 	else
@@ -383,6 +399,9 @@ void XRServer :: GreedyControl()
 	}
 
 	Load = 10E6*(next_action+1);
+	//NumberPacketsPerFrame = ceil((Load/L_data)/fps);
+
+
 };
 
 // Define the update function
@@ -391,6 +410,7 @@ void XRServer::update( double (&Q)[10][3] , int state, int action, double reward
     //double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
 	double next_max = *max_element(std::begin(Q[next_state]),  std::end(Q[next_state]));
     double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
+
     Q[state][action] = new_value;
 }
 //void reward(int a, int b){}
@@ -404,13 +424,19 @@ void XRServer :: QLearning()
         // Loop over steps in the episode
         while (state != STATE_SIZE - 1) {
             // Choose an action using an epsilon-greedy policy
-            double epsilon = 0.1;
+            //double epsilon = 0.1;
 
-            if(Random()<=0.25)
+			past_load = Load; 
+
+            if(Random()<= 0.25)
 			{
 				// Explore
-				// printf("***************** EXPLORE ****************************\n");
+				printf("***************** EXPLORE ****************************\n");
 				next_action = Random(2);
+
+				//If action = 0: decrease. 	
+				//if a == 1: KEEP load, 
+				//if a == 2: Increase Load */
 		
 			} 	
 			else
@@ -423,20 +449,36 @@ void XRServer :: QLearning()
                 next_action = Q_matrix[state][a] > Q_matrix[state][current_action] ? a : current_action;
 				}
             }
+			
+			if(next_action == 0){
+				Load = DEC_CONTROL * past_load;
+			}
+			else if (next_action == 1){
+				Load = past_load;
+			}
+			else if (next_action == 2){
+				Load = INC_CONTROL * past_load;
+			}
+
 
             // Calculate the reward and next state
-            double r = reward(state, next_action);
+            //double r = reward(state, next_action);
 
+			//next_state = feature_map(Load); 
+
+				
             //int next_state = current_action == 0 ? state + 1 : state - 1;
 			
 			// int next_state = updateState(state, next_action);
 
             // Update the Q-value for the current state-action pair
-            update(Q_matrix, state, next_action, r, next_state);
+            
+			
+			//update(Q_matrix, state, next_action, r, next_state);
 
             // Update the current state
 			current_action = next_action;
-            state = next_state;
+           // state = next_state;
 		}
 		// {
 		// 			// Get the maximum 
@@ -457,6 +499,8 @@ void XRServer :: QLearning()
         // }
     
 	Load = 10E6*(state+1);
+	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
+
 };
 
 void XRServer :: AdaptiveVideoControl(trigger_t & t)
@@ -551,7 +595,6 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	current_action = next_action;
 
 	rate_control.Set(SimTime()+(0.1));
-	
 };
 
 int XRServer::overuse_detector(double mowdg, double threshold)
