@@ -39,6 +39,8 @@ component XRServer : public TypeII
 		void QLearning();
 		void update( double (&Q)[10][3], int state, int action, double reward, int next_state);
 
+		int* feature_map(double Load);
+
 		double reward(double state, int action); 
 
 	public: // Connections
@@ -82,6 +84,9 @@ component XRServer : public TypeII
 		int next_action;
 
 		double past_load; //just some var to store the last load in order to calculate next one. 
+
+		double rx_f_pl;		//for calculating packet loss over windows of time 
+		double sent_f_pl;  
 	private:
 		double tau; //
 		double inter_frame_time;
@@ -163,6 +168,9 @@ void XRServer :: Start()
 
 	printf("XR Server Start() : Load %f | FPS = %f | Packets = %d\n",Load,fps,NumberPacketsPerFrame);
 
+	rx_f_pl = 0;
+	sent_f_pl = 0 ;
+	
 	for (int r=0;r<10;r++)
 	{
 		MAB_rewards[r]=0.0;
@@ -195,6 +203,8 @@ void XRServer :: new_video_frame(trigger_t &)
 	inter_packet_timer.Set(SimTime()+10E-6);
 	generated_video_frames++;	
 	sent_frames_MAB++;
+	sent_f_pl = 0 ;
+
 
 	av_Load += Load;
 
@@ -306,9 +316,7 @@ void XRServer :: in(data_packet &packet)
 		else if(signal_overuse == 0){
 			rw_threshold = 0.25; //underuse reward
 			printf("[dbg]UNDERUSE\n");
-
 		}
-		
 		printf("Quadratic sum_jitter: %f, mowdg: %f, threhsold: %f\n", jitter_sum_quadratic, packet.m_owdg, packet.threshold_gamma); 
 	}
 
@@ -327,10 +335,13 @@ void XRServer :: in(data_packet &packet)
 		avRxFrames = (avRxFrames + packet.frames_received)/2;
 
 		received_frames_MAB++;
+		rx_f_pl++; 
 
 		//m_owdg = packet.m_owdg; //kalman filter estimate of One Way Delay Gradient!
 
-		double packet_loss_ratio = 1 - received_frames_MAB/sent_frames_MAB;
+		double packet_loss_ratio = received_frames_MAB/sent_frames_MAB;
+		printf("Packet loss: %f, rw_threshold = %f\n", packet_loss_ratio, rw_threshold);
+		
 		
 		if(packet_loss_ratio<0.95){ 
 			rw_pl = 0;
@@ -341,16 +352,17 @@ void XRServer :: in(data_packet &packet)
 
 		//double QoE_metric0 = 3.01 * exp(-4.473 * packet_loss_ratio) + 1.065; // metric only taking into account the packet loss ratio
 
-		QoE_metric = 3.01 * exp( -4.473 * (0.5 * packet_loss_ratio + 0.5 * rw_threshold )) + 1.065; // metric with webrtc congestion control added on top of packet loss
+		QoE_metric = 3.01 * exp( -4.473 * (0.5 * packet_loss_ratio + 0.5*rw_threshold)) + 1.065; // metric with webrtc congestion control added on top of packet loss
 
 		printf("QOEEEEE: %f\n\n", QoE_metric);
 		//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
 		
 		//double QoE_Boris = ((1/fps)/RTT_MAB) *(rw_pl) ;								//metric proposed by boris to leverage different metrics
 		
-
-		
-
+		/*
+		if ( QoE_metric < )
+		QoE_rw += QoE_metric
+		*/
 		jitter_sum_quadratic = 0; 
 
 	}
@@ -433,15 +445,13 @@ void XRServer :: QLearning()
 			past_load = Load; 
 
             if(Random()<= 0.25)
-			{
-				// Explore
+			{	// Explore
 				printf("***************** EXPLORE ****************************\n");
 				next_action = Random(2);
 
-				//If action = 0: decrease. 	
-				//if a == 1: KEEP load, 
-				//if a == 2: Increase Load */
-		
+						//If action = 0: decrease. 	
+						//if a == 1: KEEP load, 
+						//if a == 2: Increase Load */
 			} 	
 			else
 			{
@@ -454,22 +464,31 @@ void XRServer :: QLearning()
 				}
             }
 			
-			if(next_action == 0){
+			if(next_action == 0){				//CHOOSE NEXT LOAD BASED ON ACTION
 				Load = DEC_CONTROL * past_load;
 			}
-			else if (next_action == 1){
+			else if (next_action == 1){ //keep
 				Load = past_load;
 			}
-			else if (next_action == 2){
+			else if (next_action == 2){ //increase
 				Load = INC_CONTROL * past_load;
+
+				if(Load >= MAXLOAD){
+					Load = MAXLOAD;
+					printf("WARN : In maxload already!\n");
+				}
 			}
+
+			int* next_state = feature_map(Load); 
+			
+			NumberPacketsPerFrame = ceil((Load/L_data)/fps);	
 
 
             // Calculate the reward and next state
             //double r = reward(state, next_action);
 
 			//next_state = feature_map(Load); 
-
+			
 				
             //int next_state = current_action == 0 ? state + 1 : state - 1;
 			
@@ -502,8 +521,7 @@ void XRServer :: QLearning()
 		// }
         // }
     
-	Load = 10E6*(state+1);
-	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
+	//Load = 10E6*(state+1);
 
 };
 
@@ -584,7 +602,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	 #endif
 
 	MAB_rewards[current_action]=(MIN(1,received_frames_MAB/sent_frames_MAB)*Load);    /// UPDATE REWARD OF CURRENT ACTION 
-	GreedyControl();
+	//GreedyControl();
 
 	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,MAB_rewards[current_action],current_action,received_frames_MAB,sent_frames_MAB);
 	
@@ -593,8 +611,6 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	RTT_MAB = 0;
 		
 	// 2) Next Action
-	
-
 	printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
 	current_action = next_action;
 
@@ -617,6 +633,34 @@ int XRServer::overuse_detector(double mowdg, double threshold)
 		return 999;
 	}
 };
+
+/*
+int XRServer::feature_map(double Load){
+
+	int State[21]; 
+	for (int i = 0; i < 20; ++i){ //iterate through state vector
+        
+		if ((Load >= 5E6*(i-1)) && (Load <= (5E6 *i -1))){
+		    printf("load between %f, %f", 5E6*(i-1), (5E6 *i -1));
+			State[i] = 1
+            }
+	}
+    
+    return State;
+}
+*/
+int* XRServer::feature_map(double Load){
+
+	static int State[21]; 
+	for (int i = 0; i < 21; ++i){ //iterate through state vector
+        
+		if ((Load >= 5E6*(i-1)) && (Load <= (5E6 *i -1))){
+		    printf("load between %f, %f", 5E6*(i-1), (5E6 *i -1));
+			State[i] = 1;
+            }
+	}
+    return State;
+}
 
 
 double reward(int state, int next_a){
