@@ -293,11 +293,11 @@ void XRServer :: in(data_packet &packet)
 	if(packet.feedback ==true){
 		
 		jitter_sum_quadratic += pow(packet.m_owdg, 2); //Quadratic sum of value
-		int signal_overuse = overuse_detector( packet.m_owdg, packet.threshold_gamma);
+		int signal_overuse = overuse_detector(packet.m_owdg, packet.threshold_gamma);
 
 		if(signal_overuse == 1){ 
 			rw_threshold = 1;	//NORMAL IS REWARDED 3 TIMES AS UNDERUSE OR OVERUSE, FOR STABILITY
-			printf("[dbg]NORMAL");
+			printf("[dbg]NORMAL\n");
 		}
 		else if (signal_overuse == 2){ 
 			printf("[dbg]OVERUSE\n");
@@ -309,7 +309,7 @@ void XRServer :: in(data_packet &packet)
 
 		}
 		
-		printf("Quadratic sum_jitter: %f, mowdg: %f, threhsold: %f", jitter_sum_quadratic, packet.m_owdg, packet.threshold_gamma); 
+		printf("Quadratic sum_jitter: %f, mowdg: %f, threhsold: %f\n", jitter_sum_quadratic, packet.m_owdg, packet.threshold_gamma); 
 	}
 
 	if(packet.last_video_frame_packet == 1)
@@ -343,9 +343,13 @@ void XRServer :: in(data_packet &packet)
 
 		QoE_metric = 3.01 * exp( -4.473 * (0.5 * packet_loss_ratio + 0.5 * rw_threshold )) + 1.065; // metric with webrtc congestion control added on top of packet loss
 
+		printf("QOEEEEE: %f\n\n", QoE_metric);
 		//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
 		
 		//double QoE_Boris = ((1/fps)/RTT_MAB) *(rw_pl) ;								//metric proposed by boris to leverage different metrics
+		
+
+		
 
 		jitter_sum_quadratic = 0; 
 

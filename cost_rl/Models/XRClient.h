@@ -353,7 +353,7 @@ void XRClient :: in(data_packet &packet)
 		Kalman.t_current = SimTime();
 		Kalman.T_current = packet.sent_time;
 
-		printf("\tt-1: %f, t: %f, T-1: %f, T: %f\n", Kalman.t_prev, Kalman.t_current, Kalman.T_prev, Kalman.T_current);
+		//printf("\tt-1: %f, t: %f, T-1: %f, T: %f\n", Kalman.t_prev, Kalman.t_current, Kalman.T_prev, Kalman.T_current);
 		Kalman.OW_Delay = (Kalman.t_current - Kalman.t_prev) - (Kalman.T_current - Kalman.T_prev); //measured OW delay (d_m)
 		Kalman.K_gain = (Kalman.P_prev +Q_NOISE) /( Kalman.P_prev + Q_NOISE + Kalman.noise_estimation); 
 		Kalman.m_current = (1-Kalman.K_gain)*Kalman.m_prev + Kalman.K_gain *Kalman.OW_Delay; 
@@ -362,15 +362,15 @@ void XRClient :: in(data_packet &packet)
 	
 		Kalman.P_current = (1-Kalman.K_gain)*(Kalman.P_prev + Q_NOISE); //system error variance = Expected value of (avg_m - m(ti))²
 
-		printf("One way delay(10 packets): %f, K_gain: %f, MEASURED DELAY %f\n\n", Kalman.OW_Delay, Kalman.K_gain, Kalman.m_current);
+		//printf("One way delay(10 packets): %f, K_gain: %f, MEASURED DELAY %f\n\n", Kalman.OW_Delay, Kalman.K_gain, Kalman.m_current);
 		abs_m = std::fabs(Kalman.m_current);
 
 		//KALMAN FILTER END
 
 		//THRESHOLD CALCULATION
-		Threshold.gamma = Threshold.gamma_prev + Kalman.OW_Delay * K_gamma( Kalman.OW_Delay, Threshold.gamma_prev) * (abs_m - Threshold.gamma_prev);
+		Threshold.gamma = Threshold.gamma_prev + (Kalman.t_current - Kalman.t_prev) * K_gamma( Kalman.OW_Delay, Threshold.gamma_prev) * (abs_m - Threshold.gamma_prev);
 
-		printf("Threshold gamma: %f, Threshold(t-1): %f ", Threshold.gamma, Threshold.gamma_prev);
+		//printf("Threshold gamma: %f, Threshold(t-1): %f ", Threshold.gamma, Threshold.gamma_prev);
 
 		//Add all stats to vector for every instance, for posterior analysis
 		Kalman.v_OWDG.push_back(Kalman.m_current);
@@ -388,9 +388,13 @@ void XRClient :: in(data_packet &packet)
 
 		Kalman_measured_delay += Kalman.m_current; 
 
-		packet.feedback = true; 
-		packet.m_owdg = Kalman.m_current; //we set the packet's Kalman stats
-		packet.threshold_gamma = Threshold.gamma; 
+
+
+		XR_packet.m_owdg = Kalman.m_current; //we set the packet's Kalman stats
+		XR_packet.threshold_gamma = Threshold.gamma; 	
+		XR_packet.feedback = true; //to send to the server. 
+		
+		//printf("******%f -> %f mowdf\n %f ->%f threshold \n", Kalman.m_current, XR_packet.m_owdg, Threshold.gamma, XR_packet.threshold_gamma);
 		
 		Threshold.gamma_prev = Threshold.gamma; 
 

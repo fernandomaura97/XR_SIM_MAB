@@ -200,7 +200,8 @@ void Station :: in_slot(SLOT_indicator &slot)
 				
 				if(Random()>pe)
 				{	
-					MAC_queue.pop_front();			
+					//MAC_queue.pop_front();		
+					MAC_queue.erase(MAC_queue.begin()+packet_queue_index);	
 					queueing_service_delay_aux += (SimTime()-frame_test.queueing_service_delay-SLOT);
 					//printf("%f - STA - Packet to AP %d without errors\n",SimTime(),frame_test.destination);
 					//for(int n=0;n<NumberStations;n++) out_to_wireless[n](frame_test); // We send each packet to the corresponding destination		
@@ -214,12 +215,14 @@ void Station :: in_slot(SLOT_indicator &slot)
 
 			}
 
+			//printf("%f - STA - End TX : Queue Size = %li\n",SimTime(),MAC_queue.size());
 			queueing_service_delay_aux = queueing_service_delay_aux / current_ampdu_size;
 			queueing_service_delay += queueing_service_delay_aux;
 			current_ampdu_size=0; // Quite irrelevant, since we are not transmitting yet
 			attempts=0;
 			service_time += (SimTime()-aux_service_time-SLOT);
 			successful++;
+			mode = 0;
 
 		}
 
@@ -269,7 +272,7 @@ void Station :: in_slot(SLOT_indicator &slot)
 		//printf("Mode = 1 and backoff counter = %d\n",backoff_counter);		
 		if(backoff_counter==0)
 		{
-			//printf("%f-AP %d is going to start a transmission -------------------------------------------------------------\n",SimTime(),id);
+			//printf("%f - @@@@@@@@@@@@@@@@@@@@@@@Station %d is going to start a transmission with buffer size %li-------------------------------------------------------------\n",SimTime(),id,MAC_queue.size());
 			//printf("%f-Node %d backoff = 0\n",SimTime(),id);
 			// Time to sent a frame
 			current_ampdu_size = MIN((int)MAC_queue.size(),MAX_AMPDU);
