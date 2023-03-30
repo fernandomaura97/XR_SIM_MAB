@@ -27,7 +27,7 @@ using namespace std;
 const int ITER_SIZE =1000;
 const int ACTION_SIZE= 3;
 const float ALPHA =0.1;
-const float GAMMA= 0.9;
+const float GAMMA= 0.99;
 const int STATE_SIZE = 10;
 double QoE_metric; 
 
@@ -314,15 +314,15 @@ void XRServer :: in(data_packet &packet)
 		int signal_overuse = overuse_detector(packet.m_owdg, packet.threshold_gamma);
 
 		if(signal_overuse == 1){ 
-			rw_threshold = 0.25;	//NORMAL IS REWARDED 3 TIMES AS UNDERUSE OR OVERUSE, FOR STABILITY
+			rw_threshold += 1;	//NORMAL IS REWARDED 3 TIMES AS UNDERUSE OR OVERUSE, FOR STABILITY
 			printf("[dbg]NORMAL\n");
 		}
 		else if (signal_overuse == 2){ 
 			printf("[dbg]OVERUSE\n");
-			rw_threshold = 1;  //overuse
+			rw_threshold += 0.25;  //overuse
 		}
 		else if(signal_overuse == 0){
-			rw_threshold = 1; //underuse reward
+			rw_threshold += 0.25; //underuse reward
 			printf("[dbg]UNDERUSE\n");
 		}
 		printf("Quadratic sum_jitter: %f, mowdg: %f, threhsold: %f\n", jitter_sum_quadratic, packet.m_owdg, packet.threshold_gamma); 
@@ -350,7 +350,7 @@ void XRServer :: in(data_packet &packet)
 		//double packet_loss_ratio = received_frames_MAB/sent_frames_MAB;
 		double packet_loss_ratio = std::abs(rx_f_pl/sent_f_pl);
 
-		printf("Packet loss: %f, rw_threshold = %f\n", packet_loss_ratio, rw_threshold);
+		printf("Packet loss: %f, rw_threshold = %f\n", (1 - packet_loss_ratio), rw_threshold);
 		
 		
 		if(packet_loss_ratio<0.95){ 
@@ -364,7 +364,7 @@ void XRServer :: in(data_packet &packet)
 
 		QoE_metric = 3.01 * exp( -4.473 * (0.5 * (1 - packet_loss_ratio) + 0.5*rw_threshold)) + 1.065; // metric with webrtc congestion control added on top of packet loss
 		
-		QoE_metric = QoE_metric /  4.075 ;
+		QoE_metric = QoE_metric /  4.075 ; // NORMALIZE QOE TO 1? 
 		printf("QOEEEEE: %f\n\n", QoE_metric);
 		//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
 		
@@ -408,7 +408,7 @@ void XRServer :: GreedyControl()
 	}
 	else
 	{
-		printf("***************** EXPLOIT ****************************\n");
+		printf("***************** EXPLOIT ****************************" %f\n, SimTime());
 
 		// Get the maximum 
 		int index_max = 0;
@@ -449,7 +449,7 @@ void XRServer :: QLearning()
 		next_action = 0;
 
         // Loop over steps in the episode
-        while (state_q != STATE_SIZE - 1) {
+        while (state_q != N_STATES - 1) {
             // Choose an action using an epsilon-greedy policy
             //double epsilon = 0.1;
 
@@ -474,7 +474,7 @@ void XRServer :: QLearning()
                 next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action;
 				}
             }
-			
+			printf("Next action: %d\n ", next_action);
 			if(next_action == 0){				//CHOOSE NEXT LOAD BASED ON ACTION
 				Load = DEC_CONTROL * past_load;
 			}
@@ -499,16 +499,17 @@ void XRServer :: QLearning()
 
 						
             // Update the Q-value for the current state-action pair
-            
-			
+            		
 			update(state_q, next_action, r, next_state);
-
 
             // Update the current state
 			current_action = next_action;
 
 			state_q = next_state; 			// WARNING CHECK AND TEST THIS
-            current_state = next_state;
+            printf("next state: %d", next_state);
+			
+			
+			current_state = next_state; //
 		}
 };
 
@@ -659,15 +660,15 @@ double XRServer::reward(int state, int next_a){
 	if(state == 1){
 		if (next_a == 0) 
 		{
-			rw = -1; 
+			rw = -10; 
 		}
 	}
-	else if (state ==20){
+	else if (state == 20){
 		if (next_a == 2 ){
-			rw = -1; 
+			rw = -10;	//let's try to stay far from edges 
 		}
 	} 
-	else {rw = 0.5* QoE_metric + 0.5*( (state * 5E6)/MAXLOAD);}
+	else {rw = 0.8* QoE_metric + 0.2*( (state * 5E6)/MAXLOAD);}
 	printf("%f reward!", rw);
 	return rw; 
 }

@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <numeric>
 
-#define Q_NOISE 10E-2 // WE CAN ALSO PLAY WITH THIS PARAMETER, IT'S STATE NOISE. 
+#define Q_NOISE 10E-3 // WE CAN ALSO PLAY WITH THIS PARAMETER, IT'S STATE NOISE. 
 
 
 
