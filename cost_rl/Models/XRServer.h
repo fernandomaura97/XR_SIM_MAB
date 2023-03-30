@@ -17,8 +17,8 @@ using namespace std;
 
 #define MAXLOAD 10E7 			// max load for reward calcs
 
-#define INC_CONTROL 1.02 	//how much we increase or decrease our load depending on action chosen. 
-#define DEC_CONTROL 0.98
+#define INC_CONTROL 1.03 	//how much we increase or decrease our load depending on action chosen. 
+#define DEC_CONTROL 0.97
 
 
 #define N_STATES 20 
@@ -27,7 +27,7 @@ using namespace std;
 const int ITER_SIZE =1000;
 const int ACTION_SIZE= 3;
 const float ALPHA =0.1;
-const float GAMMA= 0.99;
+const float GAMMA= 0.9;
 const int STATE_SIZE = 10;
 double QoE_metric; 
 
@@ -62,9 +62,6 @@ component XRServer : public TypeII
 		inport inline void new_packet(trigger_t& t); // action that takes place when timer expires
 		inport inline void AdaptiveVideoControl(trigger_t& t); // action that takes place when timer expires
 		
-		
-		
-
 		XRServer () { 
 			connect inter_video_frame.to_component,new_video_frame; 
 			connect inter_packet_timer.to_component,new_packet;
@@ -92,6 +89,8 @@ component XRServer : public TypeII
 
 		double rx_f_pl;		//for calculating packet loss over windows of time 
 		double sent_f_pl;  
+
+		int state_q;
 	private:
 		double tau; //
 		double inter_frame_time;
@@ -178,7 +177,7 @@ void XRServer :: Start()
 
 	rx_f_pl = 0;
 	sent_f_pl = 0 ;
-	
+	state_q = 0 ;
 	for (int r=0;r<10;r++)
 	{
 		MAB_rewards[r]=0.0;
@@ -208,14 +207,13 @@ void XRServer :: new_video_frame(trigger_t &)
 	last_frame_generation_time = SimTime();
 	tx_packets_per_frame = NumberPacketsPerFrame;
 	auxNumberPacketsPerFrame = NumberPacketsPerFrame;
+
 	inter_packet_timer.Set(SimTime()+10E-6);
 	generated_video_frames++;	
 	sent_frames_MAB++;
 	sent_f_pl++;
 
-
 	av_Load += Load;
-
 	/*
 	if(test_average_delay_decision[id] > (double) 1/fps)
 	{
@@ -229,10 +227,7 @@ void XRServer :: new_video_frame(trigger_t &)
 
 	*/
 	//printf("%f - XR server %d : Average Delay = %f | fps = %f | Time = %f | Load (new) = %f\n",SimTime(),id,test_average_delay_decision[id],fps,(double)1/fps,new_load);
-
-
 	inter_video_frame.Set(SimTime()+inter_frame_time); // New frame
-
 	/*
 	if(Random()>p_control)
 	{	
@@ -314,16 +309,16 @@ void XRServer :: in(data_packet &packet)
 		int signal_overuse = overuse_detector(packet.m_owdg, packet.threshold_gamma);
 
 		if(signal_overuse == 1){ 
-			rw_threshold += 1;	//NORMAL IS REWARDED 3 TIMES AS UNDERUSE OR OVERUSE, FOR STABILITY
-			printf("[dbg]NORMAL\n");
+			rw_threshold = 0.5;	//NORMAL IS REWARDED 3 TIMES AS UNDERUSE OR OVERUSE, FOR STABILITY
+			//printf("[dbg]NORMAL\n");
 		}
 		else if (signal_overuse == 2){ 
-			printf("[dbg]OVERUSE\n");
-			rw_threshold += 0.25;  //overuse
+			//printf("[dbg]OVERUSE\n");
+			rw_threshold = 0.3;  //overuse
 		}
 		else if(signal_overuse == 0){
-			rw_threshold += 0.25; //underuse reward
-			printf("[dbg]UNDERUSE\n");
+			rw_threshold = 0.3; //underuse reward
+			//printf("[dbg]UNDERUSE\n");
 		}
 		printf("Quadratic sum_jitter: %f, mowdg: %f, threhsold: %f\n", jitter_sum_quadratic, packet.m_owdg, packet.threshold_gamma); 
 	}
@@ -360,9 +355,9 @@ void XRServer :: in(data_packet &packet)
 			rw_pl = Load/MAXLOAD; 				
 		}
 		
-		//QoE_metric0 = 3.01 * exp(-4.473 * packet_loss_ratio) + 1.065; // metric only taking into account the packet loss ratio
+		QoE_metric = 3.01 * exp(-4.473 * (1-packet_loss_ratio)) + 1.065; // metric only taking into account the packet loss ratio
 
-		QoE_metric = 3.01 * exp( -4.473 * (0.5 * (1 - packet_loss_ratio) + 0.5*rw_threshold)) + 1.065; // metric with webrtc congestion control added on top of packet loss
+		//QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio) + 0.2*rw_threshold)) + 1.065; // metric with webrtc congestion control added on top of packet loss
 		
 		QoE_metric = QoE_metric /  4.075 ; // NORMALIZE QOE TO 1? 
 		printf("QOEEEEE: %f\n\n", QoE_metric);
@@ -383,7 +378,6 @@ void XRServer :: in(data_packet &packet)
 
 	}
 	*/
-
 	received_packets++;
 
 };
@@ -408,7 +402,7 @@ void XRServer :: GreedyControl()
 	}
 	else
 	{
-		printf("***************** EXPLOIT ****************************" %f\n, SimTime());
+		printf("***************** EXPLOIT **************************** %f\n", SimTime());
 
 		// Get the maximum 
 		int index_max = 0;
@@ -444,16 +438,15 @@ void XRServer::update( int state, int action, double reward, int next_state) {
 
 void XRServer :: QLearning()
 {
-        // Reset the current state to 0
-        int state_q = 0;
-		next_action = 0;
+        // Reset the current state to 0        TEST: NOT RECURSIVE MAYBE
+        //int state_q = 0;
+		//next_action = 0;
 
         // Loop over steps in the episode
-        while (state_q != N_STATES - 1) {
-            // Choose an action using an epsilon-greedy policy
+        // Choose an action using an epsilon-greedy policy
             //double epsilon = 0.1;
 
-			past_load = Load; 
+		past_load = Load; 
 
             if(Random()<= 0.25)
 			{	// Explore
@@ -476,19 +469,20 @@ void XRServer :: QLearning()
             }
 			printf("Next action: %d\n ", next_action);
 			if(next_action == 0){				//CHOOSE NEXT LOAD BASED ON ACTION
-				Load = DEC_CONTROL * past_load;
+				Load = DEC_CONTROL * past_load; 
 			}
 			else if (next_action == 1){ //keep
 				Load = past_load;
 			}
 			else if (next_action == 2){ //increase
 				Load = INC_CONTROL * past_load;
-
 				if(Load >= MAXLOAD){
 					Load = MAXLOAD;
 					printf("WARN : In maxload already!\n");
 				}
 			}
+
+			printf("LOAD IS: %f \n", Load);
 
 			int next_state = feature_map(Load); 
 			
@@ -497,7 +491,6 @@ void XRServer :: QLearning()
             // Calculate the reward and next state
             double r = reward(state_q, next_action);
 
-						
             // Update the Q-value for the current state-action pair
             		
 			update(state_q, next_action, r, next_state);
@@ -510,7 +503,7 @@ void XRServer :: QLearning()
 			
 			
 			current_state = next_state; //
-		}
+		
 };
 
 void XRServer :: AdaptiveVideoControl(trigger_t & t)
@@ -668,7 +661,7 @@ double XRServer::reward(int state, int next_a){
 			rw = -10;	//let's try to stay far from edges 
 		}
 	} 
-	else {rw = 0.8* QoE_metric + 0.2*( (state * 5E6)/MAXLOAD);}
+	else {rw = 0.95* QoE_metric + 0.05*( (state * 5E6)/MAXLOAD);}
 	printf("%f reward!", rw);
 	return rw; 
 }
