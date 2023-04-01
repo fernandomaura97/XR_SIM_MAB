@@ -15,6 +15,7 @@
 #include <iomanip>
 
 #include <string>
+#include <cstring> // include the cstring header for memcpy
 
 
 
@@ -113,6 +114,7 @@ component XRServer : public TypeII
 		double last_mowdg; //aux variable to sample last owdg every 0.1 seconds
 		double last_threshold; //aux for last threshold from webrtc value
 
+		double passes; 
 		struct csv_t{
 
 			std::vector <double> v__SimTime;	// Time of simulation
@@ -163,6 +165,11 @@ component XRServer : public TypeII
 
 		int signal_overuse; 
 		double Q_matrix[N_STATES][3]; 
+
+		double Q_matrix_t10[N_STATES][3]; 
+		double Q_matrix_t30[N_STATES][3]; 
+		double Q_matrix_t50[N_STATES][3]; 
+		double Q_matrix_t100[N_STATES][3]; 	
 
 		double packet_loss_window;
 		double packet_received_window;
@@ -239,7 +246,55 @@ void XRServer :: Stop()
 	printf("Average Load = %f\n",av_Load/generated_video_frames);
 	printf("Number of Changes = %f | Rate of changes = %f\n",load_changes,load_changes/SimTime());
 
+	//EXPORT Q MATRICES: 
+	ofstream outfile("Results/Qmatrix/Q_fini.txt");
+	ofstream outfile1("Results/Qmatrix/Q_t10.txt");
+	ofstream outfile2("Results/Qmatrix/Q_t30.txt");
+	ofstream outfile3("Results/Qmatrix/Q_t50.txt");
+	ofstream outfile4("Results/Qmatrix/Q_t100.txt");
 
+
+
+	for (int i = 0; i < N_STATES; ++i) {		// Matrix 1: Q_t10
+		for (int j = 0; j < 3; ++j) {
+			outfile1 << Q_matrix_t10[i][j] << " ";
+		}
+		outfile1 << endl;
+	}
+	outfile1.close();
+
+	for (int i = 0; i < N_STATES; ++i) {	// Matrix 2 Q_t30
+		for (int j = 0; j < 3; ++j) {
+			outfile2 << Q_matrix_t30[i][j] << "\t";
+		}
+		outfile << endl;
+	} 
+	outfile2.close();
+
+	for (int i = 0; i < N_STATES; ++i) {	// Matrix 3 Q_t50
+		for (int j = 0; j < 3; ++j) {
+			outfile3 << Q_matrix_t50[i][j] << "\t";
+		}
+		outfile3 << endl;
+	}
+	outfile3.close();
+
+		for (int i = 0; i < N_STATES; ++i) {	// Matrix 4 Q_t100 
+			for (int j = 0; j < 3; ++j) {
+				outfile4 << Q_matrix_t100[i][j] << "\t";
+			}
+			outfile4 << endl;
+		}
+	outfile4.close();
+	// 	// Matrix 5 Q_final 
+		for (int i = 0; i < N_STATES; ++i) {
+			for (int j = 0; j < 3; ++j) {
+				outfile << Q_matrix[i][j] << "\t";
+			}
+			outfile << endl;
+		}
+	// 
+	outfile.close();
 	//CSV RESULTS
 
 	std::stringstream stream;
@@ -584,8 +639,7 @@ void XRServer :: QLearning()
             printf("next state: %d", next_state);
 						
 			current_state = next_state; //
-
-		
+					
 };
 
 void XRServer :: AdaptiveVideoControl(trigger_t & t)
@@ -666,6 +720,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 	MAB_rewards[current_action]=(MIN(1,reward(current_state, current_action)));  //LEGACY CODE, NOT USED BY US   /// UPDATE REWARD OF CURRENT ACTION 
 	//GreedyControl();
+	passes++; 
 	QLearning(); 
 
 	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,MAB_rewards[current_action],current_action,received_frames_MAB,sent_frames_MAB);
@@ -676,8 +731,8 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 	
 	// UPDATE ALL CSV VECTORS
-
-	csv_.v__SimTime.push_back(SimTime());
+	double t___ = SimTime();
+	csv_.v__SimTime.push_back(t___);
 	csv_.v__current_action.push_back(current_action);
 	csv_.v__reward.push_back(reward(current_state, current_action));
 	csv_.v__load.push_back(Load);
@@ -690,7 +745,23 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	csv_.v__RTT.push_back(RTT_MAB);
 	csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
 	
-	
+	if(passes == 100) //10 seconds
+	{
+		std::memcpy(Q_matrix_t10, Q_matrix, sizeof(Q_matrix)); 
+	}
+	else if(passes == 300) //30 seconds
+	{
+		std::memcpy(Q_matrix_t30, Q_matrix, sizeof(Q_matrix)); 
+	}
+	else if(passes == 500) //50 seconds
+	{
+		std::memcpy(Q_matrix_t50, Q_matrix, sizeof(Q_matrix)); 
+	}
+	else if(passes == 1000) //100 seconds
+	{
+		std::memcpy(Q_matrix_t100, Q_matrix, sizeof(Q_matrix)); 
+	}
+
 	sent_frames_MAB = 0;
 	received_frames_MAB = 0;
 	RTT_MAB = 0;
