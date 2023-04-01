@@ -253,8 +253,6 @@ void XRServer :: Stop()
 	ofstream outfile3("Results/Qmatrix/Q_t50.txt");
 	ofstream outfile4("Results/Qmatrix/Q_t100.txt");
 
-
-
 	for (int i = 0; i < N_STATES; ++i) {		// Matrix 1: Q_t10
 		for (int j = 0; j < 3; ++j) {
 			outfile1 << Q_matrix_t10[i][j] << " ";
@@ -267,7 +265,7 @@ void XRServer :: Stop()
 		for (int j = 0; j < 3; ++j) {
 			outfile2 << Q_matrix_t30[i][j] << "\t";
 		}
-		outfile << endl;
+		outfile2 << endl;
 	} 
 	outfile2.close();
 
