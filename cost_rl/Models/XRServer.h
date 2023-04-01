@@ -12,6 +12,10 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <iomanip>
+
+#include <string>
+
 
 
 
@@ -71,7 +75,7 @@ component XRServer : public TypeII
 			connect inter_packet_timer.to_component,new_packet;
 			connect rate_control.to_component,AdaptiveVideoControl;}
 
-
+		
 	public: // Input parameters
 		int id; // sender
 		int L_data;
@@ -85,7 +89,16 @@ component XRServer : public TypeII
 		int destination_app;
 		double last_frame_generation_time;
 		int rate_control_activated;
+		
+		struct input_arg_t {
+			int seed; 
+			double STime;
+			int fps; 
+			double XRLoad; 
+			double BGLoad;
+		}st_input_args;
 
+		//Input params end
 		int rtt_counter; 
 		int next_action;
 
@@ -202,6 +215,12 @@ void XRServer :: Start()
 
 	printf("XR Server Start() : Load %f | FPS = %f | Packets = %d\n",Load,fps,NumberPacketsPerFrame);
 
+	printf("seed: %d\n", st_input_args.seed);
+    printf("STime: %lf\n", st_input_args.STime);
+    printf("fps: %d\n", st_input_args.fps);
+    printf("XRLoad: %lf\n", st_input_args.XRLoad);
+    printf("BGLoad: %lf\n", st_input_args.BGLoad);
+
 	rx_f_pl = 0;
 	sent_f_pl = 0 ;
 	state_q = 0 ;
@@ -223,22 +242,35 @@ void XRServer :: Stop()
 
 	//CSV RESULTS
 
+	std::stringstream stream;
+    stream << std::fixed << std::setprecision(1) << (st_input_args.XRLoad/10E6);
+    std::string xrl_str = stream.str();
 
-	std::ofstream file("Results/csv/Results_Q.csv");
+    stream.str("");
+    stream << std::fixed << std::setprecision(1) << (st_input_args.BGLoad/10E6);
+    std::string bgl_str = stream.str();
+
+	stream.str("");
+    stream << std::fixed << std::setprecision(1) << st_input_args.STime;
+    std::string stime = stream.str();
+
+	std::string filename = "Res_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +".csv";
+
+	//1std::string filename = "Res_T"+std::to_string((int)st_input_args.STime)+"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+std::to_string((int)st_input_args.XRLoad/10E6 )+"_BG"+std::to_string((int)st_input_args.BGLoad/10E6) +".csv";
+	printf("\n\nFILENAMEEEEEEEEEEEEEEEEEEEE: %s\n",filename.c_str());
+	std::ofstream file("Results/csv/" + filename);
 
 	if(!file.is_open()){
 		std::cout<< "failed to open"<< std::endl;
 	}
 
-	file << "simtime,current action,reward,load,FM_state,packets per frame,QoE,frame loss,last mowdg,RTT,lastthreshold,quadratic sum mowdg"<< std::endl;
+	file << "simtime,current_action,reward,load,FM_state,packets_per_frame,QoE,frame_loss,last_mowdg,RTT,lastthreshold,quadraticsum_mowdg"<< std::endl;
 	for(double i = 0; i < csv_.v__SimTime.size(); i++) //every vector SHOULD be same size
 	{
 		file << csv_.v__SimTime[i] << "," << csv_.v__current_action[i] << "," << csv_.v__reward[i] << "," << csv_.v__load[i]<<"," << csv_.v__FM[i]	<< "," << csv_.v__p_p_f[i]<< "," << csv_.v__QoE[i]<< "," << csv_.v__frame_loss[i]<<"," << csv_.v__k_mowdg[i]<<"," << csv_.v__RTT[i]<<"," << csv_.v__threshold[i]<<"," << csv_.v_quadr_modg[i]<<	std::endl; 
 		//add all metrics to csv output
 	}
 	file.close();
-
-
 
 };
 
@@ -511,7 +543,7 @@ void XRServer :: QLearning()
 				printf("***************** EXPLOIT **************************** %f\n", SimTime());
 
                 // Choose the action with the highest Q-value
-				for(int a = 0; a < ACTION_SIZE; a++)
+				for (int a = 0; a < ACTION_SIZE; a++)
 				{
                 next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action;
 				}
@@ -719,12 +751,12 @@ double XRServer::reward(int state, int next_a){
 	if(state == 1){
 		if (next_a == 0) 
 		{
-			rw = -10; 
+			rw = -1; 
 		}
 	}
 	else if (state == 20){
 		if (next_a == 2 ){
-			rw = -10;	//let's try to stay far from edges 
+			rw = -1;	//let's try to stay far from edges 
 		}
 	} 
 	

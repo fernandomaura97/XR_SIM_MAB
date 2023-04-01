@@ -37,11 +37,17 @@ double RSSI[100]; // Received Power at the destination
 double test_average_delay_decision[10] = {0};
 double test_frames_received[10] = {0};
 
-
+struct input_arg_t { 			//struct for passing input args to server:
+			int seed; 
+			double STime;
+			int fps; 
+			double XRLoad; 
+			double BGLoad;
+		}st_input_args;
 component XRWiFisim : public CostSimEng
 {
 	public:
-		void Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, double BGLoad, int LBG, int BG_mode,int x, int RCA);
+		void Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, double BGLoad, int LBG, int BG_mode,int x, int RCA, input_arg_t st);
 		void Start();		
 		void Stop();
 	
@@ -63,9 +69,11 @@ component XRWiFisim : public CostSimEng
 		double BGLoad_ = 0;
 		int RCA_ = 0;
 		int BG_mode_ = -1;
+
+		//input_arg_t st_input_args;
 };
 
-void XRWiFisim :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, double BGLoad, int LBG, int BG_mode,int x, int RCA)
+void XRWiFisim :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, double BGLoad, int LBG, int BG_mode,int x, int RCA, input_arg_t st )
 {
 
 	distance_ = x;
@@ -93,6 +101,10 @@ void XRWiFisim :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, doubl
 		XRs[n].source_app = n;
 		XRs[n].destination_app = n;
 		XRs[n].rate_control_activated = RCA;
+		XRs[n].st_input_args.STime = st_input_args.STime;
+		XRs[n].st_input_args.fps = st_input_args.fps; 
+		XRs[n].st_input_args.BGLoad = st_input_args.BGLoad; 
+		XRs[n].st_input_args.XRLoad = st_input_args.XRLoad;
 	}
 
 	XRc.SetSize(NXR);
@@ -402,8 +414,15 @@ int main(int argc, char *argv[])
 	double BGLoad = atof(argv[8]);
 	int LBG = atoi(argv[9]);
 	int BG_mode = atoi(argv[10]);
-
 	int RCA = atoi(argv[11]);
+
+	//add parameters to struct to pass it to server, then make custom TRACKABLE csv's for each SEPARATE	sim
+	st_input_args.STime = STime;
+	st_input_args.fps = fps;
+	st_input_args.BGLoad = BGLoad; 
+	st_input_args.XRLoad = XRLoad;
+
+
 
 	printf("---- XRWiFisim1 ----\n");
 	printf("Seed = %d | SimTime = %f | Rate Control Activated = %d\n",seed,STime,RCA);
@@ -413,7 +432,7 @@ int main(int argc, char *argv[])
 	XRWiFisim az;
  	az.Seed=seed;
 	az.StopTime(STime);
-	az.Setup(NXR,fps,XRLoad,10000,NBG,BGLoad,LBG,BG_mode,distanceXR,RCA);
+	az.Setup(NXR,fps,XRLoad,10000,NBG,BGLoad,LBG,BG_mode,distanceXR,RCA, st_input_args);
 
 	printf("Run\n");
 
