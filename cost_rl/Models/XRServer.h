@@ -9,6 +9,10 @@
 #include <algorithm>	
 #include "definitions.h"
 #include <cmath>
+#include <fstream>
+#include <iostream>
+#include <iterator>
+
 
 
 using namespace std;
@@ -91,6 +95,26 @@ component XRServer : public TypeII
 		double sent_f_pl;  
 
 		int state_q;
+
+
+		double last_mowdg; //aux variable to sample last owdg every 0.1 seconds
+		double last_threshold; //aux for last threshold from webrtc value
+
+		struct csv_t{
+
+			std::vector <double> v__SimTime;	// Time of simulation
+			std::vector <double> v__current_action;  //current chosen action from Qlearning
+			std::vector <double> v__reward;	//current reward
+			std::vector <double> v__load;	//current load
+			std::vector <double> v__FM;		//feature map value
+			std::vector <double> v__p_p_f; //packets per frame
+			std::vector <double> v__QoE; // QoE metric at thatr instant
+			std::vector <double> v__frame_loss; // frame loss 
+			std::vector <double> v__k_mowdg; //measured one way delay gradient
+			std::vector <double> v__RTT; //round trip time
+			std::vector <double> v__threshold; 
+			std::vector <double> v_quadr_modg; //measure of quadratic sum of measured owdg over window
+		}csv_; 
 	private:
 		double tau; //
 		double inter_frame_time;
@@ -118,8 +142,7 @@ component XRServer : public TypeII
 		double sent_frames_MAB = 0;
 		double received_frames_MAB = 0;
 		double RTT_MAB = 0;
-		double jitter_sum_quadratic = 0; 
-		double jitter_metric = 0; 
+		double jitter_sum_quadratic = 0; //aux var to keep track of mowdg over windows
 
 		double packet_loss_ratio = 0; 
 		double rw_pl;
@@ -198,7 +221,24 @@ void XRServer :: Stop()
 	printf("Number of Changes = %f | Rate of changes = %f\n",load_changes,load_changes/SimTime());
 
 
-	//MAKE EXCEL HERE
+	//CSV RESULTS
+
+
+	std::ofstream file("Results/csv/Results_Q.csv");
+
+	if(!file.is_open()){
+		std::cout<< "failed to open"<< std::endl;
+	}
+
+	file << "simtime,current action,reward,load,FM_state,packets per frame,QoE,frame loss,last mowdg,RTT,lastthreshold,quadratic sum mowdg"<< std::endl;
+	for(double i = 0; i < csv_.v__SimTime.size(); i++) //every vector SHOULD be same size
+	{
+		file << csv_.v__SimTime[i] << "," << csv_.v__current_action[i] << "," << csv_.v__reward[i] << "," << csv_.v__load[i]<<"," << csv_.v__FM[i]	<< "," << csv_.v__p_p_f[i]<< "," << csv_.v__QoE[i]<< "," << csv_.v__frame_loss[i]<<"," << csv_.v__k_mowdg[i]<<"," << csv_.v__RTT[i]<<"," << csv_.v__threshold[i]<<"," << csv_.v_quadr_modg[i]<<	std::endl; 
+		//add all metrics to csv output
+	}
+	file.close();
+
+
 
 };
 
@@ -310,6 +350,8 @@ void XRServer :: in(data_packet &packet)
 	if(packet.feedback ==true){
 		
 		jitter_sum_quadratic += pow(packet.m_owdg, 2); //Quadratic sum of value
+		last_mowdg = packet.m_owdg;
+		last_threshold = packet.threshold_gamma; 
 		int signal_overuse = overuse_detector(packet.m_owdg, packet.threshold_gamma);
 
 		if(signal_overuse == 1){ 
@@ -349,13 +391,12 @@ void XRServer :: in(data_packet &packet)
 		//double packet_loss_ratio = received_frames_MAB/sent_frames_MAB;
 		double packet_loss_ratio = std::abs(rx_f_pl/sent_f_pl);
 
-		if(sent_f_pl>=300){
+		if(sent_f_pl>=600){
 			rx_f_pl = 0; 
 			sent_f_pl = 0; 
 		}
 
 		printf("Packet loss over 300 packets \"window\": %f, rw_threshold = %f\n", (1 - packet_loss_ratio), rw_threshold);
-		
 		
 		if(packet_loss_ratio<0.95){ 
 			rw_pl = 0;
@@ -364,11 +405,11 @@ void XRServer :: in(data_packet &packet)
 			rw_pl = Load/MAXLOAD; 				
 		}
 		
-		QoE_metric = 3.01 * exp(-4.473 * (1-packet_loss_ratio)) + 1.065; // metric only taking into account the packet loss ratio
+		//QoE_metric = 3.01 * exp(-4.473 * (1-packet_loss_ratio)) + 1.065; // metric only taking into account the packet loss ratio
 
-		//QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio) + 0.2*rw_threshold)) + 1.065; // metric with webrtc congestion control added on top of packet loss
+		QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio) + 0.2*jitter_sum_quadratic)) + 1.065; // metric with webrtc congestion control added on top of packet loss
 		
-		QoE_metric = QoE_metric /  4.075 ; // NORMALIZE QOE TO 1? 
+		QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1? 
 		printf("QOE normalized: %f\n\n", QoE_metric);
 		//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
 		
@@ -378,7 +419,7 @@ void XRServer :: in(data_packet &packet)
 		if ( QoE_metric < )
 		QoE_rw += QoE_metric
 		*/
-		jitter_sum_quadratic = 0; 
+		  //let the jitter_sum_quadratic go back to 0 for next frame measurement
 
 	}
 	/* IF WE UPDATE KALMAN FILTER FROM DIFFERENT ROUTINE, USE THIS INSTEAD 
@@ -429,7 +470,7 @@ void XRServer :: GreedyControl()
 		
 	}
 
-	Load = 10E6*(next_action+1);
+	//Load = 10E6*(next_action+1);
 	//NumberPacketsPerFrame = ceil((Load/L_data)/fps);
 };
 
@@ -456,7 +497,7 @@ void XRServer :: QLearning()
 
 		past_load = Load; 
 
-            if(Random()<= 0.25) //epsilon greedy
+            if(Random()<= 0.25) //epsilon greedy //TODO: ADD UCB BASED ON CURRENT STATE
 			{	// Explore
 				printf("***************** EXPLORE **************************** %f\n", SimTime());
 				next_action = Random(2);
@@ -511,6 +552,7 @@ void XRServer :: QLearning()
             printf("next state: %d", next_state);
 						
 			current_state = next_state; //
+
 		
 };
 
@@ -590,21 +632,40 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
       */
 	 #endif
 
-	MAB_rewards[current_action]=(MIN(1,reward(current_state, current_action)));    /// UPDATE REWARD OF CURRENT ACTION 
+	MAB_rewards[current_action]=(MIN(1,reward(current_state, current_action)));  //LEGACY CODE, NOT USED BY US   /// UPDATE REWARD OF CURRENT ACTION 
 	//GreedyControl();
 	QLearning(); 
 
 	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,MAB_rewards[current_action],current_action,received_frames_MAB,sent_frames_MAB);
-	
-	sent_frames_MAB = 0;
-	received_frames_MAB = 0;
-	RTT_MAB = 0;
-		
+			
 	// 2) Next Action
 	printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
 	current_action = next_action;
 
-	rate_control.Set(SimTime()+(0.1));
+	
+	// UPDATE ALL CSV VECTORS
+
+	csv_.v__SimTime.push_back(SimTime());
+	csv_.v__current_action.push_back(current_action);
+	csv_.v__reward.push_back(reward(current_state, current_action));
+	csv_.v__load.push_back(Load);
+	csv_.v__FM.push_back(feature_map(Load));
+	csv_.v__QoE.push_back(QoE_metric);
+	csv_.v__p_p_f.push_back(NumberPacketsPerFrame);
+	csv_.v__frame_loss.push_back(packet_loss_ratio);
+	csv_.v__k_mowdg.push_back(last_mowdg);
+	csv_.v__threshold.push_back(last_threshold);
+	csv_.v__RTT.push_back(RTT_MAB);
+	csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
+	
+	
+	sent_frames_MAB = 0;
+	received_frames_MAB = 0;
+	RTT_MAB = 0;
+
+	jitter_sum_quadratic = 0;
+
+	rate_control.Set(SimTime()+(0.1));  //RATE CONTROL EVERY 0.1 SECONDS
 };
 
 int XRServer::overuse_detector(double mowdg, double threshold)
@@ -643,7 +704,6 @@ int XRServer::feature_map(double Load){
 
 	static int State; 
 	for (int i = 0; i < 21; ++i){ //iterate through state vector
-        
 		if ((Load >= 5E6*(i-1)) && (Load <= (5E6 *i -1))){
 		    //printf("load between %f, %f", 5E6*(i-1), (5E6 *i -1));
 			State = i;
@@ -667,6 +727,7 @@ double XRServer::reward(int state, int next_a){
 			rw = -10;	//let's try to stay far from edges 
 		}
 	} 
+	
 	else {rw = 0.95* QoE_metric + 0.05*( (state * 5E6)/MAXLOAD);}
 	printf("%f reward!", rw);
 	return rw; 
