@@ -26,8 +26,8 @@ using namespace std;
 
 #define MAXLOAD 10E7 			// max load for reward calcs
 
-#define INC_CONTROL 1.03 	//how much we increase or decrease our load depending on action chosen. 
-#define DEC_CONTROL 0.97
+#define INC_CONTROL 1.02	//how much we increase or decrease our load depending on action chosen. 
+#define DEC_CONTROL 0.98
 
 
 #define N_STATES 20 
@@ -170,10 +170,11 @@ component XRServer : public TypeII
 		double Q_matrix_t30[N_STATES][3]; 
 		double Q_matrix_t50[N_STATES][3]; 
 		double Q_matrix_t100[N_STATES][3]; 	
-
+		/*
 		double packet_loss_window;
 		double packet_received_window;
 		double packet_sent_window; 
+		*/
 
 		
 		double m_owdg; // measure of filtered delay gradient 
@@ -429,7 +430,7 @@ void XRServer :: new_packet(trigger_t &)
 };
 
 void XRServer :: in(data_packet &packet)
-{
+{	
 	if(traces_on) printf("%f - XR server %d : Uplink Packet received\n",SimTime(),id);
 	// Compute RTT & losses
 	if(packet.feedback ==true){
@@ -456,6 +457,7 @@ void XRServer :: in(data_packet &packet)
 
 	if(packet.last_video_frame_packet == 1)
 	{
+		rx_f_pl++; 
 		double RTT = SimTime() - packet.TimeSentAtTheServer;
 		avRTT += RTT;
 		//if(traces_on) 
@@ -469,19 +471,19 @@ void XRServer :: in(data_packet &packet)
 		avRxFrames = (avRxFrames + packet.frames_received)/2;
 
 		received_frames_MAB++;
-		rx_f_pl++; 
+		
 
 		//m_owdg = packet.m_owdg; //kalman filter estimate of One Way Delay Gradient!
 
 		//double packet_loss_ratio = received_frames_MAB/sent_frames_MAB;
-		double packet_loss_ratio = std::abs(rx_f_pl/sent_f_pl);
+		packet_loss_ratio = std::abs(rx_f_pl/sent_f_pl);
 
-		if(sent_f_pl>=600){
-			rx_f_pl = 0; 
-			sent_f_pl = 0; 
+		if(sent_f_pl>= 5000 ){
+			rx_f_pl = 1 ; 
+			sent_f_pl = 1; 
 		}
 
-		printf("Packet loss over 300 packets \"window\": %f, rw_threshold = %f\n", (1 - packet_loss_ratio), rw_threshold);
+		printf("Packet loss over 1000 packets \"window\": %f, rw_threshold = %f\n", (1 - packet_loss_ratio), rw_threshold);
 		
 		if(packet_loss_ratio<0.95){ 
 			rw_pl = 0;
@@ -492,9 +494,9 @@ void XRServer :: in(data_packet &packet)
 		
 		//QoE_metric = 3.01 * exp(-4.473 * (1-packet_loss_ratio)) + 1.065; // metric only taking into account the packet loss ratio
 
-		QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio) + 0.2*jitter_sum_quadratic)) + 1.065; // metric with webrtc congestion control added on top of packet loss
+		QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio)*10E2 + 0.2*jitter_sum_quadratic)*10E2) + 1.065; // metric with webrtc congestion control added on top of packet loss
 		
-		QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1? 
+		//QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1? 
 		printf("QOE normalized: %f\n\n", QoE_metric);
 		//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
 		
@@ -737,7 +739,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	csv_.v__FM.push_back(feature_map(Load));
 	csv_.v__QoE.push_back(QoE_metric);
 	csv_.v__p_p_f.push_back(NumberPacketsPerFrame);
-	csv_.v__frame_loss.push_back(packet_loss_ratio);
+	csv_.v__frame_loss.push_back((1-packet_loss_ratio));
 	csv_.v__k_mowdg.push_back(last_mowdg);
 	csv_.v__threshold.push_back(last_threshold);
 	csv_.v__RTT.push_back(RTT_MAB);
