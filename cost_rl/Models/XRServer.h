@@ -330,9 +330,9 @@ void XRServer :: Stop()
     std::string stime = stream.str();
 	
 	#if GREEDY_MAB ==1
-		std::string greedyornot = "MAB-"
+		std::string greedyornot = "MAB-";
 	#else
-		std::string greedyornot = "Q-"
+		std::string greedyornot = "Q-";
 	#endif
 
 	std::string filename = greedyornot + "Res_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +".csv";
