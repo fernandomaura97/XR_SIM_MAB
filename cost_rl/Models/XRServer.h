@@ -29,11 +29,11 @@ using namespace std;
 
 #define N_STATES_MAB 10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 
-#define GREEDY_MAB 1 		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX? 
+#define GREEDY_MAB 0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX? 
 
 #define TIME_BETWEEN_UPDATES 0.5  //How often the AGENT will choose new ACTION
 
-const int ITER_SIZE =1000;
+const int ITER_SIZE = 1000;
 const int ACTION_SIZE= 3;
 const float ALPHA =0.1;
 const float GAMMA= 0.9;
@@ -328,8 +328,14 @@ void XRServer :: Stop()
 	stream.str("");
     stream << std::fixed << std::setprecision(1) << st_input_args.STime;
     std::string stime = stream.str();
+	
+	#if GREEDY_MAB ==1
+		std::string greedyornot = "MAB-"
+	#else
+		std::string greedyornot = "Q-"
+	#endif
 
-	std::string filename = "Res_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +".csv";
+	std::string filename = greedyornot + "Res_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +".csv";
 
 	//1std::string filename = "Res_T"+std::to_string((int)st_input_args.STime)+"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+std::to_string((int)st_input_args.XRLoad/10E6 )+"_BG"+std::to_string((int)st_input_args.BGLoad/10E6) +".csv";
 	printf("\n\nFILENAMEEEEEEEEEEEEEEEEEEEE: %s\n",filename.c_str());
