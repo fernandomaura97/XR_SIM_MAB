@@ -16,10 +16,6 @@
 
 #include <string>
 #include <cstring> // include the cstring header for memcpy
-
-
-
-
 using namespace std;
 
 #define ADAPTIVE_HEUR 0 		//set to 1 for heuristic adaptive control
@@ -465,7 +461,7 @@ void XRServer :: in(data_packet &packet)
 			rw_threshold = 0.3; //underuse reward
 			//printf("[dbg]UNDERUSE\n");
 		}
-		printf("Quadratic sum_jitter: %f, mowdg: %f, threhsold: %f\n", jitter_sum_quadratic, packet.m_owdg, packet.threshold_gamma); 
+		//printf("Quadratic sum_jitter: %f, mowdg: %f, threhsold: %f\n", jitter_sum_quadratic, packet.m_owdg, packet.threshold_gamma); 
 	}
 
 	if(packet.last_video_frame_packet == 1)
@@ -496,7 +492,7 @@ void XRServer :: in(data_packet &packet)
 			sent_f_pl = 1; 
 		}
 
-		printf("Packet loss over 1000 packets \"window\": %f, rw_threshold = %f\n", (1 - packet_loss_ratio), rw_threshold);
+		//printf("Packet loss over 1000 packets \"window\": %f, rw_threshold = %f\n", (1 - packet_loss_ratio), rw_threshold);
 		
 		if(packet_loss_ratio<0.95){ 
 			rw_pl = 0;
@@ -517,7 +513,7 @@ void XRServer :: in(data_packet &packet)
 		QoE_metric = ((1/fps)/RTT_MAB) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
 		//double instantaneous_reward_Boris = (90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/100E6))/100;	// second reward function proposed by Boris
 
-		printf("QOE normalized: %f\n\n", QoE_metric);
+		//printf("QOE normalized: %f\n\n", QoE_metric);
 
 		/*
 		if ( QoE_metric < )
@@ -544,7 +540,7 @@ void XRServer :: GreedyControl()
 	if(Random()<=UCB)
 	{
 		// Explore
-		printf("***************** EXPLORE ****************************\n");
+		printf("***************** EXPLORE MAB**************************** %f\n", UCB);
 		next_action_MAB = Random(10); //Choose between 10,20,30,40,50,60,70,80,90 or 100 MBps 
 		/*
 		//If action = 0: increase. 	
@@ -553,7 +549,7 @@ void XRServer :: GreedyControl()
 	}
 	else
 	{
-		printf("***************** EXPLOIT **************************** %f\n", SimTime());
+		printf("***************** EXPLOIT MAB **************************** %f\n", UCB);
 
 		// Get the maximum 
 		int index_max = 0;
@@ -583,7 +579,7 @@ void XRServer :: GreedyControl()
 	//rate_control.Set(SimTime()+(TIME_BETWEEN_UPDATES));
 
 
-	UCB = MIN(0.1, (0.25 - 0.001 * passes)); //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
+	UCB = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
 	
 	//Load = 10E6*(next_action+1);
 	//NumberPacketsPerFrame = ceil((Load/L_data)/fps);
@@ -614,7 +610,7 @@ void XRServer :: QLearning()
 
             if(Random()<= 0.25) //epsilon greedy //TODO: ADD UCB BASED ON CURRENT STATE
 			{	// Explore
-				printf("***************** EXPLORE **************************** %f\n", SimTime());
+				printf("***************** EXPLORE Q **************************** %f\n", SimTime());
 				next_action = Random(2);
 
 						//If action = 0: decrease. 	
@@ -623,7 +619,7 @@ void XRServer :: QLearning()
 			} 	
 			else
 			{
-				printf("***************** EXPLOIT **************************** %f\n", SimTime());
+				printf("***************** EXPLOIT Q**************************** %f\n", SimTime());
 
                 // Choose the action with the highest Q-value
 				for (int a = 0; a < ACTION_SIZE; a++)
@@ -749,6 +745,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	MAB_rewards[current_action]=(MIN(1,reward(current_state, current_action)));  //LEGACY CODE, NOT USED BY US   /// UPDATE REWARD OF CURRENT ACTION 
 	//
 	passes++; 
+	//printf("passes: %f, TIME: %f\n", passes, SimTime()); 
 
 	#if GREEDY_MAB == 1
 		GreedyControl();
