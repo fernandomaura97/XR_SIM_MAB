@@ -39,6 +39,7 @@ const float ALPHA =0.1;
 const float GAMMA= 0.9;
 const int STATE_SIZE = 10;
 double QoE_metric; 
+const double alpha_mab = 0.2;
 
 
 
@@ -238,15 +239,26 @@ void XRServer :: Start()
 	rx_f_pl = 0;
 	sent_f_pl = 0 ;
 	state_q = 0 ;
-	for (int r=0;r<20;r++)
-	{
-		MAB_rewards[r]=0.0;
-		printf("%f ",MAB_rewards[r]);
-	}
+	
 	//values for applying the greedy UCB
 	UCB = 0.25; 
 	passes = 0; 
-};
+
+	#if GREEDY_MAB ==1
+		for (int r=0;r<10;r++)
+		{
+			MAB_rewards_greedy[r]=0.0;
+			printf("%f ",MAB_rewards_greedy[r]);
+		}
+	#else 
+
+		for (int r=0;r<20;r++)
+		{
+			MAB_rewards[r]=0.0;
+			printf("%f ",MAB_rewards[r]);
+		}
+	#endif
+};	
 	
 void XRServer :: Stop()
 {
@@ -334,6 +346,12 @@ void XRServer :: Stop()
 		//add all metrics to csv output
 	}
 	file.close();
+	#if GREEDY_MAB ==1
+		printf("MAB_REWARDS\n");
+		for (int jk = 0;  jk < 10; jk++){
+			printf("%d: %f", jk, MAB_rewards_greedy[jk]); 
+		}
+	#endif
 
 };
 
@@ -567,15 +585,12 @@ void XRServer :: GreedyControl()
 		next_action_MAB = index_max;
 	}
 
-	
 	Load = (next_action_MAB + 1) * 10E6; 
-	
-
 	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
 
-	printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
+	printf("%f - Load = %.1fE6 | next_action = %d\n",SimTime(),Load/(10E6),next_action_MAB);
 	
-	current_action = next_action;
+	current_action = next_action_MAB;
 	//rate_control.Set(SimTime()+(TIME_BETWEEN_UPDATES));
 
 
@@ -742,21 +757,23 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
       */
 	 #endif
 	
-	MAB_rewards[current_action]=(MIN(1,reward(current_state, current_action)));  //LEGACY CODE, NOT USED BY US   /// UPDATE REWARD OF CURRENT ACTION 
-	//
+	
 	passes++; 
 	//printf("passes: %f, TIME: %f\n", passes, SimTime()); 
 
 	#if GREEDY_MAB == 1
+
+		MAB_rewards_greedy[current_action]= alpha_mab * MAB_rewards_greedy[current_action] + (1-alpha_mab)*(90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/10E7))/100;
+
 		GreedyControl();
 	#else
 		QLearning(); 
 	#endif
-	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,MAB_rewards[current_action],current_action,received_frames_MAB,sent_frames_MAB);
+	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,MAB_rewards_greedy[current_action],current_action,received_frames_MAB,sent_frames_MAB);
 			
 	// 2) Next Action
-	printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
-	current_action = next_action;
+	//printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
+	//current_action = next_action;
 	#if GREEDY_MAB == 1 //if MAB approach
 		
 		double t___ = SimTime();
@@ -880,7 +897,7 @@ double XRServer::reward(int state, int next_a){
 	} 
 	
 	else {rw = 0.95* QoE_metric + 0.05*( (state * 5E6)/MAXLOAD);}
-	printf("%f reward!", rw);
+	//printf("%f reward!", rw);
 	return rw; 
 }
 
