@@ -13,6 +13,7 @@
 #include <iostream>
 #include <iterator>
 #include <iomanip>
+#include <random>
 
 #include <string>
 #include <cstring> // include the cstring header for memcpy
@@ -22,24 +23,26 @@ using namespace std;
 
 #define MAXLOAD 10E7 			// max load for reward calcs
 
-#define INC_CONTROL 1.02	//how much we increase or decrease our load depending on action chosen, in Q-LEARNING. 
-#define DEC_CONTROL 0.98
+#define INC_CONTROL 1.01	//how much we increase or decrease our load depending on action chosen, in Q-LEARNING. 
+#define DEC_CONTROL 0.99
 
 #define N_STATES 20   		//for feature map of the "Throughput" state space
 
 #define N_STATES_MAB 10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 
-#define GREEDY_MAB 0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX? 
+#define GREEDY_MAB 1	// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX? 
 
-#define TIME_BETWEEN_UPDATES 0.5  //How often the AGENT will choose new ACTION
+#define TIME_BETWEEN_UPDATES 0.1  //How often the AGENT will choose new ACTION
+#define N_ACTIONS_THOMPSON 20 
+
 
 const int ITER_SIZE = 1000;
 const int ACTION_SIZE= 3;
-const float ALPHA =0.1;
+const float ALPHA =0.5;
 const float GAMMA= 0.9;
 const int STATE_SIZE = 10;
 double QoE_metric; 
-const double alpha_mab = 0.2;
+const double alpha_mab = 0.4;
 
 
 
@@ -55,6 +58,7 @@ component XRServer : public TypeII
 		int overuse_detector(double mowdg, double threshold); //function to detect if mowdg is within limits of threshold. 
 		void GreedyControl();
 		void QLearning();
+		void ThompsonSampling(); 
 		void update( int state, int action, double reward, int next_state);
 
 		int feature_map(double Load);
@@ -133,6 +137,22 @@ component XRServer : public TypeII
 			std::vector <double> v__threshold; 
 			std::vector <double> v_quadr_modg; //measure of quadratic sum of measured owdg over window
 		}csv_; 
+		/////////////////////////////////////////////////////////////////////////////////////
+		struct tomp_s_t {
+			int current_action;
+			double current_reward; 
+			double sigma[N_ACTIONS_THOMPSON];
+			double action_v[N_ACTIONS_THOMPSON]; //let's try with 20 actions: 5mbps windows
+			double n_times_selected[N_ACTIONS_THOMPSON];
+			int cntr; 
+			std::vector<double> reward_hist; 
+			std::vector<double> action_hist;
+		}thompson_struct;
+
+		
+
+		//////////////////////////////////////////////////////////////////////////////
+	
 	private:
 		double tau; //
 		double inter_frame_time;
@@ -258,6 +278,11 @@ void XRServer :: Start()
 			printf("%f ",MAB_rewards[r]);
 		}
 	#endif
+	thompson_struct.current_action = feature_map(Load) ;//INITIAL LOAD; 
+	//thompson_struct.action_hist.push_back( ##INITIAL LOAD ); //First action
+	//thompson_struct.reward_hist.push_back( reward( feature_map(Load), 1) );
+	//thompson_struct.n_times_selected[thompson_struct.current_action] = 1;
+	
 };	
 	
 void XRServer :: Stop()
@@ -555,8 +580,6 @@ void XRServer :: in(data_packet &packet)
 	received_packets++;
 };
 
-
-
 void XRServer :: GreedyControl()
 {
 	// 2) Next Action
@@ -614,8 +637,48 @@ void XRServer::update( int state, int action, double reward, int next_state) {
     double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
 
     Q_matrix[state][action] = new_value;
-}
+};
 //void reward(int a, int b){}
+
+void XRServer::ThompsonSampling()
+{
+
+	past_load = Load; 
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::normal_distribution<> d(0, 1); //code for randn approach in matlab
+
+	for (int i= 0; i<=N_ACTIONS_THOMPSON;i++) //sample from gaussian distribution with nº of times action k has been taken
+	{
+		double sample = thompson_struct.action_v[i];
+		thompson_struct.sigma[i] = 1/(thompson_struct.n_times_selected[i] + 1);
+		thompson_struct.action_v[i] = sample + thompson_struct.sigma[i] * d(gen); //theta
+		
+	}
+
+	//find argmax of the possible actions sampled from vector
+	
+	int argmax = 0; 
+	double max_val = thompson_struct.action_v[0];
+
+	for(int i = 1; i<N_ACTIONS_THOMPSON; i++){
+		if(thompson_struct.action_v[i]>max_val){
+			max_val = thompson_struct.action_v[i];
+			argmax = i; 
+		}
+	}
+
+	thompson_struct.current_action = argmax;
+	thompson_struct.n_times_selected[argmax]++; 
+	printf("action taken: %d, n_times of action: %f", argmax, thompson_struct.n_times_selected[argmax]);
+		
+	Load = thompson_struct.current_action * 5E6; 
+	thompson_struct.current_reward = reward(thompson_struct.current_action, 1); //1 because it's same reward function from q-learning adapted "without state-action" 
+	thompson_struct.reward_hist.push_back(thompson_struct.current_reward);
+	thompson_struct.action_hist.push_back(thompson_struct.current_action);
+
+	thompson_struct.action_v[argmax] = thompson_struct.action_v[argmax] * ( thompson_struct.n_times_selected[argmax] - 1 ) + thompson_struct.current_reward/(thompson_struct.n_times_selected[argmax]); //update value action matrix 
+};
 
 void XRServer :: QLearning()
 {
@@ -627,7 +690,7 @@ void XRServer :: QLearning()
         // Choose an action using an epsilon-greedy policy
             //double epsilon = 0.1;
 
-		past_load = Load; 
+			past_load = Load; 
 
             if(Random()<= 0.25) //epsilon greedy //TODO: ADD UCB BASED ON CURRENT STATE
 			{	// Explore
@@ -645,7 +708,7 @@ void XRServer :: QLearning()
                 // Choose the action with the highest Q-value
 				for (int a = 0; a < ACTION_SIZE; a++)
 				{
-                next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action;
+                	next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action;
 				}
             }
 			printf("Next action: %d\n ", next_action);
@@ -679,12 +742,10 @@ void XRServer :: QLearning()
 
             // Update the current state
 			current_action = next_action;
-
+			current_state = next_state; //
 			state_q = next_state; 			// WARNING CHECK AND TEST THIS
             printf("next state: %d", next_state);
-						
-			current_state = next_state; //
-					
+							
 };
 
 void XRServer :: AdaptiveVideoControl(trigger_t & t)
@@ -795,49 +856,51 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v__threshold.push_back(last_threshold);
 		csv_.v__RTT.push_back(RTT_MAB);
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
-
+			
 		rate_control.Set(SimTime() + TIME_BETWEEN_UPDATES);
+
+
 
 	#elif GREEDY_MAB ==  0 //if Q-learning approach apply this control
 	// UPDATE ALL CSV VECTORS
-	double t___ = SimTime();
-	csv_.v__SimTime.push_back(t___);
-	csv_.v__current_action.push_back(current_action);
-	csv_.v__reward.push_back(reward(current_state, current_action));
-	csv_.v__load.push_back(Load);
-	csv_.v__FM.push_back(feature_map(Load));
-	csv_.v__QoE.push_back(QoE_metric);
-	csv_.v__p_p_f.push_back(NumberPacketsPerFrame);
-	csv_.v__frame_loss.push_back((1-packet_loss_ratio));
-	csv_.v__k_mowdg.push_back(last_mowdg);
-	csv_.v__threshold.push_back(last_threshold);
-	csv_.v__RTT.push_back(RTT_MAB);
-	csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
-	
-	if(passes == 100) //10 seconds
-	{
-		std::memcpy(Q_matrix_t10, Q_matrix, sizeof(Q_matrix)); 
-	}
-	else if(passes == 300) //30 seconds
-	{
-		std::memcpy(Q_matrix_t30, Q_matrix, sizeof(Q_matrix)); 
-	}
-	else if(passes == 500) //50 seconds
-	{
-		std::memcpy(Q_matrix_t50, Q_matrix, sizeof(Q_matrix)); 
-	}
-	else if(passes == 1000) //100 seconds
-	{
-		std::memcpy(Q_matrix_t100, Q_matrix, sizeof(Q_matrix)); 
-	}
+		double t___ = SimTime();
+		csv_.v__SimTime.push_back(t___);
+		csv_.v__current_action.push_back(current_action);
+		csv_.v__reward.push_back(reward(current_state, current_action));
+		csv_.v__load.push_back(Load);
+		csv_.v__FM.push_back(feature_map(Load));
+		csv_.v__QoE.push_back(QoE_metric);
+		csv_.v__p_p_f.push_back(NumberPacketsPerFrame);
+		csv_.v__frame_loss.push_back((1-packet_loss_ratio));
+		csv_.v__k_mowdg.push_back(last_mowdg);
+		csv_.v__threshold.push_back(last_threshold);
+		csv_.v__RTT.push_back(RTT_MAB);
+		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
+		
+		if(passes == 100) //10 seconds
+		{
+			std::memcpy(Q_matrix_t10, Q_matrix, sizeof(Q_matrix)); 
+		}
+		else if(passes == 300) //30 seconds
+		{
+			std::memcpy(Q_matrix_t30, Q_matrix, sizeof(Q_matrix)); 
+		}
+		else if(passes == 500) //50 seconds
+		{
+			std::memcpy(Q_matrix_t50, Q_matrix, sizeof(Q_matrix)); 
+		}
+		else if(passes == 1000) //100 seconds
+		{
+			std::memcpy(Q_matrix_t100, Q_matrix, sizeof(Q_matrix)); 
+		}
 
-	sent_frames_MAB = 0;
-	received_frames_MAB = 0;
-	RTT_MAB = 0;
+		sent_frames_MAB = 0;
+		received_frames_MAB = 0;
+		RTT_MAB = 0;
 
-	jitter_sum_quadratic = 0;
+		jitter_sum_quadratic = 0;
 
-	rate_control.Set(SimTime()+(TIME_BETWEEN_UPDATES));  //RATE CONTROL EVERY 0.1 SECONDS
+		rate_control.Set(SimTime()+(TIME_BETWEEN_UPDATES));  //RATE CONTROL EVERY 0.1 SECONDS
 
 	#endif
 };
@@ -884,7 +947,7 @@ int XRServer::feature_map(double Load){
             }
 	}
     return State;
-}
+};
 
 
 double XRServer::reward(int state, int next_a){
@@ -905,7 +968,7 @@ double XRServer::reward(int state, int next_a){
 	else {rw = 0.95* QoE_metric + 0.05*( (state * 5E6)/MAXLOAD);}
 	//printf("%f reward!", rw);
 	return rw; 
-}
+};
 
 /*
 void updateState(int signal) {
@@ -955,4 +1018,8 @@ void updateState(int signal) {
     }
 };
 */
+
+
+
+
 #endif
