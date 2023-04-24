@@ -1,4 +1,4 @@
-/*
+P/*
 	Poisson source. 
 */
 
@@ -34,6 +34,7 @@ using namespace std;
 
 #define TIME_BETWEEN_UPDATES 0.1  //How often the AGENT will choose new ACTION
 #define N_ACTIONS_THOMPSON 20 
+#define N_ACTIONS_UCB 20 
 
 
 const int ITER_SIZE = 1000;
@@ -56,9 +57,12 @@ component XRServer : public TypeII
 
 		//utilities
 		int overuse_detector(double mowdg, double threshold); //function to detect if mowdg is within limits of threshold. 
+		
 		void GreedyControl();
 		void QLearning();
 		void ThompsonSampling(); 
+		void UpperConfidenceBounds(); 
+
 		void update( int state, int action, double reward, int next_state);
 
 		int feature_map(double Load);
@@ -149,8 +153,21 @@ component XRServer : public TypeII
 			std::vector<double> action_hist;
 		}thompson_struct;
 
-		
+		struct ucb_s_t {
+			int current_action;
+			double current_reward; 
+			double sigma[N_ACTIONS_UCB];
+			double action_v[N_ACTIONS_UCB]; //let's try with 20 actions: 5mbps windows
+			double n_times_selected[N_ACTIONS_UCB];
 
+			double action_confidence[N_ACTIONS_UCB];
+			double action_reward[N_ACTIONS_UCB];
+
+			int cntr; 
+			std::vector<double> reward_hist; 
+			std::vector<double> action_hist;
+		}ucb_struct;
+		
 		//////////////////////////////////////////////////////////////////////////////
 	
 	private:
@@ -640,6 +657,7 @@ void XRServer::update( int state, int action, double reward, int next_state) {
 };
 //void reward(int a, int b){}
 
+
 void XRServer::ThompsonSampling()
 {
 
@@ -679,6 +697,36 @@ void XRServer::ThompsonSampling()
 
 	thompson_struct.action_v[argmax] = thompson_struct.action_v[argmax] * ( thompson_struct.n_times_selected[argmax] - 1 ) + thompson_struct.current_reward/(thompson_struct.n_times_selected[argmax]); //update value action matrix 
 };
+
+void XRServer::UpperConfidenceBounds()
+{
+	past_load = Load; 
+
+	for (int i = 0; i< N_ACTIONS_UCB; i++) 
+	{
+		double sample = ucb_struct.action_v[i] + sqrt( 2 * log(ucb_struct.cntr)) / ucb_struct.n_times_selected[i]);
+		ucb_struct.action_confidence[i] = sample; 
+	}
+	int argmax = 0;
+	double max_val = ucb_struct.action_confidence[0];
+
+	for( int i = 1; i<N_ACTIONS_UCB; i++ )
+	{
+		if(ucb_struct.action_confidence[i]>max_val){
+			max_val = ucb_struct.action_confidence[i];
+			argmax = i; 
+		}
+	}
+	ucb_struct.current_action = argnax;
+	ucb_struct.n_times_selected[argmax] ++; 
+	printf("UCB: Action taken %d , nº times of action: %f", argmax, ucb_struct.n_times_selected[argmax]);
+
+	ucb_struct.action_reward[argmax] += reward(argmax, 1); 
+
+	ucb_struct.action_v[argmax] = ucb_struct.action_reward[argmax] / ucb_struct.n_times_selected[argmax]; 
+	ucb_struct.ctr++ ;
+};
+
 
 void XRServer :: QLearning()
 {
