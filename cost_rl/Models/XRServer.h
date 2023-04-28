@@ -1,4 +1,4 @@
-P/*
+/*
 	Poisson source. 
 */
 
@@ -17,25 +17,28 @@ P/*
 
 #include <string>
 #include <cstring> // include the cstring header for memcpy
+
 using namespace std;
 
-#define ADAPTIVE_HEUR 0 		//set to 1 for heuristic adaptive control
+#define ADAPTIVE_HEUR 	0 		//set to 1 for heuristic adaptive control
 
-#define MAXLOAD 10E7 			// max load for reward calcs
+#define MAXLOAD 		10E7 	// max load for reward calcs
 
-#define INC_CONTROL 1.01	//how much we increase or decrease our load depending on action chosen, in Q-LEARNING. 
-#define DEC_CONTROL 0.99
+#define INC_CONTROL 	1.01	//how much we increase or decrease our load depending on action chosen, in Q-LEARNING. 
+#define DEC_CONTROL 	0.99
 
-#define N_STATES 20   		//for feature map of the "Throughput" state space
+#define N_STATES 		20   	//for feature map of the "Throughput" state space
+#define N_ACTIONS_MAB 	10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 
-#define N_STATES_MAB 10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
+#define CTL_GREEDY_MAB 	0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
 
-#define GREEDY_MAB 1	// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX? 
+#define CTL_THOMPSON 	0
+#define CTL_UCB 	 	0
 
 #define TIME_BETWEEN_UPDATES 0.1  //How often the AGENT will choose new ACTION
+
 #define N_ACTIONS_THOMPSON 20 
 #define N_ACTIONS_UCB 20 
-
 
 const int ITER_SIZE = 1000;
 const int ACTION_SIZE= 3;
@@ -44,8 +47,6 @@ const float GAMMA= 0.9;
 const int STATE_SIZE = 10;
 double QoE_metric; 
 const double alpha_mab = 0.4;
-
-
 
 component XRServer : public TypeII
 {
@@ -193,7 +194,7 @@ component XRServer : public TypeII
 		double load_changes = 0;
 		
 		double MAB_rewards[N_STATES];
-		double MAB_rewards_greedy[N_STATES_MAB];
+		double MAB_rewards_greedy[N_ACTIONS_MAB];
 		//int current_action = 0;
 		double sent_frames_MAB = 0;
 		double received_frames_MAB = 0;
@@ -231,7 +232,7 @@ component XRServer : public TypeII
 			double packet_delay_99_;
 			double ratio_frames_;
 
-			double MAB_r[N_STATES];
+			double MAB_r[N_ACTIONS_MAB];
 			double sent_frames_MAB = 0;
 			double received_frames_MAB = 0;
 			double RTT_MAB = 0;
@@ -281,11 +282,11 @@ void XRServer :: Start()
 	UCB = 0.25; 
 	passes = 0; 
 
-	#if GREEDY_MAB ==1
+	#if CTL_GREEDY_MAB ==1
 		for (int r=0;r<10;r++)
 		{
-			MAB_rewards_greedy[r]=0.0;
-			printf("%f ",MAB_rewards_greedy[r]);
+			MAB_rewards_greedy[r]=0.0;							
+			printf("%f ",MAB_rewards_greedy[r]);      // REVIEW: SET T0 1.0 ? 
 		}
 	#else 
 
@@ -299,7 +300,6 @@ void XRServer :: Start()
 	//thompson_struct.action_hist.push_back( ##INITIAL LOAD ); //First action
 	//thompson_struct.reward_hist.push_back( reward( feature_map(Load), 1) );
 	//thompson_struct.n_times_selected[thompson_struct.current_action] = 1;
-	
 };	
 	
 void XRServer :: Stop()
@@ -371,7 +371,7 @@ void XRServer :: Stop()
     stream << std::fixed << std::setprecision(1) << st_input_args.STime;
     std::string stime = stream.str();
 	
-	#if GREEDY_MAB ==1
+	#if CTL_GREEDY_MAB ==1
 		std::string greedyornot = "MAB-";
 	#else
 		std::string greedyornot = "Q-";
@@ -394,13 +394,12 @@ void XRServer :: Stop()
 		//add all metrics to csv output
 	}
 	file.close();
-	#if GREEDY_MAB ==1
+	#if CTL_GREEDY_MAB ==1
 		printf("MAB_REWARDS\n");
 		for (int jk = 0;  jk < 10; jk++){
 			printf("%d: %f", jk, MAB_rewards_greedy[jk]); 
 		}
 	#endif
-
 };
 
 void XRServer :: new_video_frame(trigger_t &)
@@ -727,7 +726,6 @@ void XRServer::UpperConfidenceBounds()
 	ucb_struct.ctr++ ;
 };
 
-
 void XRServer :: QLearning()
 {
         // Reset the current state to 0        TEST: NOT RECURSIVE MAYBE
@@ -875,8 +873,12 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	
 	passes++; 
 	//printf("passes: %f, TIME: %f\n", passes, SimTime()); 
+	
+	//thompson sampling()
+	//ucb()
 
-	#if GREEDY_MAB == 1
+
+	#if CTL_GREEDY_MAB == 1
 
 		MAB_rewards_greedy[current_action]= alpha_mab * MAB_rewards_greedy[current_action] + (1-alpha_mab)*(90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/10E7))/100;
 
@@ -889,7 +891,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	// 2) Next Action
 	//printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
 	//current_action = next_action;
-	#if GREEDY_MAB == 1 //if MAB approach
+	#if CTL_GREEDY_MAB == 1 //if MAB approach
 		
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
@@ -909,7 +911,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 
 
-	#elif GREEDY_MAB ==  0 //if Q-learning approach apply this control
+	#elif CTL_GREEDY_MAB ==  0 //if Q-learning approach apply this control
 	// UPDATE ALL CSV VECTORS
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
