@@ -30,10 +30,12 @@ using namespace std;
 #define N_STATES 		20   	//for feature map of the "Throughput" state space
 #define N_ACTIONS_MAB 	10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 
-#define CTL_GREEDY_MAB 	0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
 
+/* ##############################           AGENT TYPE             #####################################3*/
+#define CTL_GREEDY_MAB 	0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
 #define CTL_THOMPSON 	0
 #define CTL_UCB 	 	0
+#define CTL_Q_ONLINE    0 
 
 #define TIME_BETWEEN_UPDATES 0.1  //How often the AGENT will choose new ACTION
 
@@ -160,10 +162,8 @@ component XRServer : public TypeII
 			double sigma[N_ACTIONS_UCB];
 			double action_v[N_ACTIONS_UCB]; //let's try with 20 actions: 5mbps windows
 			double n_times_selected[N_ACTIONS_UCB];
-
 			double action_confidence[N_ACTIONS_UCB];
 			double action_reward[N_ACTIONS_UCB];
-
 			int cntr; 
 			std::vector<double> reward_hist; 
 			std::vector<double> action_hist;
@@ -198,7 +198,7 @@ component XRServer : public TypeII
 		//int current_action = 0;
 		double sent_frames_MAB = 0;
 		double received_frames_MAB = 0;
-		double RTT_MAB = 0;
+		double RTT_metric = 0;
 		double jitter_sum_quadratic = 0; //aux var to keep track of mowdg over windows
 
 		double packet_loss_ratio = 0; 
@@ -213,7 +213,7 @@ component XRServer : public TypeII
 		double Q_matrix_t50[N_STATES][3]; 
 		double Q_matrix_t100[N_STATES][3]; 	
 
-		double UCB; 
+		double epsilon_greedy_decreasing; 
 
 		/*
 		double packet_loss_window;
@@ -235,7 +235,7 @@ component XRServer : public TypeII
 			double MAB_r[N_ACTIONS_MAB];
 			double sent_frames_MAB = 0;
 			double received_frames_MAB = 0;
-			double RTT_MAB = 0;
+			double RTT_metric = 0;
 		}csv_fer;
 
 		std::vector <csvfer_t> vector_csv;
@@ -278,8 +278,8 @@ void XRServer :: Start()
 	sent_f_pl = 0 ;
 	state_q = 0 ;
 	
-	//values for applying the greedy UCB
-	UCB = 0.25; 
+	//values for applying the greedy epsilon_greedy_decreasing
+	epsilon_greedy_decreasing = 0.25; 
 	passes = 0; 
 
 	#if CTL_GREEDY_MAB ==1
@@ -540,7 +540,7 @@ void XRServer :: in(data_packet &packet)
 		controlRTT = (controlRTT + RTT)/2;
 		rx_packet_controlRTT++;
 
-		RTT_MAB = (RTT_MAB + RTT)/2;   					
+		RTT_metric = (RTT_metric + RTT)/2;   					
 												
 		avRxFrames = (avRxFrames + packet.frames_received)/2;
 
@@ -575,7 +575,7 @@ void XRServer :: in(data_packet &packet)
 		//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
 		
 	//BORIS REWARDS
-		QoE_metric = ((1/fps)/RTT_MAB) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
+		QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
 		//double instantaneous_reward_Boris = (90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/100E6))/100;	// second reward function proposed by Boris
 
 		//printf("QOE normalized: %f\n\n", QoE_metric);
@@ -600,10 +600,10 @@ void XRServer :: GreedyControl()
 {
 	// 2) Next Action
 	next_action_MAB= -1;
-	if(Random()<=UCB)
+	if(Random()<=epsilon_greedy_decreasing)
 	{
 		// Explore
-		printf("***************** EXPLORE MAB**************************** %f\n", UCB);
+		printf("***************** EXPLORE MAB**************************** %f\n", epsilon_greedy_decreasing);
 		next_action_MAB = Random(10); //Choose between 10,20,30,40,50,60,70,80,90 or 100 MBps 
 		/*
 		//If action = 0: increase. 	
@@ -612,7 +612,7 @@ void XRServer :: GreedyControl()
 	}
 	else
 	{
-		printf("***************** EXPLOIT MAB **************************** %f\n", UCB);
+		printf("***************** EXPLOIT MAB **************************** %f\n", epsilon_greedy_decreasing);
 
 		// Get the maximum 
 		int index_max = 0;
@@ -636,13 +636,13 @@ void XRServer :: GreedyControl()
 	printf("%f - Load = %.1fE6 | next_action = %d\n",SimTime(),Load/(10E6),next_action_MAB);
 	
 	current_action = next_action_MAB;
-	//rate_control.Set(SimTime()+(TIME_BETWEEN_UPDATES));
-
-
-	UCB = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
 	
-	//Load = 10E6*(next_action+1);
-	//NumberPacketsPerFrame = ceil((Load/L_data)/fps);
+	//update reward
+	MAB_rewards_greedy[current_action]= alpha_mab * MAB_rewards_greedy[current_action] + (1-alpha_mab)*(90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/10E7))/100;
+	//update ε
+	epsilon_greedy_decreasing = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
+	
+	
 };
 
 // Define the update function
@@ -694,6 +694,7 @@ void XRServer::ThompsonSampling()
 	thompson_struct.reward_hist.push_back(thompson_struct.current_reward);
 	thompson_struct.action_hist.push_back(thompson_struct.current_action);
 
+	current_action = thompson_struct.current_action; 
 	thompson_struct.action_v[argmax] = thompson_struct.action_v[argmax] * ( thompson_struct.n_times_selected[argmax] - 1 ) + thompson_struct.current_reward/(thompson_struct.n_times_selected[argmax]); //update value action matrix 
 };
 
@@ -703,7 +704,7 @@ void XRServer::UpperConfidenceBounds()
 
 	for (int i = 0; i< N_ACTIONS_UCB; i++) 
 	{
-		double sample = ucb_struct.action_v[i] + sqrt( 2 * log(ucb_struct.cntr)) / ucb_struct.n_times_selected[i]);
+		double sample = ucb_struct.action_v[i] + sqrt(( 2 * log(ucb_struct.cntr)) / ucb_struct.n_times_selected[i]);
 		ucb_struct.action_confidence[i] = sample; 
 	}
 	int argmax = 0;
@@ -716,14 +717,18 @@ void XRServer::UpperConfidenceBounds()
 			argmax = i; 
 		}
 	}
-	ucb_struct.current_action = argnax;
+	ucb_struct.current_action = argmax;
 	ucb_struct.n_times_selected[argmax] ++; 
-	printf("UCB: Action taken %d , nº times of action: %f", argmax, ucb_struct.n_times_selected[argmax]);
+
+	Load = ucb_struct.current_action * 5E6; 
+	printf("epsilon_greedy_decreasing: Action taken %d , nº times of action: %f", argmax, ucb_struct.n_times_selected[argmax]);
 
 	ucb_struct.action_reward[argmax] += reward(argmax, 1); 
 
+	current_action = ucb_struct.current_action; 
+
 	ucb_struct.action_v[argmax] = ucb_struct.action_reward[argmax] / ucb_struct.n_times_selected[argmax]; 
-	ucb_struct.ctr++ ;
+	ucb_struct.cntr++ ;
 };
 
 void XRServer :: QLearning()
@@ -738,7 +743,7 @@ void XRServer :: QLearning()
 
 			past_load = Load; 
 
-            if(Random()<= 0.25) //epsilon greedy //TODO: ADD UCB BASED ON CURRENT STATE
+            if(Random()<= 0.25) //TODO: ADD linear decreasing epsilon BASED ON KNOWLEDGE/BELIEF (OF CURRENT STATE? ) 
 			{	// Explore
 				printf("***************** EXPLORE Q **************************** %f\n", SimTime());
 				next_action = Random(2);
@@ -868,29 +873,36 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 
       */
-	 #endif
-	
-	
-	passes++; 
-	//printf("passes: %f, TIME: %f\n", passes, SimTime()); 
-	
-	//thompson sampling()
-	//ucb()
+	#endif
 
+//// 1: Apply "one pass" of algorithm
+
+	passes++; 
+	printf("passes: %f, TIME: %f\n", passes, SimTime()); 
+	
+	#if CTL_THOMPSON == 1
+		ThompsonSampling();
+		// maybe need to add reward vector? TODO 
+ 
+	#endif
+	#if CTL_UCB == 1
+		UpperConfidenceBounds(); 
+		// maybe need to add reward vector? 
+	#endif
 
 	#if CTL_GREEDY_MAB == 1
-
-		MAB_rewards_greedy[current_action]= alpha_mab * MAB_rewards_greedy[current_action] + (1-alpha_mab)*(90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/10E7))/100;
-
 		GreedyControl();
-	#else
+	#endif
+
+	#if CTL_Q_ONLINE == 1 
 		QLearning(); 
 	#endif
+
 	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,MAB_rewards_greedy[current_action],current_action,received_frames_MAB,sent_frames_MAB);
 			
-	// 2) Next Action
+// 2) Next Action done, store in CSV 
 	//printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
-	//current_action = next_action;
+
 	#if CTL_GREEDY_MAB == 1 //if MAB approach
 		
 		double t___ = SimTime();
@@ -904,14 +916,10 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v__frame_loss.push_back((1-packet_loss_ratio));
 		csv_.v__k_mowdg.push_back(last_mowdg);
 		csv_.v__threshold.push_back(last_threshold);
-		csv_.v__RTT.push_back(RTT_MAB);
+		csv_.v__RTT.push_back(RTT_metric);
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
 			
-		rate_control.Set(SimTime() + TIME_BETWEEN_UPDATES);
-
-
-
-	#elif CTL_GREEDY_MAB ==  0 //if Q-learning approach apply this control
+	#elif CTL_Q_ONLINE ==  1 //if Q-learning approach apply this control
 	// UPDATE ALL CSV VECTORS
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
@@ -924,7 +932,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v__frame_loss.push_back((1-packet_loss_ratio));
 		csv_.v__k_mowdg.push_back(last_mowdg);
 		csv_.v__threshold.push_back(last_threshold);
-		csv_.v__RTT.push_back(RTT_MAB);
+		csv_.v__RTT.push_back(RTT_metric);
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
 		
 		if(passes == 100) //10 seconds
@@ -946,13 +954,48 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 		sent_frames_MAB = 0;
 		received_frames_MAB = 0;
-		RTT_MAB = 0;
+		RTT_metric = 0;
 
 		jitter_sum_quadratic = 0;
 
-		rate_control.Set(SimTime()+(TIME_BETWEEN_UPDATES));  //RATE CONTROL EVERY 0.1 SECONDS
+
+	#elif CTL_UCB == 1
+
+		double t___ = SimTime();
+		csv_.v__SimTime.push_back(t___);
+		csv_.v__current_action.push_back(current_action);
+		csv_.v__reward.push_back(reward(2, current_action)); // arbitrary int "2" to get reward not based on state
+		csv_.v__load.push_back(Load);
+		csv_.v__FM.push_back(feature_map(Load));
+		csv_.v__QoE.push_back(QoE_metric);
+		csv_.v__p_p_f.push_back(NumberPacketsPerFrame);
+		csv_.v__frame_loss.push_back((1-packet_loss_ratio));
+		csv_.v__k_mowdg.push_back(last_mowdg);
+		csv_.v__threshold.push_back(last_threshold);
+		csv_.v__RTT.push_back(RTT_metric);
+		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
+
+	#elif CTL_THOMPSON == 1 
+
+		double t___ = SimTime();
+		csv_.v__SimTime.push_back(t___);
+		csv_.v__current_action.push_back(current_action);
+		csv_.v__reward.push_back(reward(2, current_action)); // arbitrary int "2" to get reward not based on state
+		csv_.v__load.push_back(Load);
+		csv_.v__FM.push_back(feature_map(Load));
+		csv_.v__QoE.push_back(QoE_metric);
+		csv_.v__p_p_f.push_back(NumberPacketsPerFrame);
+		csv_.v__frame_loss.push_back((1-packet_loss_ratio));
+		csv_.v__k_mowdg.push_back(last_mowdg);
+		csv_.v__threshold.push_back(last_threshold);
+		csv_.v__RTT.push_back(RTT_metric);
+		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
 
 	#endif
+
+	rate_control.Set(SimTime()+(TIME_BETWEEN_UPDATES));  //RATE CONTROL EVERY 0.1 SECONDS
+
+
 };
 
 int XRServer::overuse_detector(double mowdg, double threshold)
