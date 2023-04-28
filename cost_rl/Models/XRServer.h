@@ -34,7 +34,7 @@ using namespace std;
 /* ##############################           AGENT TYPE             #####################################3*/
 #define CTL_GREEDY_MAB 	0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
 #define CTL_THOMPSON 	0
-#define CTL_UCB 	 	0
+#define CTL_UCB 	 	1
 #define CTL_Q_ONLINE    0 
 
 #define TIME_BETWEEN_UPDATES 0.1  //How often the AGENT will choose new ACTION
@@ -371,16 +371,21 @@ void XRServer :: Stop()
     stream << std::fixed << std::setprecision(1) << st_input_args.STime;
     std::string stime = stream.str();
 	
+	//change first part of name of CSV 
 	#if CTL_GREEDY_MAB ==1
 		std::string greedyornot = "MAB-";
-	#else
+	#elif CTL_Q_ONLINE
 		std::string greedyornot = "Q-";
+	#elif CTL_THOMPSON
+		std::string greedyornot = "THOMPSON-";
+	#elif CTL_UCB
+		std::string greedyornot = "UCB-";
 	#endif
 
 	std::string filename = greedyornot + "Res_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +".csv";
 
-	//1std::string filename = "Res_T"+std::to_string((int)st_input_args.STime)+"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+std::to_string((int)st_input_args.XRLoad/10E6 )+"_BG"+std::to_string((int)st_input_args.BGLoad/10E6) +".csv";
-	printf("\n\nFILENAMEEEEEEEEEEEEEEEEEEEE: %s\n",filename.c_str());
+	printf("\n FILENAME OF CSV: \n\t%s\n\n",filename.c_str());
+	
 	std::ofstream file("Results/csv/" + filename);
 
 	if(!file.is_open()){
