@@ -18,7 +18,15 @@ public:
         x = fc3(x);
         return x;
     }
+        // Function to save the model's weights to a file
+    void save_weights(const std::string& filename) {
+        torch::save(state_dict(), filename);
+    }
 
+    // Function to load the model's weights from a file
+    void load_weights(const std::string& filename) {
+        torch::load(state_dict(), filename);
+    }
 private:
     torch::nn::Linear fc1, fc2, fc3;
 };

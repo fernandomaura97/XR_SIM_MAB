@@ -59,12 +59,13 @@ component XRServer : public TypeII
 		void Setup();
 		void Start();
 		void Stop();
-
+     
 		//utilities
 		int overuse_detector(double mowdg, double threshold); //function to detect if mowdg is within limits of threshold. 
 		
 		void GreedyControl();
 		void QLearning();
+    void DQNLearning();
 		void ThompsonSampling(); 
 		void UpperConfidenceBounds(); 
 
@@ -179,8 +180,9 @@ component XRServer : public TypeII
 		int NumberPacketsPerFrame, auxNumberPacketsPerFrame;
 		int tx_packets_per_frame;
 		double video_frame_sequence=-1;
-
-
+    
+    // DQN model declaration
+    DQN model;
 	public:
 		double generated_packets=0;
 		double received_packets=0;
@@ -252,6 +254,9 @@ component XRServer : public TypeII
 void XRServer :: Setup()
 {
 	printf("XR Server Setup()\n");
+  model = DQN(N_STATES,ACTION_SIZE);
+	printf("Init DQN model\n");
+
 };
 
 void XRServer :: Start()
@@ -808,6 +813,11 @@ void XRServer :: QLearning()
             printf("next state: %d", next_state);
 							
 };
+
+void XRServer :: DQNLearning()
+{
+
+}
 
 void XRServer :: AdaptiveVideoControl(trigger_t & t)
 {
