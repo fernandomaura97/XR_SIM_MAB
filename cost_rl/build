@@ -1,12 +1,14 @@
+export LD_LIBRARY_PATH=./libtorch/lib:$LD_LIBRARY_PATH
 ./COST/cxx XRWiFi_P1.cc
-g++ -Wall -o XRWiFi_P1 XRWiFi_P1.cxx
+g++ -Wall -o XRWiFi_P1 XRWiFi_P1.cxx -I./libtorch/include -L./libtorch/lib -ltorch -lc10 -Wl,-rpath,'$ORIGIN/libtorch/lib'
 
 echo ./COST/cxx XRWiFisim_Exp0_BianchiValidation.cc
-echo g++ -Wall -o XRWiFisim_Exp0_BianchiValidation XRWiFisim_Exp0_BianchiValidation.cxx
+echo g++ -Wall -o XRWiFisim_Exp0_BianchiValidation XRWiFisim_Exp0_BianchiValidation.cxx -I./libtorch/include -L./libtorch/lib -ltorch -lc10 -Wl,-rpath,'$ORIGIN/libtorch/lib'
 
 echo ./COST/cxx XRWiFisim_Exp1_RSSI_SingleXRplayer.cc
-echo g++ -Wall -o XRWiFisim_Exp1_RSSI_SingleXRplayer XRWiFisim_Exp1_RSSI_SingleXRplayer.cxx
+echo g++ -Wall -o XRWiFisim_Exp1_RSSI_SingleXRplayer XRWiFisim_Exp1_RSSI_SingleXRplayer.cxx -I./libtorch/include -L./libtorch/lib -ltorch -lc10 -Wl,-rpath,'$ORIGIN/libtorch/lib'
 
 echo ./COST/cxx XRWiFisim.cc
-echo g++ -Wall -o XRWiFisim XRWiFisim.cxx
+echo g++ -Wall -o XRWiFisim XRWiFisim.cxx -I./libtorch/include -L./libtorch/lib -ltorch -lc10 -Wl,-rpath,'$ORIGIN/libtorch/lib'
+
 

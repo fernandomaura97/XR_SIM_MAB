@@ -18,6 +18,8 @@
 #include <string>
 #include <cstring> // include the cstring header for memcpy
 
+#include "DQN.h"
+
 using namespace std;
 
 #define ADAPTIVE_HEUR 	0 		//set to 1 for heuristic adaptive control
@@ -760,6 +762,9 @@ void XRServer :: QLearning()
 			else
 			{
 				printf("***************** EXPLOIT Q**************************** %f\n", SimTime());
+      	printf("***************** EXPLOIT Q**************************** %f\n", SimTime());
+
+
 
                 // Choose the action with the highest Q-value
 				for (int a = 0; a < ACTION_SIZE; a++)
