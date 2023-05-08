@@ -50,6 +50,16 @@ const int STATE_SIZE = 10;
 double QoE_metric; 
 const double alpha_mab = 0.4;
 
+static struct QoE_t{
+	double RTT;
+	double RXframes;
+	double MOWDG; 
+	//double packetloss; 	//we don't compute at the moment.. 
+
+	double QoE; 
+}QoS_struct; 
+
+
 component XRServer : public TypeII
 {
 	
@@ -574,47 +584,26 @@ void XRServer :: in(data_packet &packet)
 		//double packet_loss_ratio = received_frames_MAB/sent_frames_MAB;
 		packet_loss_ratio = std::abs(rx_f_pl/sent_f_pl);
 
+		
+
+		
+		/*	LEGACY CODE (MIGHT DELETE)
+
+		//printf("Packet loss over 1000 packets \"window\": %f, rw_threshold = %f\n", (1 - packet_loss_ratio), rw_threshold);
+
 		if(sent_f_pl>= 5000 ){
 			rx_f_pl = 1 ; 
 			sent_f_pl = 1; 
 		}
-
-		//printf("Packet loss over 1000 packets \"window\": %f, rw_threshold = %f\n", (1 - packet_loss_ratio), rw_threshold);
-		
 		if(packet_loss_ratio<0.95){ 
 			rw_pl = 0;
 			}
 		else if (packet_loss_ratio > 0.95) {
 			rw_pl = Load/MAXLOAD; 				
 		}
-	
-	//FER REWARDS
-		//QoE_metric = 3.01 * exp(-4.473 * (1-packet_loss_ratio)) + 1.065; // metric only taking into account the packet loss ratio
-
-		//QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio)*10E2 + 0.2*jitter_sum_quadratic)*10E2) + 1.065; // metric with webrtc congestion control added on top of packet loss
-		
-		//QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1? 
-		//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
-		
-	//BORIS REWARDS
-		QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
-		//double instantaneous_reward_Boris = (90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/100E6))/100;	// second reward function proposed by Boris
-
-		//printf("QOE normalized: %f\n\n", QoE_metric);
-
-		/*
-		if ( QoE_metric < )
-		QoE_rw += QoE_metric
 		*/
-		  //let the jitter_sum_quadratic go back to 0 for next frame measurement
 
 	}
-	/* IF WE UPDATE KALMAN FILTER FROM DIFFERENT ROUTINE, USE THIS INSTEAD 
-	if(packet.feedback == true){
-		m_owdg = packet.m_owdg; 
-
-	}
-	*/
 	received_packets++;
 };
 
@@ -712,7 +701,7 @@ void XRServer :: ThompsonSampling()
 	printf("action taken: %d, n_times of action: %f", argmax, thompson_struct.n_times_selected[argmax]);
 		
 	Load = thompson_struct.current_action * 5E6; 
-	thompson_struct.current_reward = reward(thompson_struct.current_action, 1); //1 because it's same reward function from q-learning adapted "without state-action" 
+	thompson_struct.current_reward = reward(thompson_struct.current_action, 1); //"1" because it's same reward function from q-learning adapted "without state-action" 
 	thompson_struct.reward_hist.push_back(thompson_struct.current_reward);
 	thompson_struct.action_hist.push_back(thompson_struct.current_action);
 
@@ -930,12 +919,42 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		}
 	}
 	//And compute averages over this window
-	RTT_slide = RTT_slide / no_packets;
-	RX_frames_slide = RX_frames_slide / no_packets ;
-	MOWDG_slide = MOWDG_slide/ no_feedback_packets; 
+	if(no_feedback_packets != 0 || no_packets != 0 ){		//just make sure to not divide by 0
+	
+		RTT_slide = RTT_slide / no_packets;
+		RX_frames_slide = RX_frames_slide / no_packets ;
+		MOWDG_slide = MOWDG_slide/ no_feedback_packets; 
+		printf("Average metrics over window:\nRTT:.%.4f\tRX_frames: %.2f\t MOWDG:%.4f\n", RTT_slide, RX_frames_slide, MOWDG_slide );
+		
+		QoS_struct.RTT = RTT_slide; 
+		QoS_struct.RXframes = RX_frames_slide; 
+		QoS_struct.MOWDG = MOWDG_slide; 
+		
 
-	printf("Average metrics over window:\nRTT:.%.2f\tRX_frames: %.2f\t MOWDG:%.2f\n", RTT_slide, RX_frames_slide, MOWDG_slide );
+		
+		//FER REWARDS
+		//QoE_metric = 3.01 * exp(-4.473 * (1-packet_loss_ratio)) + 1.065; // metric only taking into account the packet loss ratio
 
+		//QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio)*10E2 + 0.2*jitter_sum_quadratic)*10E2) + 1.065; // metric with webrtc congestion control added on top of packet loss
+		
+		//QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1? 
+		//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
+		
+		//BORIS REWARDS
+		QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
+		//double instantaneous_reward_Boris = (90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/100E6))/100;	// second reward function proposed by Boris
+
+		//printf("QOE normalized: %f\n\n", QoE_metric);
+
+		/*
+		if ( QoE_metric < )
+		QoE_rw += QoE_metric
+		*/
+		  //let the jitter_sum_quadratic go back to 0 for next frame measurement
+
+
+
+	}
 	//END TEST
 	passes++; 
 	printf("passes: %f, TIME: %f\n", passes, SimTime()); 
