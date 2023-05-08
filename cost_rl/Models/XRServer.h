@@ -168,7 +168,17 @@ component XRServer : public TypeII
 			std::vector<double> reward_hist; 
 			std::vector<double> action_hist;
 		}ucb_struct;
-		
+
+
+		struct sliding_window_t {
+
+			data_packet Packet;
+			double      Timestamp; 
+			double 		RTT; 
+		}; 
+
+		std::vector<sliding_window_t>sliding_vector;  
+
 		//////////////////////////////////////////////////////////////////////////////
 	
 	private:
@@ -380,7 +390,7 @@ void XRServer :: Stop()
 	std::string filename = greedyornot + "Res_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +".csv";
 
 	//1std::string filename = "Res_T"+std::to_string((int)st_input_args.STime)+"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+std::to_string((int)st_input_args.XRLoad/10E6 )+"_BG"+std::to_string((int)st_input_args.BGLoad/10E6) +".csv";
-	printf("\n\nFILENAMEEEEEEEEEEEEEEEEEEEE: %s\n",filename.c_str());
+	printf("\n\nFILENAME: %s\n",filename.c_str());
 	std::ofstream file("Results/csv/" + filename);
 
 	if(!file.is_open()){
@@ -530,7 +540,19 @@ void XRServer :: in(data_packet &packet)
 	}
 
 	if(packet.last_video_frame_packet == 1)
-	{
+	{	
+		//////////////////// NEW SLIDING WINDOW CODE ///////////////////
+	
+		sliding_window_t NEW_p; 
+		memcpy(&NEW_p.Packet, &packet, sizeof(packet)); 
+		NEW_p.Timestamp = SimTime();  
+		NEW_p.RTT = NEW_p.Timestamp - packet.TimeSentAtTheServer; 
+
+
+		sliding_vector.push_back(NEW_p);
+
+
+		///////////////////// end SLIDING WINDOW CODE ////////////////////
 		rx_f_pl++; 
 		double RTT = SimTime() - packet.TimeSentAtTheServer;
 		avRTT += RTT;
@@ -646,7 +668,7 @@ void XRServer :: GreedyControl()
 };
 
 // Define the update function
-void XRServer::update( int state, int action, double reward, int next_state) {
+void XRServer :: update( int state, int action, double reward, int next_state) {
     double old_value = Q_matrix[state][action];
     //double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
 	double next_max = *max_element(std::begin(Q_matrix[next_state]),  std::end(Q_matrix[next_state]));
@@ -657,7 +679,7 @@ void XRServer::update( int state, int action, double reward, int next_state) {
 //void reward(int a, int b){}
 
 
-void XRServer::ThompsonSampling()
+void XRServer :: ThompsonSampling()
 {
 
 	past_load = Load; 
@@ -877,6 +899,44 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 //// 1: Apply "one pass" of algorithm
 
+	//TEST: GET METRICS OVER "SLIDING WINDOW"
+
+	printf("iterating through sliding vector:\n");
+
+	double CurrentTime = SimTime(); 
+	double RTT_slide = 0;
+	double RX_frames_slide = 0; 
+	double MOWDG_slide = 0; 
+
+	int no_packets = 0;
+	int no_feedback_packets = 0;  
+ 
+	for (auto it = sliding_vector.begin(); it!=sliding_vector.end(); ){
+		if(it->Timestamp <= (CurrentTime - TIME_BETWEEN_UPDATES))
+		{
+			it = sliding_vector.erase(it);
+		}
+		else{
+			it ++;
+			no_packets ++; 
+			//Calculate metrics over the rest of vector: 
+			RTT_slide += it->RTT; 
+			RX_frames_slide += it->Packet.frames_received;
+			
+			if(it->Packet.feedback == true){
+				MOWDG_slide += it->Packet.m_owdg; 
+				no_feedback_packets++; 
+			}
+		}
+	}
+	//And compute averages over this window
+	RTT_slide = RTT_slide / no_packets;
+	RX_frames_slide = RX_frames_slide / no_packets ;
+	MOWDG_slide = MOWDG_slide/ no_feedback_packets; 
+
+	printf("Average metrics over window:\nRTT:.%.2f\tRX_frames: %.2f\t MOWDG:%.2f\n", RTT_slide, RX_frames_slide, MOWDG_slide );
+
+	//END TEST
 	passes++; 
 	printf("passes: %f, TIME: %f\n", passes, SimTime()); 
 	
