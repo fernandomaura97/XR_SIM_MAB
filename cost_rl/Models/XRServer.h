@@ -924,14 +924,14 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		RTT_slide = RTT_slide / no_packets;
 		RX_frames_slide = RX_frames_slide / no_packets ;
 		MOWDG_slide = MOWDG_slide/ no_feedback_packets; 
-		printf("Average metrics over window:\nRTT:.%.4f\tRX_frames: %.2f\t MOWDG:%.4f\n", RTT_slide, RX_frames_slide, MOWDG_slide );
+		printf("\n\nAverage metrics over window:\nRTT:.%.4f\tRX_frames: %.2f\t MOWDG:%.4f\n", RTT_slide, RX_frames_slide, MOWDG_slide );
 		
 		QoS_struct.RTT = RTT_slide; 
 		QoS_struct.RXframes = RX_frames_slide; 
 		QoS_struct.MOWDG = MOWDG_slide; 
 		
 
-		
+
 		//FER REWARDS
 		//QoE_metric = 3.01 * exp(-4.473 * (1-packet_loss_ratio)) + 1.065; // metric only taking into account the packet loss ratio
 
