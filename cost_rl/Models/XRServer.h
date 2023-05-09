@@ -393,8 +393,12 @@ void XRServer :: Stop()
 	
 	#if CTL_GREEDY_MAB ==1
 		std::string greedyornot = "MAB-";
-	#else
+	#elif CTL_Q_ONLINE == 1
 		std::string greedyornot = "Q-";
+	#elif CTL_THOMPSON == 1
+		std::string greedyornot = "THMPSN";
+	#elif CTL_UCB == 1
+		std::string greedyornot = "UCB"	
 	#endif
 
 	std::string filename = greedyornot + "Res_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +".csv";
@@ -516,8 +520,6 @@ void XRServer :: new_packet(trigger_t &)
 
 	tx_packets_per_frame--;
 
-	
-
 	// Constant time between packets	
 	if(tx_packets_per_frame > 0) inter_packet_timer.Set(SimTime()+10E-6);
 
@@ -528,6 +530,8 @@ void XRServer :: in(data_packet &packet)
 	if(traces_on) printf("%f - XR server %d : Uplink Packet received\n",SimTime(),id);
 	// Compute RTT & losses
 	if(packet.feedback ==true){
+
+		/////////////////////////// DEPRECATED  /////////////////
 		
 		jitter_sum_quadratic += pow(packet.m_owdg, 2); //Quadratic sum of value
 		last_mowdg = packet.m_owdg;
@@ -545,7 +549,11 @@ void XRServer :: in(data_packet &packet)
 		else if(signal_overuse == 0){
 			rw_threshold = 0.3; //underuse reward
 			//printf("[dbg]UNDERUSE\n");
+
+		/////////////////////////// DEPRECATED END /////////////////
+
 		}
+
 		//printf("Quadratic sum_jitter: %f, mowdg: %f, threhsold: %f\n", jitter_sum_quadratic, packet.m_owdg, packet.threshold_gamma); 
 	}
 
@@ -1036,8 +1044,6 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		RTT_metric = 0;
 
 		jitter_sum_quadratic = 0;
-
-
 	#elif CTL_UCB == 1
 
 		double t___ = SimTime();
