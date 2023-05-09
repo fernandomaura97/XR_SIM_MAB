@@ -398,7 +398,9 @@ void XRServer :: Stop()
 	#elif CTL_THOMPSON == 1
 		std::string greedyornot = "THMPSN";
 	#elif CTL_UCB == 1
-		std::string greedyornot = "UCB"	
+		std::string greedyornot = "UCB";
+	#else
+		std::string greedyornot = "VANILLA";
 	#endif
 
 	std::string filename = greedyornot + "Res_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +".csv";
