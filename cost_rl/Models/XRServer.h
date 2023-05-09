@@ -33,9 +33,9 @@ using namespace std;
 
 /* ##############################           AGENT TYPE             #####################################3*/
 #define CTL_GREEDY_MAB 	0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
-#define CTL_THOMPSON 	0
+#define CTL_THOMPSON 	1
 #define CTL_UCB 	 	0
-#define CTL_Q_ONLINE    0 
+#define CTL_Q_ONLINE    0
 
 #define TIME_BETWEEN_UPDATES 0.1  //How often the AGENT will choose new ACTION
 
@@ -647,7 +647,7 @@ void XRServer :: GreedyControl()
 				max_reward = MAB_rewards_greedy[r];
 			}
 		}
-		printf("The action with max reward is %d\n",index_max);
+		printf("[E-GREEDY] The action with max reward is %d\n",index_max);
 		next_action_MAB = index_max;
 	}
 
@@ -708,9 +708,10 @@ void XRServer :: ThompsonSampling()
 
 	thompson_struct.current_action = argmax;
 	thompson_struct.n_times_selected[argmax]++; 
-	printf("action taken: %d, n_times of action: %f", argmax, thompson_struct.n_times_selected[argmax]);
+	printf("THOMPSON: action taken: %d, n_times of action: %f", argmax, thompson_struct.n_times_selected[argmax]);
 		
 	Load = thompson_struct.current_action * 5E6; 
+
 	thompson_struct.current_reward = reward(thompson_struct.current_action, 1); //"1" because it's same reward function from q-learning adapted "without state-action" 
 	thompson_struct.reward_hist.push_back(thompson_struct.current_reward);
 	thompson_struct.action_hist.push_back(thompson_struct.current_action);
@@ -742,7 +743,7 @@ void XRServer::UpperConfidenceBounds()
 	ucb_struct.n_times_selected[argmax] ++; 
 
 	Load = ucb_struct.current_action * 5E6; 
-	printf("epsilon_greedy_decreasing: Action taken %d , nº times of action: %f", argmax, ucb_struct.n_times_selected[argmax]);
+	printf("UCB: Action taken %d , nº times of action: %f", argmax, ucb_struct.n_times_selected[argmax]);
 
 	ucb_struct.action_reward[argmax] += reward(argmax, 1); 
 
@@ -961,9 +962,9 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		QoE_rw += QoE_metric
 		*/
 		  //let the jitter_sum_quadratic go back to 0 for next frame measurement
-
-
-
+	}
+	else{
+		printf("dividing by zero???");
 	}
 	//END TEST
 	passes++; 
@@ -1046,8 +1047,8 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		RTT_metric = 0;
 
 		jitter_sum_quadratic = 0;
-	#elif CTL_UCB == 1
 
+	#elif CTL_UCB == 1
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
 		csv_.v__current_action.push_back(current_action);
@@ -1146,7 +1147,7 @@ double XRServer::reward(int state, int next_a){
 	} 
 	
 	else {rw = 0.95* QoE_metric + 0.05*( (state * 5E6)/MAXLOAD);}
-	//printf("%f reward!", rw);
+	printf("\n\n\treward: %.2f\t QoE metric: %.3f", rw, QoE_metric);
 	return rw; 
 };
 
