@@ -189,6 +189,7 @@ component XRServer : public TypeII
 
 		std::vector<sliding_window_t>sliding_vector;  
 
+		double CUMulative_reward; 
 		//////////////////////////////////////////////////////////////////////////////
 	
 	private:
@@ -938,7 +939,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		printf("\n\nAverage metrics over window:\nRTT:.%.4f\tRX_frames: %.2f\t MOWDG:%.4f\n", RTT_slide, RX_frames_slide, MOWDG_slide );
 		
 		QoS_struct.RTT = RTT_slide; 
-		QoS_struct.RXframes = RX_frames_slide; 
+		QoS_struct.RXframes = RX_frames_slide; //divide by sent packets
 		QoS_struct.MOWDG = MOWDG_slide; 
 		
 
@@ -953,7 +954,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		
 		//BORIS REWARDS
 		QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
-		//double instantaneous_reward_Boris = (90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/100E6))/100;	// second reward function proposed by Boris
+		double instantaneous_reward_Boris = (90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/100E6))/100;	// second reward function proposed by Boris
 
 		//printf("QOE normalized: %f\n\n", QoE_metric);
 
@@ -965,6 +966,10 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	}
 	else{
 		printf("dividing by zero???");
+
+		// make reward go to 0. 
+
+
 	}
 	//END TEST
 	passes++; 
@@ -1045,13 +1050,11 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		sent_frames_MAB = 0;
 		received_frames_MAB = 0;
 		RTT_metric = 0;
-
 		jitter_sum_quadratic = 0;
-
 	#elif CTL_UCB == 1
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
-		csv_.v__current_action.push_back(current_action);
+		csv_.v__current_action.push_back(ucb_struct.current_action);
 		csv_.v__reward.push_back(reward(2, current_action)); // arbitrary int "2" to get reward not based on state
 		csv_.v__load.push_back(Load);
 		csv_.v__FM.push_back(feature_map(Load));

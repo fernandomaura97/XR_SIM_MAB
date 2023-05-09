@@ -230,6 +230,9 @@ void XRClient :: in(data_packet &packet)
 	packet_times.push_back(SimTime()-packet.sent_time);
 	avRxPacketSize +=packet.L_data;
 
+	int FullVideoFrameRX = 0; 
+
+
 	// Probability of not receiving a video frame completely
 	//printf("Packet in the frame = %d\n",packet.num_packet_in_the_frame);
 
@@ -290,8 +293,9 @@ void XRClient :: in(data_packet &packet)
 		
 		packets_rx_video_frames[(int) packet.video_frame_seq]++;
 		if(packets_rx_video_frames[(int) packet.video_frame_seq] == packet.NumPacketsPerFrame)
-		{
+		{	
 			VideoFramesFullReceived++;
+			FullVideoFrameRX = 1; 
 			frame_times.push_back(SimTime()-packet.frame_generation_time);
 			if(traces_on) printf("%f - XRClient %d. Video Frame Received  %f (Packets = %f | Packets In Frame = %d).\n",SimTime(),id,packet.video_frame_seq,packets_rx_video_frames[(int) packet.video_frame_seq],packet.NumPacketsPerFrame);
 			if(traces_on) printf("Number of Video Frames Full Received %f from Total = %f | Fraction = %f\n",VideoFramesFullReceived,VideoFramesReceived,VideoFramesFullReceived/VideoFramesReceived);
@@ -361,8 +365,8 @@ void XRClient :: in(data_packet &packet)
 	
 
 	// For interactive (correlated traffic: Last packet, or random
-	if(packet.last_video_frame_packet==1)
-	//if(Random()<0.1)	
+	//if(packet.last_video_frame_packet==1)
+	if(FullVideoFrameRX == 1 )
 	{
 		if(traces_on) printf("%f - XR client %d . UL packet for RTT\n",SimTime(),id);
 		data_packet XR_packet = packet;
@@ -373,7 +377,7 @@ void XRClient :: in(data_packet &packet)
 		XR_packet.destination_app = destination_app;
 		XR_packet.sent_time = SimTime();
 		// To compute RTT;
-		XR_packet.TimeSentAtTheServer = packet.sent_time;
+		XR_packet.TimeSentAtTheServer = packet.frame_generation_time;
 		XR_packet.TimeReceivedAtTheClient = SimTime();
 		XR_packet.frames_received = VideoFramesFullReceived;
 
@@ -427,6 +431,8 @@ void XRClient :: in(data_packet &packet)
 		Threshold.gamma_prev = Threshold.gamma; 
 		out(XR_packet);	
 	}
+
+
 
 
 	

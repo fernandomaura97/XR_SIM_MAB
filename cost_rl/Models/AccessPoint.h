@@ -216,6 +216,7 @@ void AccessPoint :: in_slot(SLOT_indicator &slot)
 			attempts=0;
 			service_time += (SimTime()-aux_service_time-SLOT);
 			successful++;
+			mode = 0;
 
 		}
 

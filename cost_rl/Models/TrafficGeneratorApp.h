@@ -67,7 +67,7 @@ void TrafficGeneratorApp :: Stop()
 {
 	printf("------------------------ TGAPP %d Results ------------------------\n",id);
 	printf("GTAPP %d: Number of Generated Packets = %f | Number of Received Packets = %f\n",id,generated_packets,received_packets);
-	printf("GTAPP %d: Load = %f \n",id,generated_packets*L_data);
+	printf("GTAPP %d: Load = %f \n",id,generated_packets*L_data/SimTime());
 	printf("GTAPP %d: Received Traffic = %f \n",id,avLreceived/SimTime());
 	printf("Av. Packet Delay = %f\n",avDelay/received_packets);
 
@@ -79,7 +79,7 @@ void TrafficGeneratorApp :: new_packet(trigger_t &)
 	if(traces_on==1) printf("%.9f - Traffic Generation APP %d - New Generated Packet to node %d and app %d\n",SimTime(),id,destination,destination_app);
 	data_packet new_gen_packet;
 	new_gen_packet.L_data = L_data;
-	new_gen_packet.L_data = 100;
+	//new_gen_packet.L_data = 100;
 	new_gen_packet.L = 100 + L_data;
 	new_gen_packet.source = node_attached;
 	new_gen_packet.destination = destination;
@@ -99,7 +99,9 @@ void TrafficGeneratorApp :: in(data_packet &packet)
 	if(traces_on) printf("%f - Traffic Generation APP %d - Packet Received from %d \n",SimTime(),id,packet.source);
 	received_packets++;
 	avDelay += SimTime() - packet.sent_time;
-	avLreceived += packet.L;
+	//avLreceived += packet.L;
+	avLreceived += packet.L_data;
+
 }
 
 
