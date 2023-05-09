@@ -42,6 +42,8 @@ using namespace std;
 #define N_ACTIONS_THOMPSON 20 
 #define N_ACTIONS_UCB 20 
 
+
+// Online Q-learning parametres: 
 const int ITER_SIZE = 1000;
 const int ACTION_SIZE= 3;
 const float ALPHA =0.5;
@@ -54,8 +56,6 @@ static struct QoE_t{
 	double RTT;
 	double RXframes;
 	double MOWDG; 
-	//double packetloss; 	//we don't compute at the moment.. 
-
 	double QoE; 
 }QoS_struct; 
 
@@ -378,7 +378,9 @@ void XRServer :: Stop()
 		}
 	// 
 	outfile.close();
-	//CSV RESULTS
+
+
+	////////////////////   CSV RESULTS ////////////////////////
 
 	std::stringstream stream;
     stream << std::fixed << std::setprecision(1) << (st_input_args.XRLoad/10E6);
@@ -522,7 +524,6 @@ void XRServer :: new_packet(trigger_t &)
 	out(XR_packet);
 
 	tx_packets_per_frame--;
-
 	// Constant time between packets	
 	if(tx_packets_per_frame > 0) inter_packet_timer.Set(SimTime()+10E-6);
 
@@ -568,7 +569,6 @@ void XRServer :: in(data_packet &packet)
 		memcpy(&NEW_p.Packet, &packet, sizeof(packet)); 
 		NEW_p.Timestamp = SimTime();  
 		NEW_p.RTT = NEW_p.Timestamp - packet.TimeSentAtTheServer; 
-
 
 		sliding_vector.push_back(NEW_p);
 
@@ -681,7 +681,18 @@ void XRServer :: update( int state, int action, double reward, int next_state) {
 
 void XRServer :: ThompsonSampling()
 {
+	if (passes == 1) {
+		//printf("First time algorithm has ran, however metrics should still be available from sliding window\n\n");
+		//WORKS, SO: first time going through here we don't update rewards, but next yes!!!
+		//TODO: need to keep track of past action!!
 
+
+	
+	}
+	else{
+		double reward_past_action = QoS_struct
+
+	}
 	past_load = Load; 
 	std::random_device rd;
 	std::mt19937 gen(rd());
@@ -931,7 +942,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		}
 	}
 	//And compute averages over this window
-	if(no_feedback_packets != 0 || no_packets != 0 ){		//just make sure to not divide by 0
+	if((no_feedback_packets != 0) && (no_packets != 0) ){		//just make sure to not divide by 0
 	
 		RTT_slide = RTT_slide / no_packets;
 		RX_frames_slide = RX_frames_slide / no_packets ;
@@ -941,8 +952,6 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		QoS_struct.RTT = RTT_slide; 
 		QoS_struct.RXframes = RX_frames_slide; //divide by sent packets
 		QoS_struct.MOWDG = MOWDG_slide; 
-		
-
 
 		//FER REWARDS
 		//QoE_metric = 3.01 * exp(-4.473 * (1-packet_loss_ratio)) + 1.065; // metric only taking into account the packet loss ratio
@@ -954,7 +963,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		
 		//BORIS REWARDS
 		QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
-		double instantaneous_reward_Boris = (90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/100E6))/100;	// second reward function proposed by Boris
+		//double instantaneous_reward_Boris = (90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/100E6))/100;	// second reward function proposed by Boris
 
 		//printf("QOE normalized: %f\n\n", QoE_metric);
 
@@ -965,31 +974,26 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		  //let the jitter_sum_quadratic go back to 0 for next frame measurement
 	}
 	else{
-		printf("dividing by zero???");
+		printf("dividing by zero????????????????????\n");
 
-		// make reward go to 0. 
-
-
+		// make reward go to 0 in this case [Boris suggestion]
 	}
 	//END TEST
 	passes++; 
-	printf("passes: %f, TIME: %f\n", passes, SimTime()); 
+
+	//printf("passes: %f, TIME: %f\n", passes, SimTime()); 
 	
 	#if CTL_THOMPSON == 1
 		ThompsonSampling();
 		// maybe need to add reward vector? TODO 
  
-	#endif
-	#if CTL_UCB == 1
+	#elif CTL_UCB == 1
 		UpperConfidenceBounds(); 
 		// maybe need to add reward vector? 
-	#endif
-
-	#if CTL_GREEDY_MAB == 1
+	#elif CTL_GREEDY_MAB == 1
 		GreedyControl();
-	#endif
 
-	#if CTL_Q_ONLINE == 1 
+	#elif CTL_Q_ONLINE == 1 
 		QLearning(); 
 	#endif
 
@@ -1150,7 +1154,7 @@ double XRServer::reward(int state, int next_a){
 	} 
 	
 	else {rw = 0.95* QoE_metric + 0.05*( (state * 5E6)/MAXLOAD);}
-	printf("\n\n\treward: %.2f\t QoE metric: %.3f", rw, QoE_metric);
+	printf("\n\n\treward: %.2f\t QoE metric: %.3f\n", rw, QoE_metric);
 	return rw; 
 };
 
