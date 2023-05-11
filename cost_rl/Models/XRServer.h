@@ -33,7 +33,7 @@ using namespace std;
 
 /* ##############################           AGENT TYPE             #####################################3*/
 #define CTL_GREEDY_MAB 	0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
-#define CTL_THOMPSON 	1
+#define CTL_THOMPSON 	0
 #define CTL_UCB 	 	0
 #define CTL_Q_ONLINE    0
 
@@ -51,6 +51,7 @@ const float GAMMA= 0.9;
 const int STATE_SIZE = 10;
 double QoE_metric; 
 const double alpha_mab = 0.4;
+
 
 static struct QoE_t{
 	double RTT;
@@ -189,7 +190,11 @@ component XRServer : public TypeII
 
 		std::vector<sliding_window_t>sliding_vector;  
 
-		double CUMulative_reward; 
+		double CUMulative_reward; //TODO
+
+
+		double sequence_frame_counter; //useful for keeping track of frameloss 
+
 		//////////////////////////////////////////////////////////////////////////////
 	
 	private:
@@ -298,6 +303,7 @@ void XRServer :: Start()
 	rx_f_pl = 0;
 	sent_f_pl = 0 ;
 	state_q = 0 ;
+	sequence_frame_counter = 0; 
 	
 	//values for applying the greedy epsilon_greedy_decreasing
 	epsilon_greedy_decreasing = 0.25; 
@@ -491,6 +497,7 @@ void XRServer :: new_packet(trigger_t &)
 	XR_packet.frame_generation_time = last_frame_generation_time;
 
 	rtt_counter +=1;
+	sequence_frame_counter++; 
 	
 	/*            ///ROUTINE TO MAKE 1 PACKET IN N BE FOR FEEDBACK AND KALMAN (UNUSED)
 	if (rtt_counter >=10){
@@ -512,6 +519,7 @@ void XRServer :: new_packet(trigger_t &)
 	if(tx_packets_per_frame==1) 
 	{
 		XR_packet.last_video_frame_packet = 1;
+		XR_packet.frame_numseq = sequence_frame_counter; 
 	}
 	else 
 	{
@@ -589,15 +597,12 @@ void XRServer :: in(data_packet &packet)
 
 		received_frames_MAB++;
 		
-
 		//m_owdg = packet.m_owdg; //kalman filter estimate of One Way Delay Gradient!
 
 		//double packet_loss_ratio = received_frames_MAB/sent_frames_MAB;
 		packet_loss_ratio = std::abs(rx_f_pl/sent_f_pl);
 
-		
-
-		
+			
 		/*	LEGACY CODE (MIGHT DELETE)
 
 		//printf("Packet loss over 1000 packets \"window\": %f, rw_threshold = %f\n", (1 - packet_loss_ratio), rw_threshold);
@@ -685,12 +690,12 @@ void XRServer :: ThompsonSampling()
 		//printf("First time algorithm has ran, however metrics should still be available from sliding window\n\n");
 		//WORKS, SO: first time going through here we don't update rewards, but next yes!!!
 		//TODO: need to keep track of past action!!
-
-
-	
 	}
 	else{
-		double reward_past_action = QoS_struct
+		//double reward_past_action = QoS_struct // TODO: COMPLETE
+		//rw = 0.95* QoE_metric + 0.05*( (feature_map(past_load) * 5E6)/MAXLOAD);
+
+		//upload reward based on QoE_metric
 
 	}
 	past_load = Load; 
@@ -918,7 +923,10 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	double CurrentTime = SimTime(); 
 	double RTT_slide = 0;
 	double RX_frames_slide = 0; 
-	double MOWDG_slide = 0; 
+	double MOWDG_slide = 0;
+	double Frameloss_slide = 0; 
+	double no_lost_packets = 0; 
+
 
 	int no_packets = 0;
 	int no_feedback_packets = 0;  
@@ -940,14 +948,27 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 				no_feedback_packets++; 
 			}
 		}
+
 	}
+	
 	//And compute averages over this window
 	if((no_feedback_packets != 0) && (no_packets != 0) ){		//just make sure to not divide by 0
-	
+
+
+		//CALCULATE FRAME LOSS OVER WINDOW: 
+			for(int i = 1; i < no_packets; i++){
+				int diff = sliding_vector[i].Packet.frame_numseq - sliding_vector[i-1].Packet.frame_numseq;
+				if (diff>1){
+					no_lost_packets++; 
+				}
+			}				
+
 		RTT_slide = RTT_slide / no_packets;
 		RX_frames_slide = RX_frames_slide / no_packets ;
 		MOWDG_slide = MOWDG_slide/ no_feedback_packets; 
-		printf("\n\nAverage metrics over window:\nRTT:.%.4f\tRX_frames: %.2f\t MOWDG:%.4f\n", RTT_slide, RX_frames_slide, MOWDG_slide );
+		Frameloss_slide = no_lost_packets/(no_packets + no_lost_packets);
+
+		printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tRX_frames: %.2f\t MOWDG:%.4f,\tFrameloss: %.3f\n", RTT_slide, RX_frames_slide, MOWDG_slide, Frameloss_slide);
 		
 		QoS_struct.RTT = RTT_slide; 
 		QoS_struct.RXframes = RX_frames_slide; //divide by sent packets

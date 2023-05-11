@@ -56,6 +56,10 @@ struct data_packet
 
 	double m_owdg;
 	double threshold_gamma; 
+
+
+	bool sliding_rx_frame_loss; 
+	double frame_numseq; 
 	
 	struct Kalman_t{
 				double OW_Delay;

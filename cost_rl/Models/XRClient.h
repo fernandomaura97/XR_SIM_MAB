@@ -303,36 +303,6 @@ void XRClient :: in(data_packet &packet)
 			test_frames_received[id]++;
 			// Video Frame Delay
 			test_average_delay_decision[id] = (test_average_delay_decision[id] + (SimTime()-packet.frame_generation_time))/2;
-
-			/* SLIDING WINDOW MECHANISM, TO TRY OUT
-
-			auto now = std::chrono::steady_clock::now();
-			auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(now - window_start_time).count();
-			
-			// update circular buffer
-			if (elapsed_time < 500) {
-				circular_buffer[next_index] = packet;
-			} else {
-				// remove packets that are outside the window
-				while (std::chrono::duration_cast<std::chrono::milliseconds>(now - circular_buffer[next_index].timestamp).count() >= 500) {
-				circular_buffer[next_index] = Packet{};
-				next_index = (next_index + 1) % N;
-				}
-				circular_buffer[next_index] = packet;
-				window_start_time = now;
-			}
-			
-			// calculate packet loss over last 500ms
-			int loss = 0;
-			for (int i = 0; i < N; ++i) {
-				if (circular_buffer[i].timestamp != std::chrono::time_point<std::chrono::steady_clock>{}) {
-				loss += circular_buffer[i].is_received ? 0 : 1;
-				}
-			}
-			
-			std::cout << "Packet loss over last 500ms: " << loss << std::endl;
-
-			*/ 
 		}
 	}
 
@@ -440,7 +410,7 @@ void XRClient :: in(data_packet &packet)
 
 double XRClient::K_gamma(double mowdg, double gamma_prev){
 
-	double K_d = 0.01;		//    (ku,kd) = (0.01, 0.00018)
+	double K_d = -0.01;		//    (ku,kd) = (0.01, 0.00018)
 	double K_u = 0.00018;		// "guarantees good trade-off between high throughput, delay reduction and inter-protocol fairness :) "
 
 	if(mowdg<gamma_prev){
