@@ -70,7 +70,7 @@ struct data_packet
 			}Kalman_p; 
 
 	
-
+	double packets_received;
 }; 
 
 

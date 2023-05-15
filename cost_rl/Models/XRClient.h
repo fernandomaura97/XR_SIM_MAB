@@ -136,7 +136,8 @@ void XRClient :: Start()
 	countt = 0;
 	Threshold.gamma = 0; 
 	Threshold.gamma_prev = 0; 
-
+	received_packets_in_current_frame = 0; 
+ 
 };
 	
 void XRClient :: Stop()
@@ -226,6 +227,8 @@ void XRClient :: in(data_packet &packet)
 {
 	if(traces_on) printf("%f - XRClient %d. Downlink Data Received %d (last packet video frame? %d) From video frame %f <-----------\n",SimTime(),id,packet.num_packet_in_the_frame,packet.last_video_frame_packet,packet.video_frame_seq);
 	received_packets++;
+
+	received_packets_in_current_frame++; 
 	avDelay += SimTime()-packet.sent_time;
 	packet_times.push_back(SimTime()-packet.sent_time);
 	avRxPacketSize +=packet.L_data;
@@ -338,7 +341,9 @@ void XRClient :: in(data_packet &packet)
 	//if(packet.last_video_frame_packet==1)
 	if(FullVideoFrameRX == 1 )
 	{
-		if(traces_on) printf("%f - XR client %d . UL packet for RTT\n",SimTime(),id);
+		if(traces_on) {
+			printf("%f - XR client %d . UL packet for RTT\n",SimTime(),id);
+			}
 		data_packet XR_packet = packet;
 		XR_packet.L = 20*8 + L_data;
 		XR_packet.source = node_attached;
@@ -350,6 +355,8 @@ void XRClient :: in(data_packet &packet)
 		XR_packet.TimeSentAtTheServer = packet.frame_generation_time;
 		XR_packet.TimeReceivedAtTheClient = SimTime();
 		XR_packet.frames_received = VideoFramesFullReceived;
+
+		XR_packet.packets_received = received_packets; 
 
 		///KALMAN STUFF : //SHOULD WE DO THIS FOR EVERY N PACKETS OR LAST PACKET OF FRAME? 
 		countt +=1; 
@@ -391,21 +398,18 @@ void XRClient :: in(data_packet &packet)
 
 		Kalman_measured_delay += Kalman.m_current; 
 
-
-
 		XR_packet.m_owdg = Kalman.m_current; //we set the packet's Kalman stats
 		XR_packet.threshold_gamma = Threshold.gamma; 	
 		XR_packet.feedback = true; //to send to the server. 
+
+		XR_packet.last_video_frame_packet = 1; 
+
 		
 		//printf("******%f -> %f mowdf\n %f ->%f threshold \n", Kalman.m_current, XR_packet.m_owdg, Threshold.gamma, XR_packet.threshold_gamma);
 		Threshold.gamma_prev = Threshold.gamma; 
 		out(XR_packet);	
 	}
 
-
-
-
-	
 };
 
 double XRClient::K_gamma(double mowdg, double gamma_prev){

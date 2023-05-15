@@ -52,15 +52,14 @@ const int STATE_SIZE = 10;
 double QoE_metric; 
 const double alpha_mab = 0.4;
 
-
 static struct QoE_t{
 	double RTT;
-	double RXframes;
+	double RXframes_ratio;
 	double MOWDG; 
 	double QoE; 
 }QoS_struct; 
 
-
+const int traces_on_server = 0; 
 component XRServer : public TypeII
 {
 	
@@ -165,6 +164,9 @@ component XRServer : public TypeII
 			int cntr; 
 			std::vector<double> reward_hist; 
 			std::vector<double> action_hist;
+			
+			int prev_argmax; 
+
 		}thompson_struct;
 
 		struct ucb_s_t {
@@ -266,6 +268,17 @@ component XRServer : public TypeII
 
 		std::vector <csvfer_t> vector_csv;
 
+		double received_video_packets=0;
+		// Boris Interval Metrics
+		double RTT_interval=0;
+		double generated_video_frames_interval=0;
+		double received_video_frames_interval=0;
+		double received_video_packets_interval=0;
+		double received_video_packets_interval_ref=0;
+		double generated_video_packets_interval_ref=0;
+
+
+		double past_action_delayed_reward[2]; //Current reward will be p_a_d_r[1], store old one in padr[0] 
 
 		//std::vector<std::vector<double>>Q_matrix(10, std::vector<double>(3));
 //double MAB_r[N_STATES];
@@ -327,6 +340,8 @@ void XRServer :: Start()
 	//thompson_struct.action_hist.push_back( ##INITIAL LOAD ); //First action
 	//thompson_struct.reward_hist.push_back( reward( feature_map(Load), 1) );
 	//thompson_struct.n_times_selected[thompson_struct.current_action] = 1;
+
+	CUMulative_reward = 0; 
 };	
 	
 void XRServer :: Stop()
@@ -439,11 +454,13 @@ void XRServer :: Stop()
 
 void XRServer :: new_video_frame(trigger_t &)
 {
-	if(traces_on) printf("%f - XR Server %d : New video frame --------------------------------------\n",SimTime(),id);
+	if(traces_on_server) printf("%f - XR Server %d : New video frame --------------------------------------\n",SimTime(),id);
 	video_frame_sequence++;
 	last_frame_generation_time = SimTime();
 	tx_packets_per_frame = NumberPacketsPerFrame;
 	auxNumberPacketsPerFrame = NumberPacketsPerFrame;
+
+	generated_video_frames_interval++;
 
 	inter_packet_timer.Set(SimTime()+10E-6);
 	generated_video_frames++;	
@@ -539,7 +556,7 @@ void XRServer :: new_packet(trigger_t &)
 
 void XRServer :: in(data_packet &packet)
 {	
-	if(traces_on) printf("%f - XR server %d : Uplink Packet received\n",SimTime(),id);
+	if(traces_on_server) printf("%f - XR server %d : Uplink Packet received\n",SimTime(),id);
 	// Compute RTT & losses
 	if(packet.feedback ==true){
 
@@ -585,8 +602,8 @@ void XRServer :: in(data_packet &packet)
 		rx_f_pl++; 
 		double RTT = SimTime() - packet.TimeSentAtTheServer;
 		avRTT += RTT;
-		//if(traces_on) 
-		if(traces_on) printf("%f - XR server %d : Uplink Packet received: RTT = %f\n",SimTime(),id,RTT);
+		//if(traces_on_server) 
+		if(traces_on_server) printf("%f - XR server %d : LAST FRAME received: RTT = %f\n",SimTime(),id,RTT);
 
 		controlRTT = (controlRTT + RTT)/2;
 		rx_packet_controlRTT++;
@@ -602,7 +619,11 @@ void XRServer :: in(data_packet &packet)
 		//double packet_loss_ratio = received_frames_MAB/sent_frames_MAB;
 		packet_loss_ratio = std::abs(rx_f_pl/sent_f_pl);
 
-			
+		received_video_frames_interval++;
+	
+		received_video_packets = packet.packets_received;
+		RTT_interval += RTT;
+		
 		/*	LEGACY CODE (MIGHT DELETE)
 
 		//printf("Packet loss over 1000 packets \"window\": %f, rw_threshold = %f\n", (1 - packet_loss_ratio), rw_threshold);
@@ -681,8 +702,6 @@ void XRServer :: update( int state, int action, double reward, int next_state) {
 
     Q_matrix[state][action] = new_value;
 };
-//void reward(int a, int b){}
-
 
 void XRServer :: ThompsonSampling()
 {
@@ -692,10 +711,15 @@ void XRServer :: ThompsonSampling()
 		//TODO: need to keep track of past action!!
 	}
 	else{
-		//double reward_past_action = QoS_struct // TODO: COMPLETE
-		//rw = 0.95* QoE_metric + 0.05*( (feature_map(past_load) * 5E6)/MAXLOAD);
-
 		//upload reward based on QoE_metric
+		int pargmax = thompson_struct.prev_argmax; //aux variable to not spam the name of the struct everywhere
+
+		thompson_struct.current_reward = past_action_delayed_reward[1]; //get reward from the previously done action
+		thompson_struct.reward_hist.push_back(thompson_struct.current_reward);
+		thompson_struct.action_hist.push_back(thompson_struct.current_action);
+
+		current_action = thompson_struct.current_action; 
+		thompson_struct.action_v[pargmax] = thompson_struct.action_v[pargmax] * ( thompson_struct.n_times_selected[pargmax] - 1 ) + thompson_struct.current_reward/(thompson_struct.n_times_selected[pargmax]); //update value action matrix 
 
 	}
 	past_load = Load; 
@@ -725,16 +749,11 @@ void XRServer :: ThompsonSampling()
 
 	thompson_struct.current_action = argmax;
 	thompson_struct.n_times_selected[argmax]++; 
+	thompson_struct.prev_argmax = argmax; //for computing the (delayed) reward of current action in the "next pass"
+	
+	Load = thompson_struct.current_action * 5E6; //Maybe make this not deterministic? 
+
 	printf("THOMPSON: action taken: %d, n_times of action: %f", argmax, thompson_struct.n_times_selected[argmax]);
-		
-	Load = thompson_struct.current_action * 5E6; 
-
-	thompson_struct.current_reward = reward(thompson_struct.current_action, 1); //"1" because it's same reward function from q-learning adapted "without state-action" 
-	thompson_struct.reward_hist.push_back(thompson_struct.current_reward);
-	thompson_struct.action_hist.push_back(thompson_struct.current_action);
-
-	current_action = thompson_struct.current_action; 
-	thompson_struct.action_v[argmax] = thompson_struct.action_v[argmax] * ( thompson_struct.n_times_selected[argmax] - 1 ) + thompson_struct.current_reward/(thompson_struct.n_times_selected[argmax]); //update value action matrix 
 };
 
 void XRServer::UpperConfidenceBounds()
@@ -842,7 +861,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 {
 	#if ADAPTIVE_HEUR==1
   /*
-       if(traces_on) 
+       if(traces_on_server) 
        printf("%f - XR server %d : Rate Control ------------------- with Losses = %f | RTT = %f\n",SimTime(),id,avRxFrames/generated_video_frames,controlRTT);
 
        //double new_load = Load;       
@@ -856,7 +875,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
                        //p_do_something = 0.25;
                        if(Random() >= p_do_something)  
                        {               
-                               if(traces_on) printf("%f - XR server %d : Decrease Load Delay\n",SimTime(),id);
+                               if(traces_on_server) printf("%f - XR server %d : Decrease Load Delay\n",SimTime(),id);
                                //fps=MAX(30,fps/2);
                                new_load = MAX(10E6,new_load-10E6);
                                load_changes++;
@@ -868,7 +887,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
                        //p_do_something = 0.25;
                        if(Random() <= p_do_something)  
                        {               
-                               if(traces_on) printf("%f - XR server %d : Increase Load Delay\n",SimTime(),id);
+                               if(traces_on_server) printf("%f - XR server %d : Increase Load Delay\n",SimTime(),id);
                                new_load = MIN(100E6,new_load+10E6);
                                load_changes++;
                        }
@@ -883,7 +902,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
                                //double update_time = time_next+Random((double)1/fps);
                                double update_time = time_next + Random((double) 1.5/fps);
 
-                               if(traces_on) 
+                               if(traces_on_server) 
                                printf("%f - XR server %d : Do nothing - Time Next Frame = %f | Updated = %f | Random Values = %f\n",SimTime(),id,time_next,update_time,Random((double) 1.5/fps));
 
                                inter_video_frame.Set(update_time);
@@ -897,7 +916,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
        }
        else
        {
-                       if(traces_on) printf("%f - XR server : Decrease Load Losses\n",SimTime());
+                       if(traces_on_server) printf("%f - XR server : Decrease Load Losses\n",SimTime());
                        //fps=MAX(30,fps/2);
                        new_load = MAX(10E6,new_load-10E6);
                        load_changes++;
@@ -908,7 +927,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
        NumberPacketsPerFrame = ceil((new_load/L_data)/fps);
        //tau = (double) L_data/new_load;
        Load = new_load;
-       if(traces_on) printf("%f - XR server %d : Time to check fps | New Load = %f (%f - %f - %f) | Losses = %f \n",SimTime(),id,new_load,(double) 1/fps,controlRTT,test_average_delay_decision[id],(test_frames_received[id]/generated_video_frames));
+       if(traces_on_serv) printf("%f - XR server %d : Time to check fps | New Load = %f (%f - %f - %f) | Losses = %f \n",SimTime(),id,new_load,(double) 1/fps,controlRTT,test_average_delay_decision[id],(test_frames_received[id]/generated_video_frames));
 
 
       */
@@ -918,13 +937,13 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 	//TEST: GET METRICS OVER "SLIDING WINDOW"
 
-	printf("iterating through sliding vector:\n");
+	//printf("iterating through sliding vector:\n");
 
 	double CurrentTime = SimTime(); 
 	double RTT_slide = 0;
 	double RX_frames_slide = 0; 
 	double MOWDG_slide = 0;
-	double Frameloss_slide = 0; 
+	//double Frameloss_slide = 0; 
 	double no_lost_packets = 0; 
 
 
@@ -947,6 +966,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 				MOWDG_slide += it->Packet.m_owdg; 
 				no_feedback_packets++; 
 			}
+			//printf("no: %d feedback: %d\n\n", no_packets, no_feedback_packets);
 		}
 
 	}
@@ -955,7 +975,8 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	if((no_feedback_packets != 0) && (no_packets != 0) ){		//just make sure to not divide by 0
 
 
-		//CALCULATE FRAME LOSS OVER WINDOW: 
+		// check numseq of each packe: if diff > 1 then packet considered lost --> this is maybe not best approach for packet loss Ratio scomputation, but could be useful as (alternative) measurement of jitter in the network. 
+
 			for(int i = 1; i < no_packets; i++){
 				int diff = sliding_vector[i].Packet.frame_numseq - sliding_vector[i-1].Packet.frame_numseq;
 				if (diff>1){
@@ -966,36 +987,69 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		RTT_slide = RTT_slide / no_packets;
 		RX_frames_slide = RX_frames_slide / no_packets ;
 		MOWDG_slide = MOWDG_slide/ no_feedback_packets; 
-		Frameloss_slide = no_lost_packets/(no_packets + no_lost_packets);
-
-		printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tRX_frames: %.2f\t MOWDG:%.4f,\tFrameloss: %.3f\n", RTT_slide, RX_frames_slide, MOWDG_slide, Frameloss_slide);
+		//Frameloss_slide = no_lost_packets/(no_packets + no_lost_packets);
 		
+		 // Boris Metrics
+		double ratio = received_video_frames_interval/generated_video_frames_interval;
+		printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tMOWDG:%.4f,\tFrameloss: %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,ratio));
+
+
+		printf("\n\n%f - XR server %d -------------------  Rate Control ------------------- \n",SimTime(),id);
+		printf("---------------------------------> Number of Tx Frames = %f | Number of Rx Video Frames %f \n",generated_video_frames_interval,received_video_frames_interval);
+		printf("---------------------------------> Ratio Frames = %f\n",ratio);	
+		printf("---------------------------------> Average RTT = %f\n",RTT_interval/received_video_frames_interval);
+		double lost_packets_interval = (generated_packets - generated_video_packets_interval_ref) - (received_video_packets - received_video_packets_interval_ref);
+		
+		printf("---------------------------------> Ref: Generated = %f | Received = %f\n",generated_video_packets_interval_ref,received_video_packets_interval_ref);
+		printf("---------------------------------> Interval: Generated = %f | Received = %f\n",(generated_packets - generated_video_packets_interval_ref),(received_video_packets - received_video_packets_interval_ref));
+		double fraction_lost_packets = (received_video_packets - received_video_packets_interval_ref)/(generated_packets - generated_video_packets_interval_ref); 
+		printf("---------------------------------> Lost Packets (interval) = %f Fraction = %f ||(Totals: Generated = %f | Received % f\n",lost_packets_interval,fraction_lost_packets,generated_packets,received_video_packets);
+		// ---------- Load control algorithm ----------------------
+		
+		NumberPacketsPerFrame = ceil((Load/L_data)/fps);
+
+		// ---------- Reset variables for the next interval---------
+		generated_video_frames_interval=0;
+		received_video_frames_interval=0;
+		RTT_interval = 0;
+		received_video_packets_interval_ref=received_video_packets;
+		generated_video_packets_interval_ref=generated_packets;
+
 		QoS_struct.RTT = RTT_slide; 
-		QoS_struct.RXframes = RX_frames_slide; //divide by sent packets
 		QoS_struct.MOWDG = MOWDG_slide; 
+		QoS_struct.RXframes_ratio = MIN(1,ratio); //min so we don't exceed one when we have packets out of order 
+
 
 		//FER REWARDS
-		//QoE_metric = 3.01 * exp(-4.473 * (1-packet_loss_ratio)) + 1.065; // metric only taking into account the packet loss ratio
-
+		
+		QoE_metric = 3.01 * exp(-4.473 * (1-QoS_struct.RXframes_ratio)) + 1.065; // metric only taking into account the packet loss ratio
+		printf("IQX based on frameloss_ratio: %.4f\n", QoE_metric ); 
 		//QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio)*10E2 + 0.2*jitter_sum_quadratic)*10E2) + 1.065; // metric with webrtc congestion control added on top of packet loss
 		
 		//QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1? 
+
+
 		//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
 		
 		//BORIS REWARDS
-		QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
+		//QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
+
 		//double instantaneous_reward_Boris = (90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/100E6))/100;	// second reward function proposed by Boris
 
 		//printf("QOE normalized: %f\n\n", QoE_metric);
 
-		/*
-		if ( QoE_metric < )
-		QoE_rw += QoE_metric
-		*/
-		  //let the jitter_sum_quadratic go back to 0 for next frame measurement
+		past_action_delayed_reward[0] = past_action_delayed_reward[1]; //store old reward value, which is used for updates 
+		past_action_delayed_reward[1] = 0.95 * QoE_metric + 0.05 * Load/MAXLOAD; //stateless reward: For q-learning use reward function with state and action 
+		CUMulative_reward += past_action_delayed_reward[1]; 
+		
 	}
 	else{
-		printf("dividing by zero????????????????????\n");
+		printf("dividing by zero?????? rx: %d feedback: %d \n", no_packets, no_feedback_packets);
+
+		past_action_delayed_reward[0] =	past_action_delayed_reward[1]; 
+ 
+		past_action_delayed_reward[1] = 0; //0 reward for that, or negative : TODO 
+
 
 		// make reward go to 0 in this case [Boris suggestion]
 	}
@@ -1162,21 +1216,28 @@ int XRServer::feature_map(double Load){
 double XRServer::reward(int state, int next_a){
 	
 	double rw;
-	if(state == 1){
-		if (next_a == 0) 
-		{
-			rw = -1; 
+
+	#if CTL_Q_ONLINE == 1 //here states and actions count
+		if(state == 1){
+			if (next_a == 0) 
+			{
+				rw = -1; 
+			}
 		}
-	}
-	else if (state == 20){
-		if (next_a == 2 ){
-			rw = -1;	//let's try to stay far from edges 
-		}
-	} 
-	
-	else {rw = 0.95* QoE_metric + 0.05*( (state * 5E6)/MAXLOAD);}
-	printf("\n\n\treward: %.2f\t QoE metric: %.3f\n", rw, QoE_metric);
-	return rw; 
+		else if (state == 20){
+			if (next_a == 2 ){
+				rw = -1;	//let's try to stay far from edges 
+			}
+		} 
+		
+		else {rw = 0.95* QoE_metric + 0.05*( (state * 5E6)/MAXLOAD);}  // TODO : state*5E6 could just be changed for the current Load. 
+		printf("\n\n\treward: %.2f\t QoE metric: %.3f\n", rw, QoE_metric);
+		return rw;
+
+	#else
+		rw = 0.95*QoE_metric + 0.05 * (Load / MAXLOAD);
+		return rw; 
+	#endif 
 };
 
 /*
