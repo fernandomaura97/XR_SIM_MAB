@@ -153,6 +153,8 @@ component XRServer : public TypeII
 			std::vector <double> v__RTT; //round trip time
 			std::vector <double> v__threshold; 
 			std::vector <double> v_quadr_modg; //measure of quadratic sum of measured owdg over window
+
+			std::vector <double> v_CUM_rw; 
 		}csv_; 
 		/////////////////////////////////////////////////////////////////////////////////////
 		struct tomp_s_t {
@@ -180,6 +182,8 @@ component XRServer : public TypeII
 			int cntr; 
 			std::vector<double> reward_hist; 
 			std::vector<double> action_hist;
+
+			int pargmax; // past argmax, from prev cycle
 		}ucb_struct;
 
 
@@ -646,8 +650,20 @@ void XRServer :: in(data_packet &packet)
 
 void XRServer :: GreedyControl()
 {
+	//1) Update rewards based on collected previous metrics from last 'cycle'
+	if (passes == 1) {
+		//first time no metrics are there :) 		
+	}
+	else{
+		
+		//MAB_rewards_greedy[current_action] = alpha_mab * MAB_rewards_greedy[current_action] + (1 - alpha_mab) * ( 90 * MIN (1 , received_frames_MAB/sent_frames_MAB ) + 10* (Load / 10E7) ) / 100;
+		MAB_rewards_greedy[current_action] = alpha_mab * MAB_rewards_greedy[current_action] + (1 - alpha_mab) * past_action_delayed_reward[1];
+		printf("\n\t[DBG REWARD] Past action %d got reward of %.3f", current_action, past_action_delayed_reward[1]); 
+	}
+
+
 	// 2) Next Action
-	next_action_MAB= -1;
+	
 	if(Random()<=epsilon_greedy_decreasing)
 	{
 		// Explore
@@ -685,8 +701,7 @@ void XRServer :: GreedyControl()
 	
 	current_action = next_action_MAB;
 	
-	//update reward
-	MAB_rewards_greedy[current_action]= alpha_mab * MAB_rewards_greedy[current_action] + (1-alpha_mab)*(90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/10E7))/100;
+	
 	//update ε
 	epsilon_greedy_decreasing = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
 	
@@ -707,8 +722,6 @@ void XRServer :: ThompsonSampling()
 {
 	if (passes == 1) {
 		//printf("First time algorithm has ran, however metrics should still be available from sliding window\n\n");
-		//WORKS, SO: first time going through here we don't update rewards, but next yes!!!
-		//TODO: need to keep track of past action!!
 	}
 	else{
 		//upload reward based on QoE_metric
@@ -756,6 +769,22 @@ void XRServer :: ThompsonSampling()
 
 void XRServer::UpperConfidenceBounds()
 {
+	//1) Update past action's reward based on collected previous metrics from last 'cycle'
+	if (passes == 1) {
+		//first time no metrics are there :) 		
+	}
+	else{
+		
+		int pargmax = ucb_struct.pargmax; 
+		ucb_struct.action_reward[pargmax] += past_action_delayed_reward[1];
+		ucb_struct.action_v[pargmax] = ucb_struct.action_reward[pargmax] / ucb_struct.n_times_selected[pargmax]; //Update action-vector for UCB 
+		ucb_struct.cntr++ ;
+
+
+		printf("\n\t[DBG REWARD] Past action %d got reward of %.3f", current_action, past_action_delayed_reward[1]); 
+	}
+	
+	//2) Choose next action according to algorithm
 	past_load = Load; 
 
 	for (int i = 0; i< N_ACTIONS_UCB; i++) 
@@ -768,7 +797,7 @@ void XRServer::UpperConfidenceBounds()
 
 	for( int i = 1; i<N_ACTIONS_UCB; i++ )
 	{
-		if(ucb_struct.action_confidence[i]>max_val){
+		if(ucb_struct.action_confidence[i] > max_val){
 			max_val = ucb_struct.action_confidence[i];
 			argmax = i; 
 		}
@@ -776,83 +805,87 @@ void XRServer::UpperConfidenceBounds()
 	ucb_struct.current_action = argmax;
 	ucb_struct.n_times_selected[argmax] ++; 
 
-	Load = ucb_struct.current_action * 5E6; 
+	Load = ucb_struct.current_action * 5E6; //TODO: ADD SOME RANDOMNESS HERE MAYBE?
+
 	printf("UCB: Action taken %d , nº times of action: %f", argmax, ucb_struct.n_times_selected[argmax]);
 
-	ucb_struct.action_reward[argmax] += reward(argmax, 1); 
-
+	ucb_struct.pargmax = argmax; //store past argmax for next cycle.
+	
 	current_action = ucb_struct.current_action; 
 
-	ucb_struct.action_v[argmax] = ucb_struct.action_reward[argmax] / ucb_struct.n_times_selected[argmax]; 
-	ucb_struct.cntr++ ;
+	
 };
 
 void XRServer :: QLearning()
 {
-        // Reset the current state to 0        TEST: NOT RECURSIVE MAYBE
-        //int state_q = 0;
-		//next_action = 0;
+	if (passes == 1) {
+		//printf("First time algorithm has ran, however metrics should still be available from sliding window\n\n");
+	}
+	else{
+		//upload reward based on QoE_metric
+		int pargmax = thompson_struct.prev_argmax; //aux variable to not spam the name of the struct everywhere
+		
 
-        // Loop over steps in the episode
-        // Choose an action using an epsilon-greedy policy
-            //double epsilon = 0.1;
 
-			past_load = Load; 
+		printf("\n\t[DBG REWARD] Past action %d got reward of %.3f", pargmax, thompson_struct.current_reward); 
+	}
 
-            if(Random()<= 0.25) //TODO: ADD linear decreasing epsilon BASED ON KNOWLEDGE/BELIEF (OF CURRENT STATE? ) 
-			{	// Explore
-				printf("***************** EXPLORE Q **************************** %f\n", SimTime());
-				next_action = Random(2);
+	past_load = Load; 
 
-						//If action = 0: decrease. 	
-						//if a == 1: KEEP load, 
-						//if a == 2: Increase Load */
-			} 	
-			else
-			{
-				printf("***************** EXPLOIT Q**************************** %f\n", SimTime());
+	if(Random()<= 0.25) //TODO: ADD linear decreasing epsilon BASED ON KNOWLEDGE/BELIEF (OF CURRENT STATE? ) 
+	{	// Explore
+		printf("***************** EXPLORE Q **************************** %f\n", SimTime());
+		next_action = Random(2);
 
-                // Choose the action with the highest Q-value
-				for (int a = 0; a < ACTION_SIZE; a++)
-				{
-                	next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action;
-				}
-            }
-			printf("Next action: %d\n ", next_action);
-			if(next_action == 0){				//CHOOSE NEXT LOAD BASED ON ACTION
-				Load = DEC_CONTROL * past_load; 
-				load_changes++;
-			}
-			else if (next_action == 1){ //keep
-				Load = past_load;
-			}
-			else if (next_action == 2){ //increase
-				Load = INC_CONTROL * past_load;
-				load_changes++; 
-				if(Load >= MAXLOAD){
-					Load = MAXLOAD;
-					printf("WARN : In maxload already!\n");
-				}
-			}
+				//If action = 0: decrease. 	
+				//if a == 1: KEEP load, 
+				//if a == 2: Increase Load */
+	} 	
+	else
+	{
+		printf("***************** EXPLOIT Q**************************** %f\n", SimTime());
 
-			printf("LOAD IS: %f \n", Load);
+		// Choose the action with the highest Q-value
+		for (int a = 0; a < ACTION_SIZE; a++)
+		{
+			next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action;
+		}
+	}
+	printf("Next action: %d\n ", next_action);
+	if(next_action == 0){				//CHOOSE NEXT LOAD BASED ON ACTION
+		Load = DEC_CONTROL * past_load; 
+		load_changes++;
+	}
+	else if (next_action == 1){ //keep
+		Load = past_load;
+	}
+	else if (next_action == 2){ //increase
+		Load = INC_CONTROL * past_load;
+		load_changes++; 
+		if(Load >= MAXLOAD){
+			Load = MAXLOAD;
+			printf("WARN : In maxload already!\n");
+		}
+	}
 
-			int next_state = feature_map(Load); 
+	//	printf("LOAD IS: %f \n", Load);
+
+	int next_state = feature_map(Load); 
+	
+	NumberPacketsPerFrame = ceil((Load/L_data)/fps);	
+
+	// Calculate the reward and next state
+	double r = reward(state_q, next_action);
+	// Update the Q-value for the current state-action pair
 			
-			NumberPacketsPerFrame = ceil((Load/L_data)/fps);	
+	update(state_q, next_action, r, next_state);
 
-            // Calculate the reward and next state
-            double r = reward(state_q, next_action);
-            // Update the Q-value for the current state-action pair
-            		
-			update(state_q, next_action, r, next_state);
-
-            // Update the current state
-			current_action = next_action;
-			current_state = next_state; //
-			state_q = next_state; 			// WARNING CHECK AND TEST THIS
-            printf("next state: %d", next_state);
-							
+	// Update the current state
+	current_action = next_action;
+	current_state = next_state; //
+	state_q = next_state; 			// WARNING CHECK AND TEST THIS
+	printf("next state: %d", next_state);
+					
 };
 
 void XRServer :: AdaptiveVideoControl(trigger_t & t)
@@ -931,11 +964,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
       */
 	#endif
 
-//// 1: Apply "one pass" of algorithm
-
-	//TEST: GET METRICS OVER "SLIDING WINDOW"
-
-	//printf("iterating through sliding vector:\n");
+//// 1: GET METRICS OVER "SLIDING WINDOW"
 
 	double CurrentTime = SimTime(); 
 	double RTT_slide = 0;
@@ -1039,23 +1068,20 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		past_action_delayed_reward[0] = past_action_delayed_reward[1]; //store old reward value, which is used for updates 
 		past_action_delayed_reward[1] = 0.95 * QoE_metric + 0.05 * Load/MAXLOAD; //stateless reward: For q-learning use reward function with state and action 
 		CUMulative_reward += past_action_delayed_reward[1]; 
+
 		
 	}
 	else{
 		printf("dividing by zero?????? rx: %d feedback: %d \n", no_packets, no_feedback_packets);
 
-		past_action_delayed_reward[0] =	past_action_delayed_reward[1]; 
- 
+		past_action_delayed_reward[0] =	past_action_delayed_reward[1];
 		past_action_delayed_reward[1] = 0; //0 reward for that, or negative : TODO 
-
-
 		// make reward go to 0 in this case [Boris suggestion]
 	}
-	//END TEST
 	passes++; 
 
-	//printf("passes: %f, TIME: %f\n", passes, SimTime()); 
-	
+//// 2: APPLY ONE PASS OF CHOSEN CONTROL ALGORITHM
+
 	#if CTL_THOMPSON == 1
 		ThompsonSampling();
 		// maybe need to add reward vector? TODO 
@@ -1071,9 +1097,9 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	#endif
 
 	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,MAB_rewards_greedy[current_action],current_action,received_frames_MAB,sent_frames_MAB);
-			
-// 2) Next Action done, store in CSV 
 	//printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
+
+//// 3: Next Action EXECUTED, store RESULTS in CSV 
 
 	#if CTL_GREEDY_MAB == 1 //if MAB approach
 		
@@ -1090,6 +1116,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v__threshold.push_back(last_threshold);
 		csv_.v__RTT.push_back(RTT_metric);
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
+		csv_.v_CUM_rw.push_back(CUMulative_reward);
 			
 	#elif CTL_Q_ONLINE ==  1 //if Q-learning approach apply this control
 	// UPDATE ALL CSV VECTORS
@@ -1106,7 +1133,8 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v__threshold.push_back(last_threshold);
 		csv_.v__RTT.push_back(RTT_metric);
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
-		
+		csv_.v_CUM_rw.push_back(CUMulative_reward);
+
 		if(passes == 100) //10 seconds
 		{
 			std::memcpy(Q_matrix_t10, Q_matrix, sizeof(Q_matrix)); 
@@ -1123,11 +1151,13 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		{
 			std::memcpy(Q_matrix_t100, Q_matrix, sizeof(Q_matrix)); 
 		}
-
+        //DEPRECATED: COULD DELETE MAYBE (check first)
+		/*
 		sent_frames_MAB = 0;
 		received_frames_MAB = 0;
 		RTT_metric = 0;
 		jitter_sum_quadratic = 0;
+		*/
 	#elif CTL_UCB == 1
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
@@ -1142,6 +1172,8 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v__threshold.push_back(last_threshold);
 		csv_.v__RTT.push_back(RTT_metric);
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
+		csv_.v_CUM_rw.push_back(CUMulative_reward);
+
 
 	#elif CTL_THOMPSON == 1 
 
@@ -1158,11 +1190,11 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v__threshold.push_back(last_threshold);
 		csv_.v__RTT.push_back(RTT_metric);
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
+		csv_.v_CUM_rw.push_back(CUMulative_reward);
 
 	#endif
 
-	rate_control.Set(SimTime()+(TIME_BETWEEN_UPDATES));  //RATE CONTROL EVERY 0.1 SECONDS
-
+	rate_control.Set(SimTime()+(TIME_BETWEEN_UPDATES));  //RATE CONTROL EVERY 0.1 SECONDS (atm)
 
 };
 
