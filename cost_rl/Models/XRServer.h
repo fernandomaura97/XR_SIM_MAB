@@ -717,10 +717,8 @@ void XRServer :: ThompsonSampling()
 		thompson_struct.current_reward = past_action_delayed_reward[1]; //get reward from the previously done action
 		thompson_struct.reward_hist.push_back(thompson_struct.current_reward);
 		thompson_struct.action_hist.push_back(thompson_struct.current_action);
-
-		current_action = thompson_struct.current_action; 
 		thompson_struct.action_v[pargmax] = thompson_struct.action_v[pargmax] * ( thompson_struct.n_times_selected[pargmax] - 1 ) + thompson_struct.current_reward/(thompson_struct.n_times_selected[pargmax]); //update value action matrix 
-
+		printf("\n\t[DBG REWARD] Past action %d got reward of %.3f", pargmax, thompson_struct.current_reward); 
 	}
 	past_load = Load; 
 	std::random_device rd;
@@ -732,11 +730,9 @@ void XRServer :: ThompsonSampling()
 		double sample = thompson_struct.action_v[i];
 		thompson_struct.sigma[i] = 1/(thompson_struct.n_times_selected[i] + 1);
 		thompson_struct.action_v[i] = sample + thompson_struct.sigma[i] * d(gen); //theta
-		
 	}
 
 	//find argmax of the possible actions sampled from vector
-	
 	int argmax = 0; 
 	double max_val = thompson_struct.action_v[0];
 
@@ -752,6 +748,8 @@ void XRServer :: ThompsonSampling()
 	thompson_struct.prev_argmax = argmax; //for computing the (delayed) reward of current action in the "next pass"
 	
 	Load = thompson_struct.current_action * 5E6; //Maybe make this not deterministic? 
+	current_action = thompson_struct.current_action; 
+
 
 	printf("THOMPSON: action taken: %d, n_times of action: %f", argmax, thompson_struct.n_times_selected[argmax]);
 };
