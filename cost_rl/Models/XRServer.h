@@ -17,6 +17,7 @@
 
 #include <string>
 #include <cstring> // include the cstring header for memcpy
+#include <bits/stdc++.h>
 
 using namespace std;
 
@@ -38,6 +39,7 @@ using namespace std;
 #define CTL_Q_ONLINE    0
 
 #define TIME_BETWEEN_UPDATES 0.1  //How often the AGENT will choose new ACTION
+#define TIME_SLIDING_WINDOW  1.0  //How many packets are temporally taken into account for sliding window. NOW: 1 second
 
 #define N_ACTIONS_THOMPSON 20 
 #define N_ACTIONS_UCB 20 
@@ -121,10 +123,14 @@ component XRServer : public TypeII
 			double XRLoad; 
 			double BGLoad;
 		}st_input_args;
-
 		//Input params end
+
 		int rtt_counter; 
+
+		//Q-learning vars
 		int next_action;
+		int next_state; 
+		
 		int next_action_MAB; 
 
 		double past_load; //just some var to store the last load in order to calculate next one. 
@@ -256,7 +262,7 @@ component XRServer : public TypeII
 		
 		double m_owdg; // measure of filtered delay gradient 
 
-		struct csvfer_t{    ///TODO: CSV OUTPUTS
+		struct csvfer_t{    ///CSV OUTPUTS
 			double mean_frame_delay_;
 			double frame_perc_99_;
 
@@ -819,15 +825,26 @@ void XRServer::UpperConfidenceBounds()
 void XRServer :: QLearning()
 {
 	if (passes == 1) {
-		//printf("First time algorithm has ran, however metrics should still be available from sliding window\n\n");
+		//printf("First time algorithm has ran, however "environment" metrics should still be available from sliding window\n\n");
 	}
 	else{
-		//upload reward based on QoE_metric
-		int pargmax = thompson_struct.prev_argmax; //aux variable to not spam the name of the struct everywhere
-		
+		//Obtain reward based on QoE_metric performance and update the Q-matrix
+		next_state = feature_map(Load); 
+		NumberPacketsPerFrame = ceil((Load/L_data)/fps);	
 
+		//double r = reward(state_q, next_action);
+		double r = past_action_delayed_reward[1]; 
 
-		printf("\n\t[DBG REWARD] Past action %d got reward of %.3f", pargmax, thompson_struct.current_reward); 
+	// Update the Q-value for the current state-action pair:			
+		update(state_q, next_action, r, next_state);
+
+	// Update the current state for next pass of the algorithm
+		current_action = next_action;
+		current_state = next_state; //
+		state_q = next_state; 			// WARNING CHECK AND TEST THIS
+		printf("next state: %d", next_state);	
+	
+		printf("\n\t[DBG REWARD] Past action %d got reward of %.3f", current_action, r); 
 	}
 
 	past_load = Load; 
@@ -836,10 +853,6 @@ void XRServer :: QLearning()
 	{	// Explore
 		printf("***************** EXPLORE Q **************************** %f\n", SimTime());
 		next_action = Random(2);
-
-				//If action = 0: decrease. 	
-				//if a == 1: KEEP load, 
-				//if a == 2: Increase Load */
 	} 	
 	else
 	{
@@ -867,25 +880,6 @@ void XRServer :: QLearning()
 			printf("WARN : In maxload already!\n");
 		}
 	}
-
-	//	printf("LOAD IS: %f \n", Load);
-
-	int next_state = feature_map(Load); 
-	
-	NumberPacketsPerFrame = ceil((Load/L_data)/fps);	
-
-	// Calculate the reward and next state
-	double r = reward(state_q, next_action);
-	// Update the Q-value for the current state-action pair
-			
-	update(state_q, next_action, r, next_state);
-
-	// Update the current state
-	current_action = next_action;
-	current_state = next_state; //
-	state_q = next_state; 			// WARNING CHECK AND TEST THIS
-	printf("next state: %d", next_state);
-					
 };
 
 void XRServer :: AdaptiveVideoControl(trigger_t & t)
@@ -970,7 +964,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	double RTT_slide = 0;
 	double RX_frames_slide = 0; 
 	double MOWDG_slide = 0;
-	//double Frameloss_slide = 0; 
+	double Frameloss_slide = 0; 
 	double no_lost_packets = 0; 
 
 
@@ -978,7 +972,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	int no_feedback_packets = 0;  
  
 	for (auto it = sliding_vector.begin(); it!=sliding_vector.end(); ){
-		if(it->Timestamp <= (CurrentTime - TIME_BETWEEN_UPDATES))
+		if(it->Timestamp <= (CurrentTime - TIME_SLIDING_WINDOW))
 		{
 			it = sliding_vector.erase(it);
 		}
@@ -1002,7 +996,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	if((no_feedback_packets != 0) && (no_packets != 0) ){		//just make sure to not divide by 0
 
 
-		// check numseq of each packe: if diff > 1 then packet considered lost --> this is maybe not best approach for packet loss Ratio scomputation, but could be useful as (alternative) measurement of jitter in the network. 
+		// check numseq of each packe: if diff > 1 then packet considered lost --> this is maybe not best approach for packet loss Ratio computation, but could be useful as (alternative) measurement of jitter in the network. 
 
 			for(int i = 1; i < no_packets; i++){
 				int diff = sliding_vector[i].Packet.frame_numseq - sliding_vector[i-1].Packet.frame_numseq;
@@ -1014,11 +1008,15 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		RTT_slide = RTT_slide / no_packets;
 		RX_frames_slide = RX_frames_slide / no_packets ;
 		MOWDG_slide = MOWDG_slide/ no_feedback_packets; 
-		//Frameloss_slide = no_lost_packets/(no_packets + no_lost_packets);
+		Frameloss_slide = no_lost_packets/(no_packets + no_lost_packets);
 		
 		 // Boris Metrics
 		double ratio = received_video_frames_interval/generated_video_frames_interval;
-		printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tMOWDG:%.4f,\tFrameloss: %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,ratio));
+		
+		
+		//	TESTING printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tMOWDG:%.4f,\tFrameloss: %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,ratio));
+		printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tMOWDG:%.4f,\tFrameloss: %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,Frameloss_slide)); //TEST: sustituir frameloss_slide por ratio al terminar
+
 
 
 		printf("\n\n%f - XR server %d -------------------  Rate Control ------------------- \n",SimTime(),id);
@@ -1076,22 +1074,17 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 		past_action_delayed_reward[0] =	past_action_delayed_reward[1];
 		past_action_delayed_reward[1] = 0; //0 reward for that, or negative : TODO 
-		// make reward go to 0 in this case [Boris suggestion]
 	}
 	passes++; 
 
 //// 2: APPLY ONE PASS OF CHOSEN CONTROL ALGORITHM
 
-	#if CTL_THOMPSON == 1
+	#if   CTL_THOMPSON == 1
 		ThompsonSampling();
-		// maybe need to add reward vector? TODO 
- 
-	#elif CTL_UCB == 1
+ 	#elif CTL_UCB == 1
 		UpperConfidenceBounds(); 
-		// maybe need to add reward vector? 
 	#elif CTL_GREEDY_MAB == 1
 		GreedyControl();
-
 	#elif CTL_Q_ONLINE == 1 
 		QLearning(); 
 	#endif
@@ -1116,6 +1109,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v__threshold.push_back(last_threshold);
 		csv_.v__RTT.push_back(RTT_metric);
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
+
 		csv_.v_CUM_rw.push_back(CUMulative_reward);
 			
 	#elif CTL_Q_ONLINE ==  1 //if Q-learning approach apply this control
@@ -1260,7 +1254,7 @@ double XRServer::reward(int state, int next_a){
 			}
 		} 
 		
-		else {rw = 0.95* QoE_metric + 0.05*( (state * 5E6)/MAXLOAD);}  // TODO : state*5E6 could just be changed for the current Load. 
+		else {rw = 0.95* QoE_metric + 0.05*( (state * 5E6)/MAXLOAD);}  // TODO : state*5E6 could just be changed for the current Load. Original motivation was to make some coarse feature mapping 
 		printf("\n\n\treward: %.2f\t QoE metric: %.3f\n", rw, QoE_metric);
 		return rw;
 
