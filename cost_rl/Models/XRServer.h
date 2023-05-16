@@ -61,13 +61,7 @@ static struct QoE_t{
 	double QoE; 
 }QoS_struct; 
 
-struct sliding_window_t {
 
-		data_packet Packet;
-		double      Timestamp; 
- 		double 		RTT; 
-		double 		num_seq; 
- 	}; 
 
 const int traces_on_server = 0; 
 component XRServer : public TypeII

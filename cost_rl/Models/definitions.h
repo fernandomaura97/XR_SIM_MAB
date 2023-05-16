@@ -88,5 +88,13 @@ struct info
 	int station_id;
 };
 
+struct sliding_window_t {
+
+		data_packet Packet;
+		double      Timestamp; 
+ 		double 		RTT; 
+		double 		num_seq; 
+ 	}; 
+
 
 #endif

@@ -12,7 +12,7 @@
 #define Q_NOISE 10E-1 // (can) PLAY WITH THIS PARAMETER, IT'S STATE NOISE (for kalman filter) 
 
 //#define N_FRAMES_WINDOW 450 //90 FPS --> 5 SECONDS
-#define TIME_SLIDING_WINDOW  1.0  //How many packets are temporally taken into account for sliding window. NOW: 1 second
+#define TIME_SLIDING_WINDOW_CLIENT  1.0  //How many packets are temporally taken into account for sliding window. NOW: 1 second
 #define DBG_CLIENT 1
 
 component XRClient : public TypeII
@@ -86,7 +86,7 @@ component XRClient : public TypeII
 			double K_gamma;
 		}Threshold;
 
-		std::vector <sliding_window_t> sliding_vector;  
+		std::vector <sliding_window_t> sliding_vector_client;  
 
 		struct sliding_routine_t {
 		
@@ -362,7 +362,7 @@ void XRClient :: in(data_packet &packet)
 		NEW_p.RTT = NEW_p.Timestamp - packet.TimeSentAtTheServer;
 
 		NEW_p.num_seq = packet.frame_numseq; 
-		sliding_vector.push_back(NEW_p);
+		sliding_vector_client.push_back(NEW_p);
 
 		#if DBG_CLIENT
 		printf("[DBG CLIENT]: numseq packet: %.1f, struct: %.1f\n", packet.frame_numseq, NEW_p.num_seq);
@@ -466,8 +466,43 @@ double XRClient::K_gamma(double mowdg, double gamma_prev){
 void XRClient :: sliding_window_routine(trigger_t& t){
 //1. drop all old packets from vector
 
-//2. compute metrics over the sliding window
+	double CurrentTime = SimTime(); 
+	double RTT_slide = 0;
+	double RX_frames_slide = 0; 
+	double MOWDG_slide = 0;
+	double Frameloss_slide = 0; 
+	double no_lost_packets = 0; 
 
+
+	int no_packets = 0;
+	int no_feedback_packets = 0;  
+ 
+	for (auto it = sliding_vector_client.begin(); it!=sliding_vector_client.end(); ){
+		if(it->Timestamp <= (CurrentTime - TIME_SLIDING_WINDOW_CLIENT))
+		{
+			it = sliding_vector_client.erase(it);
+		}
+		else{
+			it ++;
+			no_packets ++; 
+			//Calculate metrics over the rest of vector: 
+			/*RTT_slide += it->RTT; 
+			RX_frames_slide += it->Packet.frames_received; */
+		}
+
+	}
+
+//2. compute metrics over the sliding window
+	//std::sort( sliding_vector_client.begin(), sliding_vector_client.end(), compareStructbyNumseq2 );
+
+	printf("***********************Let's see the ordered NUMSEQ: **********************\n");
+/*
+	for (auto it = sliding_vector_client.begin(); it!=sliding_vector_client.end(); ){
+		printf("%f", it->Packet.num_seq);
+		it++;
+	}
+	printf("\n");
+*/
 
 //3. Make contents of next messages to be the averaged metrics.
 // Just use a public struct with variables and make the contents of feedback messages be from there. 
@@ -476,7 +511,9 @@ void XRClient :: sliding_window_routine(trigger_t& t){
 	
 };
 
-
+bool compareStructbyNumseq2(const sliding_window_t& a, const sliding_window_t& b) {
+    return a.num_seq < b.num_seq; // smallest first
+};
 
 
 
