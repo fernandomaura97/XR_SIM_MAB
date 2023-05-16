@@ -212,7 +212,7 @@ component XRServer : public TypeII
 
 		std::vector<sliding_window_t>sliding_vector;  
 
-		double CUMulative_reward; //TODO
+		double CUMulative_reward; 
 		double sequence_frame_counter; //useful for keeping track of frameloss 
 
 		//////////////////////////////////////////////////////////////////////////////
@@ -619,6 +619,8 @@ void XRServer :: in(data_packet &packet)
 
 		NEW_p.num_seq = packet.frame_numseq; 
 		
+		sliding_vector.push_back(NEW_p);
+
 		printf("2: numseq packet: %.1f, struct: %.1f\n", packet.frame_numseq, NEW_p.num_seq);  
 
 		///////////////////// end SLIDING WINDOW CODE ////////////////////

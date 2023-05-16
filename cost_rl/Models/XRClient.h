@@ -9,9 +9,11 @@
 #include <algorithm>
 #include <numeric>
 
-#define Q_NOISE 10E-1 // WE CAN ALSO PLAY WITH THIS PARAMETER, IT'S STATE NOISE. 
+#define Q_NOISE 10E-1 // (can) PLAY WITH THIS PARAMETER, IT'S STATE NOISE (for kalman filter) 
 
-#define N_FRAMES_WINDOW 450 //90 FPS --> 5 SECONDS
+//#define N_FRAMES_WINDOW 450 //90 FPS --> 5 SECONDS
+#define TIME_SLIDING_WINDOW  1.0  //How many packets are temporally taken into account for sliding window. NOW: 1 second
+#define DBG_CLIENT 1
 
 component XRClient : public TypeII
 {
@@ -30,10 +32,13 @@ component XRClient : public TypeII
 
 		// Timer
 		Timer <trigger_t> inter_packet_timer;
-
+		Timer <trigger_t> sliding_window_timer;
 		inport inline void new_packet(trigger_t& t); // action that takes place when timer expires
+		inport inline void sliding_window_routine(trigger_t& t2); 
 
-		XRClient () { connect inter_packet_timer.to_component,new_packet; }
+		XRClient () { connect inter_packet_timer.to_component,new_packet;
+		connect sliding_window_timer.to_component,sliding_window_routine;
+		 }
 
 
 	public: // Input parameters
@@ -81,6 +86,12 @@ component XRClient : public TypeII
 			double K_gamma;
 		}Threshold;
 
+		std::vector <sliding_window_t> sliding_vector;  
+
+		struct sliding_routine_t {
+		
+
+		};
 
 
 	private:
@@ -101,11 +112,7 @@ component XRClient : public TypeII
 		double mean_VFD = 0;
 		double p99th_VFD = 0;
 		
-		
 		double SEQNUMMAX; 
-
-		
-
 };
 
 void XRClient :: Setup()
@@ -337,14 +344,33 @@ void XRClient :: in(data_packet &packet)
 			probFrameLost++;
 		}
 	}
+		// For interactive (correlated traffic: Last packet, or random
+
 	*/
 
 	if(packet.last_video_frame_packet==1){
 		SEQNUMMAX = packet.frame_numseq; //just copy the last sequence number in here
 		//printf("RECEIVED SEQNUMMAX: %.1f\n", packet.frame_numseq);
+		
+
+		////////////////// SLIDING WINDOW CLIENT /////////////////////
+		sliding_window_t NEW_p; 
+		printf("1,5: packet.frame_numseq: %.1f", packet.frame_numseq); 
+		memcpy(&NEW_p.Packet, &packet, sizeof(data_packet)); 
+		
+		NEW_p.Timestamp = SimTime();  
+		NEW_p.RTT = NEW_p.Timestamp - packet.TimeSentAtTheServer;
+
+		NEW_p.num_seq = packet.frame_numseq; 
+		sliding_vector.push_back(NEW_p);
+
+		#if DBG_CLIENT
+		printf("[DBG CLIENT]: numseq packet: %.1f, struct: %.1f\n", packet.frame_numseq, NEW_p.num_seq);
+		#endif
+		////////////////// SLIDING WINDOW CLIENT END  /////////////////
+		
 	}
 
-	// For interactive (correlated traffic: Last packet, or random
 	
 	if(FullVideoFrameRX == 1 )
 	{
@@ -425,7 +451,7 @@ void XRClient :: in(data_packet &packet)
 double XRClient::K_gamma(double mowdg, double gamma_prev){
 
 	double K_d = -0.01;		//    (ku,kd) = (0.01, 0.00018)
-	double K_u = 0.00018;		// "guarantees good trade-off between high throughput, delay reduction and inter-protocol fairness :) "
+	double K_u = 0.00018;		// "guarantees good trade-off between high throughput, delay reduction and inter-protocol fairness from the webrtc congestion paper "
 
 	if(mowdg<gamma_prev){
 		return K_d;
@@ -434,5 +460,30 @@ double XRClient::K_gamma(double mowdg, double gamma_prev){
 		return K_u; 
 	}
 };
+
+
+
+void XRClient :: sliding_window_routine(trigger_t& t){
+//1. drop all old packets from vector
+
+//2. compute metrics over the sliding window
+
+
+//3. Make contents of next messages to be the averaged metrics.
+// Just use a public struct with variables and make the contents of feedback messages be from there. 
+
+
+	
+};
+
+
+
+
+
+
+
+
+
+
 
 #endif
