@@ -100,6 +100,9 @@ component XRClient : public TypeII
 
 		double mean_VFD = 0;
 		double p99th_VFD = 0;
+		
+		
+		double SEQNUMMAX; 
 
 		
 
@@ -213,6 +216,7 @@ void XRClient :: new_packet(trigger_t &)
 	XR_packet.destination_app = destination_app;
 	XR_packet.sent_time = SimTime();
 	XR_packet.last_video_frame_packet=0;
+	XR_packet.frame_numseq = SEQNUMMAX;
 	// To compute RTT;
 	XR_packet.TimeSentAtTheServer = 0; // No interactive traffic, so no way to compute the RTT
 	XR_packet.TimeReceivedAtTheClient = SimTime();
@@ -335,10 +339,13 @@ void XRClient :: in(data_packet &packet)
 	}
 	*/
 
-	
+	if(packet.last_video_frame_packet==1){
+		SEQNUMMAX = packet.frame_numseq; //just copy the last sequence number in here
+		//printf("RECEIVED SEQNUMMAX: %.1f\n", packet.frame_numseq);
+	}
 
 	// For interactive (correlated traffic: Last packet, or random
-	//if(packet.last_video_frame_packet==1)
+	
 	if(FullVideoFrameRX == 1 )
 	{
 		if(traces_on) {
@@ -401,9 +408,12 @@ void XRClient :: in(data_packet &packet)
 		XR_packet.m_owdg = Kalman.m_current; //we set the packet's Kalman stats
 		XR_packet.threshold_gamma = Threshold.gamma; 	
 		XR_packet.feedback = true; //to send to the server. 
+		
+				
+				
+		XR_packet.num_seq = SEQNUMMAX; //last received sequence number will be sent in feedback
 
-		XR_packet.last_video_frame_packet = 1; 
-
+			
 		
 		//printf("******%f -> %f mowdf\n %f ->%f threshold \n", Kalman.m_current, XR_packet.m_owdg, Threshold.gamma, XR_packet.threshold_gamma);
 		Threshold.gamma_prev = Threshold.gamma; 
