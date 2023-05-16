@@ -836,8 +836,7 @@ void XRServer :: QLearning()
 	}
 	else{
 		//Obtain reward based on QoE_metric performance and update the Q-matrix
-		next_state = feature_map(Load); 
-		NumberPacketsPerFrame = ceil((Load/L_data)/fps);	
+		
 
 		//double r = reward(state_q, next_action);
 		double r = past_action_delayed_reward[1]; 
@@ -887,6 +886,8 @@ void XRServer :: QLearning()
 			printf("WARN : In maxload already!\n");
 		}
 	}
+	next_state = feature_map(Load); 
+	NumberPacketsPerFrame = ceil((Load/L_data)/fps);	
 };
 
 void XRServer :: AdaptiveVideoControl(trigger_t & t)
