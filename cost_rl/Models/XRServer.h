@@ -61,8 +61,6 @@ static struct QoE_t{
 	double QoE; 
 }QoS_struct; 
 
-
-
 const int traces_on_server = 0; 
 component XRServer : public TypeII
 {
@@ -85,7 +83,6 @@ component XRServer : public TypeII
 		int feature_map(double Load);
 		double reward(int state, int next_a);
 
-		//bool compareStructbyNumseq(const sliding_window_t& a, const sliding_window_t& b);
 	public: // Connections
 		outport void out(data_packet &packet);
 		inport void in(data_packet &packet);	
@@ -196,17 +193,18 @@ component XRServer : public TypeII
 		}ucb_struct;
 
 
-		// struct sliding_window_t {
+		struct sliding_window_t {
 
-		// 	data_packet Packet;
-		// 	double      Timestamp; 
-		// 	double 		RTT; 
-		// 	double 		num_seq; 
-		// }; 
+			data_packet Packet;
+			double      Timestamp; 
+			double 		RTT; 
+		}; 
 
 		std::vector<sliding_window_t>sliding_vector;  
 
-		double CUMulative_reward; 
+		double CUMulative_reward; //TODO
+
+
 		double sequence_frame_counter; //useful for keeping track of frameloss 
 
 		//////////////////////////////////////////////////////////////////////////////
@@ -526,6 +524,7 @@ void XRServer :: new_packet(trigger_t &)
 	XR_packet.frame_generation_time = last_frame_generation_time;
 
 	rtt_counter +=1;
+	sequence_frame_counter++; 
 	
 	/*            ///ROUTINE TO MAKE 1 PACKET IN N BE FOR FEEDBACK AND KALMAN (UNUSED)
 	if (rtt_counter >=10){
@@ -534,7 +533,6 @@ void XRServer :: new_packet(trigger_t &)
 		XR_packet.send_time = SimTime() 
 	}
 	else{XR_packet.rtt = false;}
-	
 	*/
 
 	if(tx_packets_per_frame == auxNumberPacketsPerFrame) 
@@ -546,11 +544,9 @@ void XRServer :: new_packet(trigger_t &)
 		XR_packet.first_video_frame_packet = 0;
 	}
 	if(tx_packets_per_frame==1) 
-	{	
-		sequence_frame_counter++; 
-		XR_packet.frame_numseq = sequence_frame_counter; 
+	{
 		XR_packet.last_video_frame_packet = 1;
-		//printf("1 : NUMSEQ: %.1f, STRUCT %.1f\n",sequence_frame_counter, XR_packet.frame_numseq );
+		XR_packet.frame_numseq = sequence_frame_counter; 
 	}
 	else 
 	{
@@ -605,17 +601,12 @@ void XRServer :: in(data_packet &packet)
 		//////////////////// NEW SLIDING WINDOW CODE ///////////////////
 	
 		sliding_window_t NEW_p; 
-		printf("1,5: packet.frame_numseq: %.1f", packet.frame_numseq); 
-		memcpy(&NEW_p.Packet, &packet, sizeof(data_packet)); 
-		
+		memcpy(&NEW_p.Packet, &packet, sizeof(packet)); 
 		NEW_p.Timestamp = SimTime();  
-		NEW_p.RTT = NEW_p.Timestamp - packet.TimeSentAtTheServer;
+		NEW_p.RTT = NEW_p.Timestamp - packet.TimeSentAtTheServer; 
 
-		NEW_p.num_seq = packet.frame_numseq; 
-		
 		sliding_vector.push_back(NEW_p);
 
-		printf("2: numseq packet: %.1f, struct: %.1f\n", packet.frame_numseq, NEW_p.num_seq);  
 
 		///////////////////// end SLIDING WINDOW CODE ////////////////////
 		rx_f_pl++; 
@@ -658,6 +649,7 @@ void XRServer :: in(data_packet &packet)
 			rw_pl = Load/MAXLOAD; 				
 		}
 		*/
+
 	}
 	received_packets++;
 };
@@ -769,6 +761,7 @@ void XRServer :: ThompsonSampling()
 			argmax = i; 
 		}
 	}
+
 	thompson_struct.current_action = argmax;
 	thompson_struct.n_times_selected[argmax]++; 
 	thompson_struct.prev_argmax = argmax; //for computing the (delayed) reward of current action in the "next pass"
@@ -787,11 +780,13 @@ void XRServer::UpperConfidenceBounds()
 		//first time no metrics are there :) 		
 	}
 	else{
-
+		
 		int pargmax = ucb_struct.pargmax; 
 		ucb_struct.action_reward[pargmax] += past_action_delayed_reward[1];
 		ucb_struct.action_v[pargmax] = ucb_struct.action_reward[pargmax] / ucb_struct.n_times_selected[pargmax]; //Update action-vector for UCB 
 		ucb_struct.cntr++ ;
+
+
 		printf("\n\t[DBG REWARD] Past action %d got reward of %.3f", current_action, past_action_delayed_reward[1]); 
 	}
 	
@@ -823,6 +818,8 @@ void XRServer::UpperConfidenceBounds()
 	ucb_struct.pargmax = argmax; //store past argmax for next cycle.
 	
 	current_action = ucb_struct.current_action; 
+
+	
 };
 
 void XRServer :: QLearning()
@@ -832,7 +829,8 @@ void XRServer :: QLearning()
 	}
 	else{
 		//Obtain reward based on QoE_metric performance and update the Q-matrix
-		
+		next_state = feature_map(Load); 
+		NumberPacketsPerFrame = ceil((Load/L_data)/fps);	
 
 		//double r = reward(state_q, next_action);
 		double r = past_action_delayed_reward[1]; 
@@ -882,8 +880,6 @@ void XRServer :: QLearning()
 			printf("WARN : In maxload already!\n");
 		}
 	}
-	next_state = feature_map(Load); 
-	NumberPacketsPerFrame = ceil((Load/L_data)/fps);	
 };
 
 void XRServer :: AdaptiveVideoControl(trigger_t & t)
@@ -1002,23 +998,12 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 		// check numseq of each packe: if diff > 1 then packet considered lost --> this is maybe not best approach for packet loss Ratio computation, but could be useful as (alternative) measurement of jitter in the network. 
 
-		//TODO: TEST SORTING ALGORITHM FIRST? 
-		//std::sort( sliding_vector.begin(), sliding_vector.end(), compareStructbyNumseq);
-
-		//printf("***********************Let's see the ordered NUMSEQ: **********************\n");
-		
-		/*for (auto it = sliding_vector.begin(); it!=sliding_vector.end(); ){
-			//printf("%f", it->Packet.num_seq);
-		}*/
-		printf("\n");
-
-
-		for(int i = 1; i < no_packets; i++){
-			int diff = sliding_vector[i].Packet.frame_numseq - sliding_vector[i-1].Packet.frame_numseq;
-			if (diff>1){
-				no_lost_packets++; 
-			}
-		}				
+			for(int i = 1; i < no_packets; i++){
+				int diff = sliding_vector[i].Packet.frame_numseq - sliding_vector[i-1].Packet.frame_numseq;
+				if (diff>1){
+					no_lost_packets++; 
+				}
+			}				
 
 		RTT_slide = RTT_slide / no_packets;
 		RX_frames_slide = RX_frames_slide / no_packets ;
@@ -1064,23 +1049,20 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		
 		QoE_metric = 3.01 * exp(-4.473 * (1-QoS_struct.RXframes_ratio)) + 1.065; // metric only taking into account the packet loss ratio
 		printf("IQX based on frameloss_ratio: %.4f\n", QoE_metric ); 
+		//QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio)*10E2 + 0.2*jitter_sum_quadratic)*10E2) + 1.065; // metric with webrtc congestion control added on top of packet loss
 		
-		/* 	REWARD EXPERIMENTS HERE
-
-			//QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio)*10E2 + 0.2*jitter_sum_quadratic)*10E2) + 1.065; // metric with webrtc congestion control added on top of packet loss
-			
-			//QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1? 
+		//QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1? 
 
 
-			//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
-			
-			//BORIS REWARDS
-			//QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
+		//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
+		
+		//BORIS REWARDS
+		//QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
 
-			//double instantaneous_reward_Boris = (90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/100E6))/100;	// second reward function proposed by Boris
+		//double instantaneous_reward_Boris = (90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/100E6))/100;	// second reward function proposed by Boris
 
-			//printf("QOE normalized: %f\n\n", QoE_metric);
-		*/
+		//printf("QOE normalized: %f\n\n", QoE_metric);
+
 		past_action_delayed_reward[0] = past_action_delayed_reward[1]; //store old reward value, which is used for updates 
 		past_action_delayed_reward[1] = 0.95 * QoE_metric + 0.05 * Load/MAXLOAD; //stateless reward: For q-learning use reward function with state and action 
 		CUMulative_reward += past_action_delayed_reward[1]; 
@@ -1282,8 +1264,56 @@ double XRServer::reward(int state, int next_a){
 	#endif 
 };
 
-bool compareStructbyNumseq(const sliding_window_t& a, const sliding_window_t& b) {
-    return a.num_seq < b.num_seq; // smallest first
+/*
+void updateState(int signal) {
+    switch (currentState) {
+        case HOLD:
+            if (signal == underuse_S) {
+                currentState = HOLD;
+            } 
+            else if(signal == normal_S) {
+                currentState = INCR;
+                // remain in current state
+            }
+            else if(signal == overuse_S){
+                currentState = DECR;
+            }
+            else{printf("????????????");}
+            break;
+        case DECR:
+            if (signal == underuse_S) {
+                currentState = HOLD;
+            } 
+            else if(signal == normal_S) {
+                currentState = HOLD;
+                // remain in current state
+            }
+            else if(signal == overuse_S){
+                currentState = DECR;
+            }
+            else{printf("????");}
+            break;
+			
+        case INCR:
+			if (signal == underuse_S) {
+                currentState = HOLD;
+            } 
+            else if(signal == normal_S) {
+                currentState = INCR;
+                // remain in current state
+            }
+            else if(signal == overuse_S){
+                currentState = DECR;
+            }
+            else{
+				printf("?");
+			}
+            break;     
+    }
 };
+*/
+
+
+
 
 #endif
