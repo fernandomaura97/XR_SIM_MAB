@@ -193,13 +193,7 @@ component XRServer : public TypeII
 		}ucb_struct;
 
 
-		struct sliding_window_t {
-
-			data_packet Packet;
-			double      Timestamp; 
-			double 		RTT; 
-		}; 
-
+		
 		std::vector<sliding_window_t>sliding_vector;  
 
 		double CUMulative_reward; //TODO

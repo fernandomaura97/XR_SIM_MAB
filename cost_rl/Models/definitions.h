@@ -73,6 +73,14 @@ struct data_packet
 	double packets_received;
 }; 
 
+struct sliding_window_t {
+
+			data_packet Packet;
+			double      Timestamp; 
+			double 		RTT; 
+			double 		num_seq;
+			// double 		num_seq_pl; //to use some day  
+		}; 
 
 struct SLOT_indicator
 {
