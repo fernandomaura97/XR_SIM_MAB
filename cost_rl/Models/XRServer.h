@@ -196,11 +196,11 @@ component XRServer : public TypeII
 		
 		std::vector<sliding_window_t>sliding_vector;  
 
-		double CUMulative_reward; //TODO
+		double CUMulative_reward; 
 
 
 		double sequence_frame_counter; //useful for keeping track of frameloss 
-
+		double sequence_packet_counter; // TODO: Compute packet loss with this
 		//////////////////////////////////////////////////////////////////////////////
 	
 	private:
@@ -518,7 +518,7 @@ void XRServer :: new_packet(trigger_t &)
 	XR_packet.frame_generation_time = last_frame_generation_time;
 
 	rtt_counter +=1;
-	sequence_frame_counter++; 
+	sequence_packet_counter++; 
 	
 	/*            ///ROUTINE TO MAKE 1 PACKET IN N BE FOR FEEDBACK AND KALMAN (UNUSED)
 	if (rtt_counter >=10){
@@ -538,9 +538,11 @@ void XRServer :: new_packet(trigger_t &)
 		XR_packet.first_video_frame_packet = 0;
 	}
 	if(tx_packets_per_frame==1) 
-	{
+	{	
+		sequence_frame_counter++; 
 		XR_packet.last_video_frame_packet = 1;
-		XR_packet.frame_numseq = sequence_frame_counter; 
+		XR_packet.frame_numseq = sequence_frame_counter;
+		printf("\t[DBG SOURCE] Sending frame NUMSEQ: %.1f\n", sequence_frame_counter ) ;
 	}
 	else 
 	{
@@ -989,8 +991,9 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	//And compute averages over this window
 	if((no_feedback_packets != 0) && (no_packets != 0) ){		//just make sure to not divide by 0
 
+		std::sort( sliding_vector.begin(), sliding_vector.end(), compareStructbyNumseq );
 
-		// check numseq of each packe: if diff > 1 then packet considered lost --> this is maybe not best approach for packet loss Ratio computation, but could be useful as (alternative) measurement of jitter in the network. 
+		// check numseq of each packet: if diff > 1 then packet considered lost --> this is maybe not best approach for packet loss Ratio computation, but could be useful as (alternative) measurement of jitter in the network. 
 
 			for(int i = 1; i < no_packets; i++){
 				int diff = sliding_vector[i].Packet.frame_numseq - sliding_vector[i-1].Packet.frame_numseq;
@@ -1002,6 +1005,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		RTT_slide = RTT_slide / no_packets;
 		RX_frames_slide = RX_frames_slide / no_packets ;
 		MOWDG_slide = MOWDG_slide/ no_feedback_packets; 
+		printf("\t[DBG_SLIDING_SERVER\n]: no_packets in window : %d, nº lost:%.0f\n", no_packets, no_lost_packets);
 		Frameloss_slide = no_lost_packets/(no_packets + no_lost_packets);
 		
 		 // Boris Metrics
@@ -1009,7 +1013,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		
 		
 		//	TESTING printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tMOWDG:%.4f,\tFrameloss: %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,ratio));
-		printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tMOWDG:%.4f,\tFrameloss: %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,Frameloss_slide)); //TEST: sustituir frameloss_slide por ratio al terminar
+		printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tMOWDG:%.4f,\tFrameloss (computed over sliding window): %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,Frameloss_slide)); //TEST: sustituir frameloss_slide por ratio al terminar
 
 
 
@@ -1306,6 +1310,9 @@ void updateState(int signal) {
     }
 };
 */
+bool compareStructbyNumseq(const sliding_window_t& a, const sliding_window_t& b) {
+    return a.num_seq < b.num_seq; // smallest first
+};
 
 
 
