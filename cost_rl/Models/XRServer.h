@@ -33,9 +33,9 @@ using namespace std;
 
 
 /* ##############################           AGENT TYPE             #####################################3*/
-#define CTL_GREEDY_MAB 	1		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
+#define CTL_GREEDY_MAB 	0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
 #define CTL_THOMPSON 	0
-#define CTL_UCB 	 	0
+#define CTL_UCB 	 	1
 #define CTL_Q_ONLINE    0
 
 #define TIME_BETWEEN_UPDATES 1.0  //How often the AGENT will choose new ACTION
@@ -362,6 +362,7 @@ void XRServer :: Stop()
 	printf("Average Load = %f\n",av_Load/generated_video_frames);
 	printf("Number of Changes = %f | Rate of changes = %f\n",load_changes,load_changes/SimTime());
 
+	#if CTL_Q_ONLINE
 	//EXPORT Q MATRICES: 
 	ofstream outfile("Results/Qmatrix/Q_fini.txt");
 	ofstream outfile1("Results/Qmatrix/Q_t10.txt");
@@ -409,6 +410,8 @@ void XRServer :: Stop()
 		}
 	// 
 	outfile.close();
+
+	#endif
 
 
 	////////////////////   CSV RESULTS ////////////////////////
@@ -459,6 +462,18 @@ void XRServer :: Stop()
 		for (int jk = 0;  jk <= 10; jk++){
 			printf("%d: %f\n", jk, MAB_rewards_greedy[jk]); 
 		}
+
+	#elif CTL_THOMPSON
+		printf("Thompson rewards:\n");
+
+	#elif CTL_UCB	
+		printf("UCB rewards:\n");
+
+
+	#elif CTL_Q_ONLINE
+		
+		//do nothing, Q matrix already exported
+
 	#endif
 };
 
@@ -548,7 +563,7 @@ void XRServer :: new_packet(trigger_t &)
 		sequence_frame_counter++; 
 		XR_packet.last_video_frame_packet = 1;
 		XR_packet.frame_numseq = sequence_frame_counter;
-		//printf("\t[DBG SOURCE] Sending frame NUMSEQ: %.1f\n", sequence_frame_counter ) ;
+		//printf("\t[DBG_SOURCE] Sending frame NUMSEQ: %.1f\n", sequence_frame_counter ) ;
 	}
 	else 
 	{
@@ -570,7 +585,7 @@ void XRServer :: in(data_packet &packet)
 {	
 	if(traces_on_server) printf("%f - XR server %d : Uplink Packet received\n",SimTime(),id);
 	// Compute RTT & losses
-	if(packet.feedback ==true){
+	if(packet.feedback == true){
 
 		/////////////////////////// DEPRECATED  /////////////////
 		
@@ -740,7 +755,7 @@ void XRServer :: ThompsonSampling()
 		thompson_struct.reward_hist.push_back(thompson_struct.current_reward);
 		thompson_struct.action_hist.push_back(thompson_struct.current_action);
 		thompson_struct.action_v[pargmax] = thompson_struct.action_v[pargmax] * ( thompson_struct.n_times_selected[pargmax] - 1 ) + thompson_struct.current_reward/(thompson_struct.n_times_selected[pargmax]); //update value action matrix 
-		printf("\n\t[DBG REWARD] Past action %d got reward of %.3f", pargmax, thompson_struct.current_reward); 
+		printf("\n\t[DBG REWARD] Past action %d got reward of %.3f\n", pargmax, thompson_struct.current_reward); 
 	}
 	past_load = Load; 
 	std::random_device rd;
@@ -772,8 +787,7 @@ void XRServer :: ThompsonSampling()
 	Load = thompson_struct.current_action * 10E6; //Maybe make this not deterministic? 
 	current_action = thompson_struct.current_action; 
 
-
-	printf("THOMPSON: action taken: %d, n_times of action: %f", argmax, thompson_struct.n_times_selected[argmax]);
+	printf("THOMPSON: action taken: %d, n_times of action: %.1f\n", argmax, thompson_struct.n_times_selected[argmax]);
 };
 
 void XRServer::UpperConfidenceBounds()
@@ -790,21 +804,22 @@ void XRServer::UpperConfidenceBounds()
 		ucb_struct.cntr++ ;
 
 
-		printf("\n\t[DBG REWARD] Past action %d got reward of %.3f", current_action, past_action_delayed_reward[1]); 
+		printf("\n\t[DBG REWARD] Past action %d got reward of %.3f\n", current_action, past_action_delayed_reward[1]); 
 	}
 	
 	//2) Choose next action according to algorithm
 	past_load = Load; 
 
-	for (int i = 0; i <= N_ACTIONS_UCB; i++) 
+	for (int i = 0; i < N_ACTIONS_UCB; i++) 
 	{
 		double sample = ucb_struct.action_v[i] + sqrt(( 2 * log(ucb_struct.cntr)) / ucb_struct.n_times_selected[i]);
 		ucb_struct.action_confidence[i] = sample; 
+		printf("[DBG_UCB] Confidence over action %d is %.4f\n", i, sample ); 
 	}
 	int argmax = 0;
 	double max_val = ucb_struct.action_confidence[0];
 
-	for( int i = 1; i <= N_ACTIONS_UCB; i++ )
+	for( int i = 0; i < N_ACTIONS_UCB; i++ )
 	{
 		if(ucb_struct.action_confidence[i] > max_val){
 			max_val = ucb_struct.action_confidence[i];
@@ -814,9 +829,9 @@ void XRServer::UpperConfidenceBounds()
 	ucb_struct.current_action = argmax;
 	ucb_struct.n_times_selected[argmax] ++; 
 
-	Load = ucb_struct.current_action * 10E6; //TODO: ADD SOME RANDOMNESS HERE MAYBE?
+	Load = (ucb_struct.current_action + 1) * 10E6;
 
-	printf("UCB: Action taken %d , nº times of action: %f", argmax, ucb_struct.n_times_selected[argmax]);
+	printf("UCB: Action taken %d , Load: %.2f MBps,  nº times of action: %.1f\n", argmax, Load/1E6, ucb_struct.n_times_selected[argmax]);
 
 	ucb_struct.pargmax = argmax; //store past argmax for next cycle.
 	
@@ -1025,7 +1040,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		QLearning(); 
 	#endif
 
-	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,MAB_rewards_greedy[current_action],current_action,received_frames_MAB,sent_frames_MAB);
+	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,past_action_delayed_reward[1],current_action,received_frames_MAB,sent_frames_MAB);
 	//printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
 
 //// 3: Next Action EXECUTED, store RESULTS in CSV 

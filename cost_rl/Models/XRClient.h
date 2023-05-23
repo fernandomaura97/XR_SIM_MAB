@@ -368,7 +368,7 @@ void XRClient :: in(data_packet &packet)
 		sliding_vector_client.push_back(NEW_p);
 		
 		#if DBG_CLIENT
-		printf("[DBG_CLIENT]: numseq packet: %.1f, struct: %.1f\n", packet.frame_numseq, NEW_p.num_seq);
+		printf("\t[DBG_CLIENT]: numseq packet: %.1f, struct: %.1f\n", packet.frame_numseq, NEW_p.num_seq);
 		#endif
 		////////////////// SLIDING WINDOW CLIENT END  /////////////////
 		
