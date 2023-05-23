@@ -41,8 +41,8 @@ using namespace std;
 #define TIME_BETWEEN_UPDATES 1.0  //How often the AGENT will choose new ACTION
 #define TIME_SLIDING_WINDOW  1.0  //How many packets are temporally taken into account for sliding window. NOW: 1 second
 
-#define N_ACTIONS_THOMPSON 20 
-#define N_ACTIONS_UCB 20 
+#define N_ACTIONS_THOMPSON 10 
+#define N_ACTIONS_UCB 10 
 
 
 // Online Q-learning parametres: 
@@ -768,7 +768,7 @@ void XRServer :: ThompsonSampling()
 	thompson_struct.n_times_selected[argmax]++; 
 	thompson_struct.prev_argmax = argmax; //for computing the (delayed) reward of current action in the "next pass"
 	
-	Load = thompson_struct.current_action * 5E6; //Maybe make this not deterministic? 
+	Load = thompson_struct.current_action * 10E6; //Maybe make this not deterministic? 
 	current_action = thompson_struct.current_action; 
 
 
@@ -813,15 +813,13 @@ void XRServer::UpperConfidenceBounds()
 	ucb_struct.current_action = argmax;
 	ucb_struct.n_times_selected[argmax] ++; 
 
-	Load = ucb_struct.current_action * 5E6; //TODO: ADD SOME RANDOMNESS HERE MAYBE?
+	Load = ucb_struct.current_action * 10E6; //TODO: ADD SOME RANDOMNESS HERE MAYBE?
 
 	printf("UCB: Action taken %d , nº times of action: %f", argmax, ucb_struct.n_times_selected[argmax]);
 
 	ucb_struct.pargmax = argmax; //store past argmax for next cycle.
 	
-	current_action = ucb_struct.current_action; 
-
-	
+	current_action = ucb_struct.current_action; 	
 };
 
 void XRServer :: QLearning()
