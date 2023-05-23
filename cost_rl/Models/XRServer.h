@@ -38,7 +38,7 @@ using namespace std;
 #define CTL_UCB 	 	0
 #define CTL_Q_ONLINE    0
 
-#define TIME_BETWEEN_UPDATES 0.1  //How often the AGENT will choose new ACTION
+#define TIME_BETWEEN_UPDATES 1.0  //How often the AGENT will choose new ACTION
 #define TIME_SLIDING_WINDOW  1.0  //How many packets are temporally taken into account for sliding window. NOW: 1 second
 
 #define N_ACTIONS_THOMPSON 20 

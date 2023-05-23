@@ -302,24 +302,25 @@ void XRClient :: in(data_packet &packet)
 
 			//KALMAN FILTER END */
 
-	if(packet.video_frame_seq < 10000)
-	{
-		if(packets_rx_video_frames[(int) packet.video_frame_seq] == 0) VideoFramesReceived++;
-		
-		packets_rx_video_frames[(int) packet.video_frame_seq]++;
-		if(packets_rx_video_frames[(int) packet.video_frame_seq] == packet.NumPacketsPerFrame)
-		{	
-			VideoFramesFullReceived++;
-			FullVideoFrameRX = 1; 
-			frame_times.push_back(SimTime()-packet.frame_generation_time);
-			if(traces_on) printf("%f - XRClient %d. Video Frame Received  %f (Packets = %f | Packets In Frame = %d).\n",SimTime(),id,packet.video_frame_seq,packets_rx_video_frames[(int) packet.video_frame_seq],packet.NumPacketsPerFrame);
-			if(traces_on) printf("Number of Video Frames Full Received %f from Total = %f | Fraction = %f\n",VideoFramesFullReceived,VideoFramesReceived,VideoFramesFullReceived/VideoFramesReceived);
+	//if(packet.video_frame_seq < 10000) { //DELETE THIS
+	if(packets_rx_video_frames[(int) packet.video_frame_seq] == 0) VideoFramesReceived++;
 	
-			test_frames_received[id]++;
-			// Video Frame Delay
-			test_average_delay_decision[id] = (test_average_delay_decision[id] + (SimTime()-packet.frame_generation_time))/2;
+	packets_rx_video_frames[(int) packet.video_frame_seq]++;
+	if(packets_rx_video_frames[(int) packet.video_frame_seq] == packet.NumPacketsPerFrame)
+	{	
+		VideoFramesFullReceived++;
+		FullVideoFrameRX = 1; 
+		frame_times.push_back(SimTime()-packet.frame_generation_time);
+		if(traces_on) printf("%f - XRClient %d. Video Frame Received  %f (Packets = %f | Packets In Frame = %d).\n",SimTime(),id,packet.video_frame_seq,packets_rx_video_frames[(int) packet.video_frame_seq],packet.NumPacketsPerFrame);
+		if(traces_on) printf("Number of Video Frames Full Received %f from Total = %f | Fraction = %f\n",VideoFramesFullReceived,VideoFramesReceived,VideoFramesFullReceived/VideoFramesReceived);
+
+		test_frames_received[id]++;
+		// Video Frame Delay
+		test_average_delay_decision[id] = (test_average_delay_decision[id] + (SimTime()-packet.frame_generation_time))/2;
 		}
-	}
+	//} end delete this
+
+
 
 
 	// Packet Delay
@@ -495,6 +496,7 @@ void XRClient :: sliding_window_routine(trigger_t &){
 	}
 
 //2. compute metrics over the sliding window
+	/*
 	std::sort( sliding_vector_client.begin(), sliding_vector_client.end(), compareStructbyNumseq2 );
 
 	printf("***********************Let's see the ordered NUMSEQ: **********************\n");
@@ -513,10 +515,18 @@ void XRClient :: sliding_window_routine(trigger_t &){
 
 	
 	sliding_window_timer.Set(SimTime()+0.5);
-
+*/
 
 //3. Make contents of next messages to be the averaged metrics.
 // Just use a public struct with variables and make the contents of feedback messages be from there. 
+
+
+
+
+	//TODO: CLIENT METRICS SLIDING WINDOW ON SORTED VECTOR
+	//HOWEVER, ORDERED VECTOR WON'T WORK (THE NUMSEQ IS KEPT AT 0 ONCE SORTED FOR SOME REASON!!! )
+
+
 
 };
 
