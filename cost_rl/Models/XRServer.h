@@ -955,7 +955,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 		printf("\n\n%f - XR server %d -------------------  Rate Control ------------------- \n",SimTime(),id);
 		printf("---------------------------------> Number of Tx Frames = %f | Number of Rx Video Frames %f \n",generated_video_frames_interval,received_video_frames_interval);
-		printf("---------------------------------> Ratio Frames = %f\n",ratio);	
+		printf("---------------------------------> Ratio Frames = %f\n",MIN(1,ratio));	
 		printf("---------------------------------> Average RTT = %f\n",RTT_interval/received_video_frames_interval);
 		double lost_packets_interval = (generated_packets - generated_video_packets_interval_ref) - (received_video_packets - received_video_packets_interval_ref);
 		
@@ -981,11 +981,11 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 		//FER REWARDS
 		
-		QoE_metric = 3.01 * exp(-4.473 * (1-QoS_struct.RXframes_ratio)) + 1.065; // metric only taking into account the packet loss ratio
+		QoE_metric = 3.01 * exp( -4.473 * ( 1 - QoS_struct.RXframes_ratio )) + 1.065; // metric only taking into account the packet loss ratio
 		printf("IQX based on frameloss_ratio: %.4f\n", QoE_metric ); 
 		//QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio)*10E2 + 0.2*jitter_sum_quadratic)*10E2) + 1.065; // metric with webrtc congestion control added on top of packet loss
 		
-		//QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1? 
+		QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1? 
 
 
 		//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
@@ -999,6 +999,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 		past_action_delayed_reward[0] = past_action_delayed_reward[1]; //store old reward value, which is used for updates 
 		past_action_delayed_reward[1] = 0.95 * QoE_metric + 0.05 * Load/MAXLOAD; //stateless reward: For q-learning use reward function with state and action 
+
 		CUMulative_reward += past_action_delayed_reward[1]; 
 
 		
