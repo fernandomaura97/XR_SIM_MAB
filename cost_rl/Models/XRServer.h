@@ -33,7 +33,7 @@ using namespace std;
 
 
 /* ##############################           AGENT TYPE             #####################################3*/
-#define CTL_GREEDY_MAB 	0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
+#define CTL_GREEDY_MAB 	1		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
 #define CTL_THOMPSON 	0
 #define CTL_UCB 	 	0
 #define CTL_Q_ONLINE    0
@@ -327,11 +327,12 @@ void XRServer :: Start()
 	epsilon_greedy_decreasing_qlearn = 0.25; 
 	passes = 0; 
 
-	#if CTL_GREEDY_MAB ==1
+	#if CTL_GREEDY_MAB == 1
+		printf("Initializing rewards of MAB:\n");
 		for (int r=0;r<10;r++)
 		{
 			MAB_rewards_greedy[r]=0.0;							
-			printf("%f ",MAB_rewards_greedy[r]);      // REVIEW: SET T0 1.0 ? 
+			printf("%d: %f \n", r, MAB_rewards_greedy[r]);      // REVIEW: SET T0 1.0 ? 
 			epsilon_greedy_decreasing = 0.25; 
 
 		}
@@ -455,8 +456,8 @@ void XRServer :: Stop()
 	file.close();
 	#if CTL_GREEDY_MAB ==1
 		printf("MAB_REWARDS\n");
-		for (int jk = 0;  jk < 10; jk++){
-			printf("%d: %f", jk, MAB_rewards_greedy[jk]); 
+		for (int jk = 0;  jk <= 10; jk++){
+			printf("%d: %f\n", jk, MAB_rewards_greedy[jk]); 
 		}
 	#endif
 };
@@ -547,7 +548,7 @@ void XRServer :: new_packet(trigger_t &)
 		sequence_frame_counter++; 
 		XR_packet.last_video_frame_packet = 1;
 		XR_packet.frame_numseq = sequence_frame_counter;
-		printf("\t[DBG SOURCE] Sending frame NUMSEQ: %.1f\n", sequence_frame_counter ) ;
+		//printf("\t[DBG SOURCE] Sending frame NUMSEQ: %.1f\n", sequence_frame_counter ) ;
 	}
 	else 
 	{
@@ -682,7 +683,7 @@ void XRServer :: GreedyControl()
 
 	// 2) Next Action
 	
-	if(Random()<=epsilon_greedy_decreasing)
+	if(Random() <= epsilon_greedy_decreasing)
 	{
 		// Explore
 		printf("***************** EXPLORE MAB**************************** %f\n", epsilon_greedy_decreasing);
@@ -699,7 +700,7 @@ void XRServer :: GreedyControl()
 		// Get the maximum 
 		int index_max = 0;
 		double max_reward = MAB_rewards_greedy[0];
-		for (int r=0;r<10;r++)
+		for (int r=0; r < 10; r++)
 		{
 			//printf("%d %f\n",r,MAB_rewards[r]);
 			if(max_reward < MAB_rewards_greedy[r])
@@ -715,13 +716,13 @@ void XRServer :: GreedyControl()
 	Load = (next_action_MAB + 1) * 10E6; 
 	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
 
-	printf("%f - Load = %.1fE6 | next_action = %d\n",SimTime(),Load/(10E6),next_action_MAB);
+	printf("%f - Load = %.1fE6 | next_action = %d\n",SimTime(),Load/(1E6),next_action_MAB);
 	
 	current_action = next_action_MAB;
 	
 	
 	//update ε
-	epsilon_greedy_decreasing = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
+	epsilon_greedy_decreasing = MAX(0.1, (0.25 - passes / 2000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
 	
 	
 };
@@ -924,7 +925,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	
 	//And compute averages over this window
 	if((no_feedback_packets != 0) && (no_packets != 0) ){		//just make sure to not divide by 0
-
+		/*
 		std::sort( sliding_vector.begin(), sliding_vector.end(), compareStructbyNumseq );
 
 		// check numseq of each packet: if diff > 1 then packet considered lost --> this is maybe not best approach for packet loss Ratio computation, but could be useful as (alternative) measurement of jitter in the network. 
@@ -939,15 +940,15 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		RTT_slide = RTT_slide / no_packets;
 		RX_frames_slide = RX_frames_slide / no_packets ;
 		MOWDG_slide = MOWDG_slide/ no_feedback_packets; 
-		printf("\t[DBG_SLIDING_SERVER\n]: no_packets in window : %d, nº lost:%.0f\n", no_packets, no_lost_packets);
-		Frameloss_slide = no_lost_packets/(no_packets + no_lost_packets);
-		
+		//printf("\t[DBG_SLIDING_SERVER\n]: no_packets in window : %d, nº lost:%.0f\n", no_packets, no_lost_packets);
+		Frameloss_slide = no_lost_packets/(no_packets + no_lost_packets); //WE DONT USE THIS ONE, NOT GOOD
+		*/
 		 // Boris Metrics
 		double ratio = received_video_frames_interval/generated_video_frames_interval;
 		
 		
 		//	TESTING printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tMOWDG:%.4f,\tFrameloss: %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,ratio));
-		printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tMOWDG:%.4f,\tFrameloss (computed over sliding window): %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,Frameloss_slide)); //TEST: sustituir frameloss_slide por ratio al terminar
+		printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tMOWDG:%.4f,\tFrameloss (computed over sliding window): %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,ratio)); //TEST: sustituir frameloss_slide por ratio al terminar
 
 
 
@@ -980,6 +981,8 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		//FER REWARDS
 		
 		QoE_metric = 3.01 * exp( -4.473 * ( 1 - QoS_struct.RXframes_ratio )) + 1.065; // metric only taking into account the packet loss ratio
+		//QoE_metric = 3.01 * exp( -4.473 * (0.5 * ( 1 - QoS_struct.RXframes_ratio ) + 0.5 * QoS_struct.RTT)) + 1.065; // metric taking into account the packet loss ratio and minimizing RTT
+
 		printf("IQX based on frameloss_ratio: %.4f\n", QoE_metric ); 
 		//QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio)*10E2 + 0.2*jitter_sum_quadratic)*10E2) + 1.065; // metric with webrtc congestion control added on top of packet loss
 		

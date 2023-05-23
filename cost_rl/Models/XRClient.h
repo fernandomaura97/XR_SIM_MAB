@@ -13,7 +13,7 @@
 
 //#define N_FRAMES_WINDOW 450 //90 FPS --> 5 SECONDS
 #define TIME_SLIDING_WINDOW_CLIENT  1.0  //How many packets are temporally taken into account for sliding window. NOW: 1 second
-#define DBG_CLIENT 1
+#define DBG_CLIENT 0
 
 component XRClient : public TypeII
 {
