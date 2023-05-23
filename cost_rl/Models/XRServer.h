@@ -246,6 +246,7 @@ component XRServer : public TypeII
 		double Q_matrix_t100[N_STATES][3]; 	
 
 		double epsilon_greedy_decreasing; 
+		double epsilon_greedy_decreasing_qlearn; 
 
 		/*
 		double packet_loss_window;
@@ -323,7 +324,7 @@ void XRServer :: Start()
 	sequence_frame_counter = 0; 
 	
 	//values for applying the greedy epsilon_greedy_decreasing
-	epsilon_greedy_decreasing = 0.25; 
+	epsilon_greedy_decreasing_qlearn = 0.25; 
 	passes = 0; 
 
 	#if CTL_GREEDY_MAB ==1
@@ -331,6 +332,8 @@ void XRServer :: Start()
 		{
 			MAB_rewards_greedy[r]=0.0;							
 			printf("%f ",MAB_rewards_greedy[r]);      // REVIEW: SET T0 1.0 ? 
+			epsilon_greedy_decreasing = 0.25; 
+
 		}
 	#else 
 
@@ -340,6 +343,8 @@ void XRServer :: Start()
 			printf("%f ",MAB_rewards[r]);
 		}
 	#endif
+
+
 	thompson_struct.current_action = feature_map(Load) ;//INITIAL LOAD; 
 	//thompson_struct.action_hist.push_back( ##INITIAL LOAD ); //First action
 	//thompson_struct.reward_hist.push_back( reward( feature_map(Load), 1) );
@@ -650,6 +655,17 @@ void XRServer :: in(data_packet &packet)
 	received_packets++;
 };
 
+
+// Define the update function for Q-learning vector
+void XRServer :: update( int state, int action, double reward, int next_state) {
+    double old_value = Q_matrix[state][action];
+    //double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
+	double next_max = *max_element(std::begin(Q_matrix[next_state]),  std::end(Q_matrix[next_state]));
+    double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
+
+    Q_matrix[state][action] = new_value;
+};
+
 void XRServer :: GreedyControl()
 {
 	//1) Update rewards based on collected previous metrics from last 'cycle'
@@ -710,16 +726,6 @@ void XRServer :: GreedyControl()
 	
 };
 
-// Define the update function
-void XRServer :: update( int state, int action, double reward, int next_state) {
-    double old_value = Q_matrix[state][action];
-    //double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
-	double next_max = *max_element(std::begin(Q_matrix[next_state]),  std::end(Q_matrix[next_state]));
-    double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
-
-    Q_matrix[state][action] = new_value;
-};
-
 void XRServer :: ThompsonSampling()
 {
 	if (passes == 1) {
@@ -740,7 +746,7 @@ void XRServer :: ThompsonSampling()
 	std::mt19937 gen(rd());
 	std::normal_distribution<> d(0, 1); //code for randn approach in matlab
 
-	for (int i= 0; i<=N_ACTIONS_THOMPSON;i++) //sample from gaussian distribution with nº of times action k has been taken
+	for (int i= 0; i<= N_ACTIONS_THOMPSON;i++) //sample from gaussian distribution with nº of times action k has been taken
 	{
 		double sample = thompson_struct.action_v[i];
 		thompson_struct.sigma[i] = 1/(thompson_struct.n_times_selected[i] + 1);
@@ -751,7 +757,7 @@ void XRServer :: ThompsonSampling()
 	int argmax = 0; 
 	double max_val = thompson_struct.action_v[0];
 
-	for(int i = 1; i<N_ACTIONS_THOMPSON; i++){
+	for(int i = 1; i <= N_ACTIONS_THOMPSON; i++){
 		if(thompson_struct.action_v[i]>max_val){
 			max_val = thompson_struct.action_v[i];
 			argmax = i; 
@@ -789,7 +795,7 @@ void XRServer::UpperConfidenceBounds()
 	//2) Choose next action according to algorithm
 	past_load = Load; 
 
-	for (int i = 0; i< N_ACTIONS_UCB; i++) 
+	for (int i = 0; i <= N_ACTIONS_UCB; i++) 
 	{
 		double sample = ucb_struct.action_v[i] + sqrt(( 2 * log(ucb_struct.cntr)) / ucb_struct.n_times_selected[i]);
 		ucb_struct.action_confidence[i] = sample; 
@@ -797,7 +803,7 @@ void XRServer::UpperConfidenceBounds()
 	int argmax = 0;
 	double max_val = ucb_struct.action_confidence[0];
 
-	for( int i = 1; i<N_ACTIONS_UCB; i++ )
+	for( int i = 1; i <= N_ACTIONS_UCB; i++ )
 	{
 		if(ucb_struct.action_confidence[i] > max_val){
 			max_val = ucb_struct.action_confidence[i];
@@ -845,7 +851,7 @@ void XRServer :: QLearning()
 
 	past_load = Load; 
 
-	if(Random()<= 0.25) //TODO: ADD linear decreasing epsilon BASED ON KNOWLEDGE/BELIEF (OF CURRENT STATE? ) 
+	if(Random()<= epsilon_greedy_decreasing_qlearn) //TODO: ADD linear decreasing epsilon BASED ON KNOWLEDGE/BELIEF (OF CURRENT STATE? ) 
 	{	// Explore
 		printf("***************** EXPLORE Q **************************** %f\n", SimTime());
 		next_action = Random(2);
@@ -876,83 +882,13 @@ void XRServer :: QLearning()
 			printf("WARN : In maxload already!\n");
 		}
 	}
+
+	epsilon_greedy_decreasing_qlearn = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
 };
 
 void XRServer :: AdaptiveVideoControl(trigger_t & t)
 {
-	#if ADAPTIVE_HEUR==1
-  /*
-       if(traces_on_server) 
-       printf("%f - XR server %d : Rate Control ------------------- with Losses = %f | RTT = %f\n",SimTime(),id,avRxFrames/generated_video_frames,controlRTT);
 
-       //double new_load = Load;       
-       //if((test_frames_received[id]/generated_video_frames) > 0.95 )
-       if(avRxFrames/generated_video_frames > 0.95)
-       {
-               //if(test_average_delay_decision[id] > (double) 1/fps)
-               if(controlRTT > (double) 1/fps)         
-               {
-                       double p_do_something = (100E6 - new_load)/100E6;
-                       //p_do_something = 0.25;
-                       if(Random() >= p_do_something)  
-                       {               
-                               if(traces_on_server) printf("%f - XR server %d : Decrease Load Delay\n",SimTime(),id);
-                               //fps=MAX(30,fps/2);
-                               new_load = MAX(10E6,new_load-10E6);
-                               load_changes++;
-                       }
-               }
-               else
-               {
-                       double p_do_something = (100E6 - new_load)/100E6;
-                       //p_do_something = 0.25;
-                       if(Random() <= p_do_something)  
-                       {               
-                               if(traces_on_server) printf("%f - XR server %d : Increase Load Delay\n",SimTime(),id);
-                               new_load = MIN(100E6,new_load+10E6);
-                               load_changes++;
-                       }
-                       else
-                       {
-                               
-                               // do nothing to leave room to others
-                               double time_next = inter_video_frame.GetTime();
-
-                               inter_video_frame.Cancel();
-                               
-                               //double update_time = time_next+Random((double)1/fps);
-                               double update_time = time_next + Random((double) 1.5/fps);
-
-                               if(traces_on_server) 
-                               printf("%f - XR server %d : Do nothing - Time Next Frame = %f | Updated = %f | Random Values = %f\n",SimTime(),id,time_next,update_time,Random((double) 1.5/fps));
-
-                               inter_video_frame.Set(update_time);
-                               
-                               
-                       }                       
-
-                       //fps=MIN(240,2*fps);
-               }
-       
-       }
-       else
-       {
-                       if(traces_on_server) printf("%f - XR server : Decrease Load Losses\n",SimTime());
-                       //fps=MAX(30,fps/2);
-                       new_load = MAX(10E6,new_load-10E6);
-                       load_changes++;
-
-       }
-
-
-       NumberPacketsPerFrame = ceil((new_load/L_data)/fps);
-       //tau = (double) L_data/new_load;
-       Load = new_load;
-       if(traces_on_serv) printf("%f - XR server %d : Time to check fps | New Load = %f (%f - %f - %f) | Losses = %f \n",SimTime(),id,new_load,(double) 1/fps,controlRTT,test_average_delay_decision[id],(test_frames_received[id]/generated_video_frames));
-
-
-      */
-	#endif
 
 //// 1: GET METRICS OVER "SLIDING WINDOW"
 
@@ -1073,7 +1009,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		past_action_delayed_reward[0] =	past_action_delayed_reward[1];
 		past_action_delayed_reward[1] = 0; //0 reward for that, or negative : TODO 
 	}
-	passes++; 
+	passes++; // Count how many times we have passed through the chosen algorithm, used for e-greedy or confidence bounds
 
 //// 2: APPLY ONE PASS OF CHOSEN CONTROL ALGORITHM
 
@@ -1188,6 +1124,80 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 	rate_control.Set(SimTime()+(TIME_BETWEEN_UPDATES));  //RATE CONTROL EVERY 0.1 SECONDS (atm)
 
+	// Heuristic adaptive bitrate control (to try out)
+	#if ADAPTIVE_HEUR==1
+  /*
+       if(traces_on_server) 
+       printf("%f - XR server %d : Rate Control ------------------- with Losses = %f | RTT = %f\n",SimTime(),id,avRxFrames/generated_video_frames,controlRTT);
+
+       //double new_load = Load;       
+       //if((test_frames_received[id]/generated_video_frames) > 0.95 )
+       if(avRxFrames/generated_video_frames > 0.95)
+       {
+               //if(test_average_delay_decision[id] > (double) 1/fps)
+               if(controlRTT > (double) 1/fps)         
+               {
+                       double p_do_something = (100E6 - new_load)/100E6;
+                       //p_do_something = 0.25;
+                       if(Random() >= p_do_something)  
+                       {               
+                               if(traces_on_server) printf("%f - XR server %d : Decrease Load Delay\n",SimTime(),id);
+                               //fps=MAX(30,fps/2);
+                               new_load = MAX(10E6,new_load-10E6);
+                               load_changes++;
+                       }
+               }
+               else
+               {
+                       double p_do_something = (100E6 - new_load)/100E6;
+                       //p_do_something = 0.25;
+                       if(Random() <= p_do_something)  
+                       {               
+                               if(traces_on_server) printf("%f - XR server %d : Increase Load Delay\n",SimTime(),id);
+                               new_load = MIN(100E6,new_load+10E6);
+                               load_changes++;
+                       }
+                       else
+                       {
+                               
+                               // do nothing to leave room to others
+                               double time_next = inter_video_frame.GetTime();
+
+                               inter_video_frame.Cancel();
+                               
+                               //double update_time = time_next+Random((double)1/fps);
+                               double update_time = time_next + Random((double) 1.5/fps);
+
+                               if(traces_on_server) 
+                               printf("%f - XR server %d : Do nothing - Time Next Frame = %f | Updated = %f | Random Values = %f\n",SimTime(),id,time_next,update_time,Random((double) 1.5/fps));
+
+                               inter_video_frame.Set(update_time);
+                               
+                               
+                       }                       
+
+                       //fps=MIN(240,2*fps);
+               }
+       
+       }
+       else
+       {
+                       if(traces_on_server) printf("%f - XR server : Decrease Load Losses\n",SimTime());
+                       //fps=MAX(30,fps/2);
+                       new_load = MAX(10E6,new_load-10E6);
+                       load_changes++;
+
+       }
+
+
+       NumberPacketsPerFrame = ceil((new_load/L_data)/fps);
+       //tau = (double) L_data/new_load;
+       Load = new_load;
+       if(traces_on_serv) printf("%f - XR server %d : Time to check fps | New Load = %f (%f - %f - %f) | Losses = %f \n",SimTime(),id,new_load,(double) 1/fps,controlRTT,test_average_delay_decision[id],(test_frames_received[id]/generated_video_frames));
+
+
+      */
+	#endif
 };
 
 int XRServer::overuse_detector(double mowdg, double threshold)
