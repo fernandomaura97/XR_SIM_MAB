@@ -925,7 +925,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	
 	//And compute averages over this window
 	if((no_feedback_packets != 0) && (no_packets != 0) ){		//just make sure to not divide by 0
-		/*
+		
 		std::sort( sliding_vector.begin(), sliding_vector.end(), compareStructbyNumseq );
 
 		// check numseq of each packet: if diff > 1 then packet considered lost --> this is maybe not best approach for packet loss Ratio computation, but could be useful as (alternative) measurement of jitter in the network. 
@@ -942,7 +942,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		MOWDG_slide = MOWDG_slide/ no_feedback_packets; 
 		//printf("\t[DBG_SLIDING_SERVER\n]: no_packets in window : %d, nº lost:%.0f\n", no_packets, no_lost_packets);
 		Frameloss_slide = no_lost_packets/(no_packets + no_lost_packets); //WE DONT USE THIS ONE, NOT GOOD
-		*/
+		
 		 // Boris Metrics
 		double ratio = received_video_frames_interval/generated_video_frames_interval;
 		

@@ -105,7 +105,7 @@ component XRClient : public TypeII
 		double probFrameLost = 0;
 		double received_frames = 0;
 		int received_packets_in_current_frame = 0;
-		double packets_rx_video_frames[10000]={0};
+		double packets_rx_video_frames[100000]={0};
 		double VideoFramesReceived=0;
 		double VideoFramesFullReceived=0;
 
@@ -128,7 +128,7 @@ void XRClient :: Start()
 	tau = (double) 1/(2*fps);
 	printf("%f\n",tau);
 	inter_packet_timer.Set(SimTime()+Exponential(tau));
-	sliding_window_timer.Set(SimTime()+0.5);
+	//sliding_window_timer.Set(SimTime()+0.5);		//TEST_ NOT CALLING ROUTINE (SEGFAULT)
 
 
 
@@ -302,7 +302,7 @@ void XRClient :: in(data_packet &packet)
 
 			//KALMAN FILTER END */
 
-	//if(packet.video_frame_seq < 10000) { //DELETE THIS
+	if(packet.video_frame_seq < 100000) { //DELETE THIS
 	if(packets_rx_video_frames[(int) packet.video_frame_seq] == 0) VideoFramesReceived++;
 	
 	packets_rx_video_frames[(int) packet.video_frame_seq]++;
@@ -318,7 +318,7 @@ void XRClient :: in(data_packet &packet)
 		// Video Frame Delay
 		test_average_delay_decision[id] = (test_average_delay_decision[id] + (SimTime()-packet.frame_generation_time))/2;
 		}
-	//} end delete this
+	}
 
 
 
@@ -355,7 +355,7 @@ void XRClient :: in(data_packet &packet)
 		SEQNUMMAX = packet.frame_numseq; //just copy the last sequence number in here
 		//printf("RECEIVED SEQNUMMAX: %.1f\n", packet.frame_numseq);
 		
-
+		
 		////////////////// SLIDING WINDOW CLIENT /////////////////////
 		sliding_window_t NEW_p; 
 		memcpy(&NEW_p.Packet, &packet, sizeof(data_packet)); 
@@ -366,7 +366,7 @@ void XRClient :: in(data_packet &packet)
 		memcpy(&NEW_p.num_seq, &packet.frame_numseq, sizeof(double)); //TEST
 
 		sliding_vector_client.push_back(NEW_p);
-
+		
 		#if DBG_CLIENT
 		printf("[DBG_CLIENT]: numseq packet: %.1f, struct: %.1f\n", packet.frame_numseq, NEW_p.num_seq);
 		#endif
