@@ -329,11 +329,12 @@ void XRServer :: Start()
 
 	#if CTL_GREEDY_MAB == 1
 		printf("Initializing rewards of MAB:\n");
-		for (int r=0;r<10;r++)
+		epsilon_greedy_decreasing = 0.25; 
+
+		for (int r=0;r<N_ACTIONS_MAB;r++)
 		{
-			MAB_rewards_greedy[r]=0.0;							
+			MAB_rewards_greedy[r]=1.0;							
 			printf("%d: %f \n", r, MAB_rewards_greedy[r]);      // REVIEW: SET T0 1.0 ? 
-			epsilon_greedy_decreasing = 0.25; 
 
 		}
 	#else 
@@ -454,10 +455,13 @@ void XRServer :: Stop()
 		std::cout<< "failed to open"<< std::endl;
 	}
 
-	file << "simtime,current_action,reward,load,FM_state,packets_per_frame,QoE,frame_loss,last_mowdg,RTT,lastthreshold,quadraticsum_mowdg"<< std::endl;
+	file << "simtime,current_action,reward,load,FM_state,packets_per_frame,QoE,frame_loss,last_mowdg,RTT,lastthreshold,quadraticsum_mowdg,cum_rewardw"<< std::endl;
 	for(double i = 0; i < csv_.v__SimTime.size(); i++) //every vector SHOULD be same size
 	{
-		file << csv_.v__SimTime[i] << "," << csv_.v__current_action[i] << "," << csv_.v__reward[i] << "," << csv_.v__load[i]<<"," << csv_.v__FM[i]	<< "," << csv_.v__p_p_f[i]<< "," << csv_.v__QoE[i]<< "," << csv_.v__frame_loss[i]<<"," << csv_.v__k_mowdg[i]<<"," << csv_.v__RTT[i]<<"," << csv_.v__threshold[i]<<"," << csv_.v_quadr_modg[i]<<	std::endl; 
+		file << csv_.v__SimTime[i] << "," << csv_.v__current_action[i] << "," << csv_.v__reward[i] << "," << csv_.v__load[i]<<"," << csv_.v__FM[i]	<< "," << csv_.v__p_p_f[i]<< "," 
+		<< csv_.v__QoE[i]<< "," << csv_.v__frame_loss[i]<<"," << csv_.v__k_mowdg[i]<<"," 
+		<< csv_.v__RTT[i]<<"," << csv_.v__threshold[i]<<"," << csv_.v_quadr_modg[i] << 
+		"," << csv_.v_CUM_rw[i] <<	std::endl; 
 		//add all metrics to csv output
 	}
 	file.close();
@@ -1031,8 +1035,9 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 		printf("\t\t[DBG_REWARD] Past action: %d, reward obtained: %.3f, QoE_metric: %.3f \n", current_action, past_action_delayed_reward[1], QoE_metric );
 		CUMulative_reward += past_action_delayed_reward[1]; 
+		printf("[DBG CUM] Cumulative reward: %.2f, \n", CUMulative_reward);
 
-	passes++; // Count how many times we have passed through the chosen algorithm, used for e-greedy or confidence bounds
+		passes++; // Count how many times we have passed through the chosen algorithm, used for e-greedy or confidence bounds
 
 //// 2: APPLY ONE PASS OF CHOSEN CONTROL ALGORITHM
 
