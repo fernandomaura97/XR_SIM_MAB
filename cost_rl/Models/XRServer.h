@@ -33,9 +33,9 @@ using namespace std;
 
 
 /* ##############################           AGENT TYPE             #####################################3*/
-#define CTL_GREEDY_MAB 	0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
+#define CTL_GREEDY_MAB 	1		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
 #define CTL_THOMPSON 	0
-#define CTL_UCB 	 	1
+#define CTL_UCB 	 	0
 #define CTL_Q_ONLINE    0
 
 #define TIME_BETWEEN_UPDATES 1.0  //How often the AGENT will choose new ACTION
@@ -459,7 +459,7 @@ void XRServer :: Stop()
 	file.close();
 	#if CTL_GREEDY_MAB ==1
 		printf("MAB_REWARDS\n");
-		for (int jk = 0;  jk <= 10; jk++){
+		for (int jk = 0;  jk < 10; jk++){
 			printf("%d: %f\n", jk, MAB_rewards_greedy[jk]); 
 		}
 
@@ -692,7 +692,7 @@ void XRServer :: GreedyControl()
 		
 		//MAB_rewards_greedy[current_action] = alpha_mab * MAB_rewards_greedy[current_action] + (1 - alpha_mab) * ( 90 * MIN (1 , received_frames_MAB/sent_frames_MAB ) + 10* (Load / 10E7) ) / 100;
 		MAB_rewards_greedy[current_action] = alpha_mab * MAB_rewards_greedy[current_action] + (1 - alpha_mab) * past_action_delayed_reward[1];
-		printf("\n\t[DBG REWARD] Past action %d got reward of %.3f", current_action, past_action_delayed_reward[1]); 
+		printf("\t\t[DBG_REWARD EGREEDY] Past action %d got reward of %.3f", current_action, past_action_delayed_reward[1]); 
 	}
 
 
@@ -715,9 +715,11 @@ void XRServer :: GreedyControl()
 		// Get the maximum 
 		int index_max = 0;
 		double max_reward = MAB_rewards_greedy[0];
-		for (int r=0; r < 10; r++)
-		{
-			//printf("%d %f\n",r,MAB_rewards[r]);
+		printf("[E-GREEDY VALUE MATRIX] \n");
+
+		for (int r=0; r < N_ACTIONS_MAB ; r++)
+		{		
+			printf("%d %f\n",r,MAB_rewards[r]);
 			if(max_reward < MAB_rewards_greedy[r])
 			{
 				index_max = r;
@@ -731,7 +733,7 @@ void XRServer :: GreedyControl()
 	Load = (next_action_MAB + 1) * 10E6; 
 	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
 
-	printf("%f - Load = %.1fE6 | next_action = %d\n",SimTime(),Load/(1E6),next_action_MAB);
+	printf("%f - Load = %.0fE6 | next_action = %d\n",SimTime(),Load/(1E6),next_action_MAB);
 	
 	current_action = next_action_MAB;
 	
@@ -957,17 +959,24 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		MOWDG_slide = MOWDG_slide/ no_feedback_packets; 
 		//printf("\t[DBG_SLIDING_SERVER\n]: no_packets in window : %d, nº lost:%.0f\n", no_packets, no_lost_packets);
 		Frameloss_slide = no_lost_packets/(no_packets + no_lost_packets); //WE DONT USE THIS ONE, NOT GOOD
-		
-		 // Boris Metrics
+	}
+	else{
+		printf("dividing by zero?????? rx: %d feedback: %d \n", no_packets, no_feedback_packets);
+
+		past_action_delayed_reward[0] =	past_action_delayed_reward[1];
+		past_action_delayed_reward[1] = 0; //0 reward for that, or negative : TODO 
+	}		
+	// Boris Metrics: Computed over empirical average in an interval
+
 		double ratio = received_video_frames_interval/generated_video_frames_interval;
 		
 		
 		//	TESTING printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tMOWDG:%.4f,\tFrameloss: %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,ratio));
-		printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tMOWDG:%.4f,\tFrameloss (computed over sliding window): %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,ratio)); //TEST: sustituir frameloss_slide por ratio al terminar
+		printf("\t\t[DBG Metrics] Sliding window:RTT:.%.4f\tMOWDG:%.4f,\tFrameloss (computed over sliding window): %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,ratio)); //TEST: sustituir frameloss_slide por ratio al terminar
 
 
 
-		printf("\n\n%f - XR server %d -------------------  Rate Control ------------------- \n",SimTime(),id);
+		printf("\n%f - XR server %d -------------------  Rate Control ------------------- CURRENT LOAD %.0fE6 \n",SimTime(),id, Load/10E6);
 		printf("---------------------------------> Number of Tx Frames = %f | Number of Rx Video Frames %f \n",generated_video_frames_interval,received_video_frames_interval);
 		printf("---------------------------------> Ratio Frames = %f\n",MIN(1,ratio));	
 		printf("---------------------------------> Average RTT = %f\n",RTT_interval/received_video_frames_interval);
@@ -995,13 +1004,13 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 		//FER REWARDS
 		
-		QoE_metric = 3.01 * exp( -4.473 * ( 1 - QoS_struct.RXframes_ratio )) + 1.065; // metric only taking into account the packet loss ratio
+		//QoE_metric = 3.01 * exp( -4.473 * ( 1 - QoS_struct.RXframes_ratio )) + 1.065; // metric only taking into account the packet loss ratio
 		//QoE_metric = 3.01 * exp( -4.473 * (0.5 * ( 1 - QoS_struct.RXframes_ratio ) + 0.5 * QoS_struct.RTT)) + 1.065; // metric taking into account the packet loss ratio and minimizing RTT
-
-		printf("IQX based on frameloss_ratio: %.4f\n", QoE_metric ); 
 		//QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio)*10E2 + 0.2*jitter_sum_quadratic)*10E2) + 1.065; // metric with webrtc congestion control added on top of packet loss
+		//printf("IQX based on frameloss_ratio: %.4f\n", QoE_metric ); 
 		
-		QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1? 
+		//QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1
+		
 
 
 		//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
@@ -1009,23 +1018,16 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		//BORIS REWARDS
 		//QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
 
-		//double instantaneous_reward_Boris = (90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/100E6))/100;	// second reward function proposed by Boris
+		QoE_metric = (90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/100E6))/100;	// second reward function proposed by Boris
 
-		//printf("QOE normalized: %f\n\n", QoE_metric);
-
-		past_action_delayed_reward[0] = past_action_delayed_reward[1]; //store old reward value, which is used for updates 
+		printf("\t\t[DBG_REWARD]QOE normalized: %.3f , Ratio Load/Maxload: %.3f \n\n", QoE_metric, Load/MAXLOAD);
+			
+		past_action_delayed_reward[0] = past_action_delayed_reward[1]; //store old reward value, which is used for updates (TODO: MAYBE NOT NEEDED)
 		past_action_delayed_reward[1] = 0.95 * QoE_metric + 0.05 * Load/MAXLOAD; //stateless reward: For q-learning use reward function with state and action 
 
+		printf("\t\t[DBG_REWARD] Past action: %d, reward obtained: %.3f, QoE_metric: %.3f \n", current_action, past_action_delayed_reward[1], QoE_metric );
 		CUMulative_reward += past_action_delayed_reward[1]; 
 
-		
-	}
-	else{
-		printf("dividing by zero?????? rx: %d feedback: %d \n", no_packets, no_feedback_packets);
-
-		past_action_delayed_reward[0] =	past_action_delayed_reward[1];
-		past_action_delayed_reward[1] = 0; //0 reward for that, or negative : TODO 
-	}
 	passes++; // Count how many times we have passed through the chosen algorithm, used for e-greedy or confidence bounds
 
 //// 2: APPLY ONE PASS OF CHOSEN CONTROL ALGORITHM
@@ -1040,7 +1042,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		QLearning(); 
 	#endif
 
-	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,past_action_delayed_reward[1],current_action,received_frames_MAB,sent_frames_MAB);
+	//printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,past_action_delayed_reward[1],current_action,received_frames_MAB,sent_frames_MAB);
 	//printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
 
 //// 3: Next Action EXECUTED, store RESULTS in CSV 
