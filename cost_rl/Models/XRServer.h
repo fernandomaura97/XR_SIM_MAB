@@ -701,7 +701,7 @@ void XRServer :: GreedyControl()
 	if(Random() <= epsilon_greedy_decreasing)
 	{
 		// Explore
-		printf("***************** EXPLORE MAB**************************** %f\n", epsilon_greedy_decreasing);
+		printf("***************** EXPLORE MAB**************************** eps: %.3f\n", epsilon_greedy_decreasing);
 		next_action_MAB = Random(10); //Choose between 10,20,30,40,50,60,70,80,90 or 100 MBps 
 		/*
 		//If action = 0: increase. 	
@@ -710,7 +710,7 @@ void XRServer :: GreedyControl()
 	}
 	else
 	{
-		printf("***************** EXPLOIT MAB **************************** %f\n", epsilon_greedy_decreasing);
+		printf("***************** EXPLOIT MAB **************************** eps: %.3f\n", epsilon_greedy_decreasing);
 
 		// Get the maximum 
 		int index_max = 0;
@@ -719,7 +719,7 @@ void XRServer :: GreedyControl()
 
 		for (int r=0; r < N_ACTIONS_MAB ; r++)
 		{		
-			printf("%d %f\n",r,MAB_rewards[r]);
+			printf("%d %f\n",r,MAB_rewards_greedy[r]);
 			if(max_reward < MAB_rewards_greedy[r])
 			{
 				index_max = r;
@@ -739,7 +739,7 @@ void XRServer :: GreedyControl()
 	
 	
 	//update ε
-	epsilon_greedy_decreasing = MAX(0.1, (0.25 - passes / 2000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
+	epsilon_greedy_decreasing = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
 	
 	
 };
