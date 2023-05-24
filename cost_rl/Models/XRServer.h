@@ -427,6 +427,10 @@ void XRServer :: Stop()
 	stream.str("");
     stream << std::fixed << std::setprecision(1) << st_input_args.STime;
     std::string stime = stream.str();
+
+	stream.str("");
+    stream << std::fixed << std::setprecision(1) << st_input_args.seed;
+    std::string s_seed = stream.str();
 	
 	#if CTL_GREEDY_MAB ==1
 		std::string greedyornot = "MAB-";
@@ -439,11 +443,11 @@ void XRServer :: Stop()
 	#else
 		std::string greedyornot = "VANILLA";
 	#endif
-
-	std::string filename = greedyornot + "Res_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +".csv";
+	std::string filename = greedyornot +"S" + s_seed +  "-Res_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +".csv";
 
 	//1std::string filename = "Res_T"+std::to_string((int)st_input_args.STime)+"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+std::to_string((int)st_input_args.XRLoad/10E6 )+"_BG"+std::to_string((int)st_input_args.BGLoad/10E6) +".csv";
 	printf("\n\nFILENAME: %s\n",filename.c_str());
+	printf("SEED: %d\n", st_input_args.seed);
 	std::ofstream file("Results/csv/" + filename);
 
 	if(!file.is_open()){
