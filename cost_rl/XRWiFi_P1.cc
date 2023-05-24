@@ -105,6 +105,7 @@ void XRWiFisim :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, doubl
 		XRs[n].st_input_args.fps = st_input_args.fps; 
 		XRs[n].st_input_args.BGLoad = st_input_args.BGLoad; 
 		XRs[n].st_input_args.XRLoad = st_input_args.XRLoad;
+		XRs[n].st_input_args.seed = st_input_args.seed;
 	}
 
 	XRc.SetSize(NXR);
@@ -358,6 +359,7 @@ void XRWiFisim:: Stop()
 	printf("RSSIs: %f %f %f\n",RSSI[0],RSSI[1],RSSI[2]);
 
 
+
 	/* TEST AREA */
 	
 
@@ -421,6 +423,7 @@ int main(int argc, char *argv[])
 	st_input_args.fps = fps;
 	st_input_args.BGLoad = BGLoad; 
 	st_input_args.XRLoad = XRLoad;
+	st_input_args.seed = seed; 
 
 
 
