@@ -455,7 +455,7 @@ void XRServer :: Stop()
 		std::cout<< "failed to open"<< std::endl;
 	}
 
-	file << "simtime,current_action,reward,load,FM_state,packets_per_frame,QoE,frame_loss,last_mowdg,RTT,lastthreshold,quadraticsum_mowdg,cum_rewardw"<< std::endl;
+	file << "simtime,current_action,reward,load,FM_state,packets_per_frame,QoE,frame_loss,last_mowdg,RTT,lastthreshold,quadraticsum_mowdg,cum_reward"<< std::endl;
 	for(double i = 0; i < csv_.v__SimTime.size(); i++) //every vector SHOULD be same size
 	{
 		file << csv_.v__SimTime[i] << "," << csv_.v__current_action[i] << "," << csv_.v__reward[i] << "," << csv_.v__load[i]<<"," << csv_.v__FM[i]	<< "," << csv_.v__p_p_f[i]<< "," 
