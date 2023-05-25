@@ -33,8 +33,8 @@ using namespace std;
 
 
 /* ##############################           AGENT TYPE             #####################################3*/
-#define CTL_GREEDY_MAB 	1		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
-#define CTL_THOMPSON 	0
+#define CTL_GREEDY_MAB 	0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
+#define CTL_THOMPSON 	1
 #define CTL_UCB 	 	0
 #define CTL_Q_ONLINE    0
 
@@ -167,7 +167,8 @@ component XRServer : public TypeII
 			int current_action;
 			double current_reward; 
 			double sigma[N_ACTIONS_THOMPSON];
-			double action_v[N_ACTIONS_THOMPSON]; //let's try with 20 actions: 5mbps windows
+			double sampling_arms[N_ACTIONS_THOMPSON];
+			double action_v[N_ACTIONS_THOMPSON];
 			double n_times_selected[N_ACTIONS_THOMPSON];
 			int cntr; 
 			std::vector<double> reward_hist; 
@@ -756,6 +757,7 @@ void XRServer :: ThompsonSampling()
 {
 	if (passes == 1) {
 		//printf("First time algorithm has ran, however metrics should still be available from sliding window\n\n");
+
 	}
 	else{
 		//upload reward based on QoE_metric
@@ -765,6 +767,7 @@ void XRServer :: ThompsonSampling()
 		thompson_struct.reward_hist.push_back(thompson_struct.current_reward);
 		thompson_struct.action_hist.push_back(thompson_struct.current_action);
 		thompson_struct.action_v[pargmax] = (thompson_struct.action_v[pargmax] * ( thompson_struct.n_times_selected[pargmax] - 1 ) + thompson_struct.current_reward)/(thompson_struct.n_times_selected[pargmax]); //update value action matrix 
+		
 		printf("\n\t[DBG Thompson REWARD] Past action %d got reward of %.3f\n", pargmax, thompson_struct.current_reward); 
 	}
 	past_load = Load; 
@@ -772,20 +775,23 @@ void XRServer :: ThompsonSampling()
 	std::mt19937 gen(rd());
 	std::normal_distribution<> d(0, 1); //code for randn approach in matlab
 
+
+	printf("\t\t[DBG_THOMPSON] Action value vector:\n");
 	for (int i= 0; i< N_ACTIONS_THOMPSON;i++) //sample from gaussian distribution with nº of times action k has been taken
-	{
-		double sample = thompson_struct.action_v[i];
+	{	
+		double sample_mean = thompson_struct.action_v[i];
+		//printf("%d , %.3f\n", i , sample); 
 		thompson_struct.sigma[i] = 1/(thompson_struct.n_times_selected[i] + 1);
-		thompson_struct.action_v[i] = sample + thompson_struct.sigma[i] * d(gen); //theta
+		thompson_struct.sampling_arms[i] = sample_mean + thompson_struct.sigma[i] * d(gen); //theta
 	}
 
 	//find argmax of the possible actions sampled from vector
 	int argmax = 0; 
-	double max_val = thompson_struct.action_v[0];
+	double max_val = thompson_struct.sampling_arms[0];
 
 	for(int i = 0; i < N_ACTIONS_THOMPSON; i++){
-		if(thompson_struct.action_v[i]>max_val){
-			max_val = thompson_struct.action_v[i];
+		if(thompson_struct.sampling_arms[i]>max_val){
+			max_val = thompson_struct.sampling_arms[i];
 			argmax = i; 
 		}
 	}
