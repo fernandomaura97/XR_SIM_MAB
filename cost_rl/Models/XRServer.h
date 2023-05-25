@@ -776,14 +776,22 @@ void XRServer :: ThompsonSampling()
 	std::normal_distribution<> d(0, 1); //code for randn approach in matlab
 
 
+	std::default_random_engine generator; // Second approach for sampling out of distribution, from MARC
+	generator.seed(passes);
+
+
 	printf("\t\t[DBG_THOMPSON] Action value vector:\n");
 	for (int i= 0; i< N_ACTIONS_THOMPSON;i++) //sample from gaussian distribution with nº of times action k has been taken
 	{	
-		double sample_mean = thompson_struct.action_v[i];
-		//printf("%d , %.3f\n", i , sample); 
+		double sample_mean = thompson_struct.action_v[i]; //for bigger numerical differences a 5???? //CHECK IT
+		printf("%d , %.3f\tnº times %.0f\n", i , sample_mean, thompson_struct.n_times_selected[i]); 
 		thompson_struct.sigma[i] = 1/(thompson_struct.n_times_selected[i] + 1);
-		thompson_struct.sampling_arms[i] = sample_mean + thompson_struct.sigma[i] * d(gen); //theta
-	}
+
+		//thompson_struct.sampling_arms[i] = sample_mean + thompson_struct.sigma[i] * d(gen); // original approach
+
+		std::normal_distribution<double> distribution(sample_mean, thompson_struct.sigma[i]); //new approach
+		thompson_struct.sampling_arms[i] = distribution(generator); 
+	}	
 
 	//find argmax of the possible actions sampled from vector
 	int argmax = 0; 
@@ -793,6 +801,11 @@ void XRServer :: ThompsonSampling()
 		if(thompson_struct.sampling_arms[i]>max_val){
 			max_val = thompson_struct.sampling_arms[i];
 			argmax = i; 
+			printf("[DBG_THOMPSON] %d, max_val: %.2f, current: %.2f\n" , i, max_val, thompson_struct.sampling_arms[i]); 
+
+		}
+		else{
+			printf("[DBG_THOMPSON] %d, max_val: %.2f, current: %.2f\n" , i, max_val, thompson_struct.sampling_arms[i]); 
 		}
 	}
 
@@ -1018,12 +1031,12 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 		//FER REWARDS
 		
-		//QoE_metric = 3.01 * exp( -4.473 * ( 1 - QoS_struct.RXframes_ratio )) + 1.065; // metric only taking into account the packet loss ratio
+		QoE_metric = 3.01 * exp( -4.473 * ( 1 - QoS_struct.RXframes_ratio )) + 1.065; // metric only taking into account the packet loss ratio
 		//QoE_metric = 3.01 * exp( -4.473 * (0.5 * ( 1 - QoS_struct.RXframes_ratio ) + 0.5 * QoS_struct.RTT)) + 1.065; // metric taking into account the packet loss ratio and minimizing RTT
 		//QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio)*10E2 + 0.2*jitter_sum_quadratic)*10E2) + 1.065; // metric with webrtc congestion control added on top of packet loss
 		//printf("IQX based on frameloss_ratio: %.4f\n", QoE_metric ); 
 		
-		//QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1
+		QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1
 		
 
 
@@ -1032,7 +1045,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		//BORIS REWARDS
 		//QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
 
-		QoE_metric = (90*MIN(1,received_frames_MAB/sent_frames_MAB)+10*(Load/100E6))/100;	// second reward function proposed by Boris
+		//QoE_metric = (95*(received_frames_MAB/sent_frames_MAB)+5*(Load/100E6))/100;	// second reward function proposed by Boris
 
 		printf("\t\t[DBG_REWARD]QOE normalized: %.3f , Ratio Load/Maxload: %.3f \n\n", QoE_metric, Load/MAXLOAD);
 			
