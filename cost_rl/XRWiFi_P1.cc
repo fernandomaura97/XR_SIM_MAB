@@ -43,6 +43,8 @@ struct input_arg_t { 			//struct for passing input args to server:
 			int fps; 
 			double XRLoad; 
 			double BGLoad;
+			int BGsources;
+			
 		}st_input_args;
 component XRWiFisim : public CostSimEng
 {
@@ -106,6 +108,8 @@ void XRWiFisim :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, doubl
 		XRs[n].st_input_args.BGLoad = st_input_args.BGLoad; 
 		XRs[n].st_input_args.XRLoad = st_input_args.XRLoad;
 		XRs[n].st_input_args.seed = st_input_args.seed;
+		XRs[n].st_input_args.BGsources = st_input_args.BGsources;
+		
 	}
 
 	XRc.SetSize(NXR);
@@ -424,6 +428,7 @@ int main(int argc, char *argv[])
 	st_input_args.BGLoad = BGLoad; 
 	st_input_args.XRLoad = XRLoad;
 	st_input_args.seed = seed; 
+	st_input_args.BGsources = NBG; 
 
 
 

@@ -33,8 +33,8 @@ using namespace std;
 
 
 /* ##############################           AGENT TYPE             #####################################3*/
-#define CTL_GREEDY_MAB 	0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
-#define CTL_THOMPSON 	1
+#define CTL_GREEDY_MAB 	1		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
+#define CTL_THOMPSON 	0
 #define CTL_UCB 	 	0
 #define CTL_Q_ONLINE    0
 
@@ -122,6 +122,7 @@ component XRServer : public TypeII
 			int fps; 
 			double XRLoad; 
 			double BGLoad;
+			int BGsources;
 		}st_input_args;
 		//Input params end
 
@@ -139,8 +140,6 @@ component XRServer : public TypeII
 		double sent_f_pl;  
 
 		int state_q;
-
-
 		double last_mowdg; //aux variable to sample last owdg every 0.1 seconds
 		double last_threshold; //aux for last threshold from webrtc value
 
@@ -192,8 +191,6 @@ component XRServer : public TypeII
 
 			int pargmax; // past argmax, from prev cycle
 		}ucb_struct;
-
-
 		
 		std::vector<sliding_window_t>sliding_vector;  
 
@@ -419,19 +416,19 @@ void XRServer :: Stop()
 	////////////////////   CSV RESULTS ////////////////////////
 
 	std::stringstream stream;
-    stream << std::fixed << std::setprecision(1) << (st_input_args.XRLoad/10E6);
+    stream << std::fixed << std::setprecision(0) << (st_input_args.XRLoad/10E6);
     std::string xrl_str = stream.str();
 
     stream.str("");
-    stream << std::fixed << std::setprecision(1) << (st_input_args.BGLoad/10E6);
+    stream << std::fixed << std::setprecision(0) << (st_input_args.BGLoad/10E6);
     std::string bgl_str = stream.str();
 
 	stream.str("");
-    stream << std::fixed << std::setprecision(1) << st_input_args.STime;
+    stream << std::fixed << std::setprecision(0) << st_input_args.STime;
     std::string stime = stream.str();
 
 	stream.str("");
-    stream << std::fixed << std::setprecision(1) << st_input_args.seed;
+    stream << std::fixed << std::setprecision(0) << st_input_args.seed;
     std::string s_seed = stream.str();
 	
 	#if CTL_GREEDY_MAB ==1
@@ -445,7 +442,7 @@ void XRServer :: Stop()
 	#else
 		std::string greedyornot = "VANILLA";
 	#endif
-	std::string filename = greedyornot +"S" + s_seed +  "-Res_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +".csv";
+	std::string filename = greedyornot +"S" + s_seed +  "-Res_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +"Nbg" +std::to_string((int)st_input_args.BGsources) + ".csv";
 
 	//1std::string filename = "Res_T"+std::to_string((int)st_input_args.STime)+"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+std::to_string((int)st_input_args.XRLoad/10E6 )+"_BG"+std::to_string((int)st_input_args.BGLoad/10E6) +".csv";
 	printf("\n\nFILENAME: %s\n",filename.c_str());
@@ -841,9 +838,9 @@ void XRServer::UpperConfidenceBounds()
 
 	for (int i = 0; i < N_ACTIONS_UCB; i++) 
 	{
-		double sample = ucb_struct.action_v[i] + sqrt(( 2 * log(ucb_struct.cntr)) / ucb_struct.n_times_selected[i]);
+		double sample = ucb_struct.action_v[i] * 100 + sqrt(( 0.1 * log(ucb_struct.cntr)) / ucb_struct.n_times_selected[i]);
 		ucb_struct.action_confidence[i] = sample; 
-		printf("[DBG_UCB] Confidence over action %d is %.4f\n", i, sample ); 
+		printf("[DBG_UCB] Confidence over action %d is %.4f\t nº times: %.0f\n", i, sample, ucb_struct.n_times_selected[i] ); 
 	}
 	int argmax = 0;
 	double max_val = ucb_struct.action_confidence[0];
@@ -1031,12 +1028,12 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 		//FER REWARDS
 		
-		QoE_metric = 3.01 * exp( -4.473 * ( 1 - QoS_struct.RXframes_ratio )) + 1.065; // metric only taking into account the packet loss ratio
-		//QoE_metric = 3.01 * exp( -4.473 * (0.5 * ( 1 - QoS_struct.RXframes_ratio ) + 0.5 * QoS_struct.RTT)) + 1.065; // metric taking into account the packet loss ratio and minimizing RTT
+		//QoE_metric = 3.01 * exp( -4.473 * ( 1 - QoS_struct.RXframes_ratio )) + 1.065; // metric only taking into account the packet loss ratio
+		//QoE_metric = 3.01 * exp( -4.473 * (0.8 * ( 1 - QoS_struct.RXframes_ratio ) + 0.2 * QoS_struct.RTT)) + 1.065; // metric taking into account the packet loss ratio and minimizing RTT
 		//QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio)*10E2 + 0.2*jitter_sum_quadratic)*10E2) + 1.065; // metric with webrtc congestion control added on top of packet loss
 		//printf("IQX based on frameloss_ratio: %.4f\n", QoE_metric ); 
 		
-		QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1
+		//QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1
 		
 
 
@@ -1045,12 +1042,14 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		//BORIS REWARDS
 		//QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
 
-		//QoE_metric = (95*(received_frames_MAB/sent_frames_MAB)+5*(Load/100E6))/100;	// second reward function proposed by Boris
+		QoE_metric = (98*(received_frames_MAB/sent_frames_MAB)+2*(Load/100E6))/100;	// second reward function proposed by Boris
 
 		printf("\t\t[DBG_REWARD]QOE normalized: %.3f , Ratio Load/Maxload: %.3f \n\n", QoE_metric, Load/MAXLOAD);
 			
 		past_action_delayed_reward[0] = past_action_delayed_reward[1]; //store old reward value, which is used for updates (TODO: MAYBE NOT NEEDED)
-		past_action_delayed_reward[1] = 0.95 * QoE_metric + 0.05 * Load/MAXLOAD; //stateless reward: For q-learning use reward function with state and action 
+		
+		past_action_delayed_reward[1] = QoE_metric;  //if reward already entails maximizing load!
+		//past_action_delayed_reward[1] = 0.95 * QoE_metric + 0.05 * Load/MAXLOAD; //stateless reward: For q-learning use reward function with state and action 
 
 		printf("\t\t[DBG_REWARD] Past action: %d, reward obtained: %.3f, QoE_metric: %.3f \n", current_action, past_action_delayed_reward[1], QoE_metric );
 		CUMulative_reward += past_action_delayed_reward[1]; 
