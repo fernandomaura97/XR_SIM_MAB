@@ -34,8 +34,8 @@ using namespace std;
 
 /* ##############################           AGENT TYPE             #####################################*/
 #define CTL_GREEDY_MAB 		0	
-#define CTL_THOMPSON 		1
-#define CTL_THOMPSON_BETA	0
+#define CTL_THOMPSON 		0
+#define CTL_THOMPSON_BETA	1
 #define CTL_UCB 	 		0
 #define CTL_Q_ONLINE   	 	0
 
@@ -1229,7 +1229,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v_CUM_rw.push_back(CUMulative_reward);
 
 
-	#elif CTL_THOMPSON == 1 
+	#elif ( CTL_THOMPSON == 1 || CTL_THOMPSON_BETA == 1) 
 
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
