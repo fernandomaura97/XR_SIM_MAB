@@ -32,11 +32,13 @@ using namespace std;
 #define N_ACTIONS_MAB 	10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 
 
-/* ##############################           AGENT TYPE             #####################################3*/
-#define CTL_GREEDY_MAB 	0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
-#define CTL_THOMPSON 	1
-#define CTL_UCB 	 	0
-#define CTL_Q_ONLINE    0
+/* ##############################           AGENT TYPE             #####################################*/
+#define CTL_GREEDY_MAB 		0	
+#define CTL_THOMPSON 		1
+#define CTL_THOMPSON_BETA	0
+#define CTL_UCB 	 		0
+#define CTL_Q_ONLINE   	 	0
+
 
 #define TIME_BETWEEN_UPDATES 1.0  //How often the AGENT will choose new ACTION
 #define TIME_SLIDING_WINDOW  1.0  //How many packets are temporally taken into account for sliding window. NOW: 1 second
@@ -175,6 +177,9 @@ component XRServer : public TypeII
 			std::vector<double> action_hist;
 			
 			int prev_argmax; 
+
+			double bernoulli_alpha[N_ACTIONS_THOMPSON];
+			double bernoulli_beta[N_ACTIONS_THOMPSON]; 
 
 		}thompson_struct;
 
@@ -438,6 +443,13 @@ void XRServer :: Stop()
 		std::string greedyornot = "Q-";
 	#elif CTL_THOMPSON == 1
 		std::string greedyornot = "THMPSN";
+	#elif CTL_THOMPSON_BETA == 1
+		std::string greedyornot = "TS_BETA";
+		printf("Beta and alpha vector:\n");
+		for (int i = 0; i<N_ACTIONS_THOMPSON; i++){
+			printf("\t arm %d α: %.2f, β: %.2f\n",i + 1 , thompson_struct.bernoulli_alpha[i], thompson_struct.bernoulli_beta[i]); 
+
+		}
 	#elif CTL_UCB == 1
 		std::string greedyornot = "UCB";
 	#else
@@ -472,6 +484,8 @@ void XRServer :: Stop()
 
 	#elif CTL_THOMPSON
 		printf("Thompson rewards:\n");
+	#elif CTL_THOMPSON_BETA
+		printf("Thompson  beta rewards:\n");
 
 	#elif CTL_UCB	
 		printf("UCB rewards:\n");
@@ -799,11 +813,11 @@ void XRServer :: ThompsonSampling() //GAUSSIAN
 		if(thompson_struct.sampling_arms[i]>max_val){
 			max_val = thompson_struct.sampling_arms[i];
 			argmax = i; 
-			printf("[DBG_THOMPSON] %d, max_val: %.2f, current: %.2f\n" , i, max_val, thompson_struct.sampling_arms[i]); 
+			//printf("[DBG_THOMPSON] %d, max_val: %.2f, current: %.2f\n" , i, max_val, thompson_struct.sampling_arms[i]); 
 
 		}
 		else{
-			printf("[DBG_THOMPSON] %d, max_val: %.2f, current: %.2f\n" , i, max_val, thompson_struct.sampling_arms[i]); 
+			//printf("[DBG_THOMPSON] %d, max_val: %.2f, current: %.2f\n" , i, max_val, thompson_struct.sampling_arms[i]); 
 		}
 	}
 
@@ -822,6 +836,11 @@ void XRServer :: ThompsonSampling_beta() //beta-bernoulli distribution for sampl
 {
 	if (passes == 1) {
 		//printf("First time algorithm has ran, however metrics should still be available from sliding window\n\n");
+		
+		for( int i = 0; i <N_ACTIONS_THOMPSON; i++){
+			thompson_struct.bernoulli_alpha[i] = 1; 
+			thompson_struct.bernoulli_beta[i] = 1;
+		}
 
 	}
 	else{
@@ -831,23 +850,21 @@ void XRServer :: ThompsonSampling_beta() //beta-bernoulli distribution for sampl
 		thompson_struct.current_reward = past_action_delayed_reward[1]; //get reward from the previously done action
 		thompson_struct.reward_hist.push_back(thompson_struct.current_reward);
 		thompson_struct.action_hist.push_back(thompson_struct.current_action);
-		thompson_struct.action_v[pargmax] = (thompson_struct.action_v[pargmax] * ( thompson_struct.n_times_selected[pargmax] - 1 ) + thompson_struct.current_reward)/(thompson_struct.n_times_selected[pargmax]); //update value action matrix 
 		
-		printf("\n\t[DBG Thompson REWARD] Past action %d got reward of %.3f\n", pargmax, thompson_struct.current_reward); 
+		//thompson_struct.action_v[pargmax] = (thompson_struct.action_v[pargmax] * ( thompson_struct.n_times_selected[pargmax] - 1 ) + thompson_struct.current_reward)/(thompson_struct.n_times_selected[pargmax]); //update value action matrix 
+		thompson_struct.bernoulli_alpha[pargmax] = thompson_struct.bernoulli_alpha[pargmax] + thompson_struct.current_reward; 
+		thompson_struct.bernoulli_beta[pargmax] = thompson_struct.bernoulli_beta[pargmax] + (1 - thompson_struct.current_reward);
+
+		printf("\t[DBG Thompson BETA] Past action %d got reward of %.3f  (alfa[%d] = %.2f, beta[%d] = %.2f)\n", pargmax, thompson_struct.current_reward, pargmax, thompson_struct.bernoulli_alpha[pargmax], pargmax, thompson_struct.bernoulli_beta[pargmax]); 
 	}
 	past_load = Load; 
 	
 	printf("\t\t[DBG_THOMPSON] Action value vector:\n");
 	for (int i= 0; i< N_ACTIONS_THOMPSON;i++) //sample from gaussian distribution with nº of times action k has been taken
 	{	
-		double sample_mean = thompson_struct.action_v[i]; //for bigger numerical differences a 5???? //CHECK IT
-		printf("%d , %.3f\tnº times %.0f\n", i , sample_mean, thompson_struct.n_times_selected[i]); 
-		thompson_struct.sigma[i] = 1/(thompson_struct.n_times_selected[i] + 1);
+		thompson_struct.sampling_arms[i] = sampleFromBeta(thompson_struct.bernoulli_alpha[i], thompson_struct.bernoulli_beta[i]);
+		printf("%d , %.3f\tnº times %.0f\n", i , thompson_struct.sampling_arms[i], thompson_struct.n_times_selected[i]); 
 
-		thompson_struct.sampling_arms[i] = sample_mean + thompson_struct.sigma[i] * d(gen); // original approach
-
-		//std::normal_distribution<double> distribution(sample_mean, thompson_struct.sigma[i]); //marc's approach
-		//thompson_struct.sampling_arms[i] = distribution(generator); 
 	}	
 
 	//find argmax of the possible actions sampled from vector
@@ -858,11 +875,11 @@ void XRServer :: ThompsonSampling_beta() //beta-bernoulli distribution for sampl
 		if(thompson_struct.sampling_arms[i]>max_val){
 			max_val = thompson_struct.sampling_arms[i];
 			argmax = i; 
-			printf("[DBG_THOMPSON] %d, max_val: %.2f, current: %.2f\n" , i, max_val, thompson_struct.sampling_arms[i]); 
+			//printf("[DBG_THOMPSON] %d, max_val: %.2f, current: %.2f\n" , i, max_val, thompson_struct.sampling_arms[i]); 
 
 		}
 		else{
-			printf("[DBG_THOMPSON] %d, max_val: %.2f, current: %.2f\n" , i, max_val, thompson_struct.sampling_arms[i]); 
+			//printf("[DBG_THOMPSON] %d, max_val: %.2f, current: %.2f\n" , i, max_val, thompson_struct.sampling_arms[i]); 
 		}
 	}
 
@@ -1122,6 +1139,8 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 	#if   CTL_THOMPSON == 1
 		ThompsonSampling();
+	#elif CTL_THOMPSON_BETA == 1
+		ThompsonSampling_beta(); 
  	#elif CTL_UCB == 1
 		UpperConfidenceBounds(); 
 	#elif CTL_GREEDY_MAB == 1
