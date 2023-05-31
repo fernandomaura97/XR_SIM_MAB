@@ -33,8 +33,8 @@ using namespace std;
 
 
 /* ##############################           AGENT TYPE             #####################################3*/
-#define CTL_GREEDY_MAB 	1		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
-#define CTL_THOMPSON 	0
+#define CTL_GREEDY_MAB 	0		// IF SET TO 1, USE MAB INSTEAD OF Q MATRIX
+#define CTL_THOMPSON 	1
 #define CTL_UCB 	 	0
 #define CTL_Q_ONLINE    0
 
@@ -76,6 +76,7 @@ component XRServer : public TypeII
 		void GreedyControl();
 		void QLearning();
 		void ThompsonSampling(); 
+		void ThompsonSampling_beta(); 
 		void UpperConfidenceBounds(); 
 
 		void update( int state, int action, double reward, int next_state);
@@ -750,7 +751,7 @@ void XRServer :: GreedyControl()
 	
 };
 
-void XRServer :: ThompsonSampling()
+void XRServer :: ThompsonSampling() //GAUSSIAN
 {
 	if (passes == 1) {
 		//printf("First time algorithm has ran, however metrics should still be available from sliding window\n\n");
@@ -784,10 +785,10 @@ void XRServer :: ThompsonSampling()
 		printf("%d , %.3f\tnº times %.0f\n", i , sample_mean, thompson_struct.n_times_selected[i]); 
 		thompson_struct.sigma[i] = 1/(thompson_struct.n_times_selected[i] + 1);
 
-		//thompson_struct.sampling_arms[i] = sample_mean + thompson_struct.sigma[i] * d(gen); // original approach
+		thompson_struct.sampling_arms[i] = sample_mean + thompson_struct.sigma[i] * d(gen); // original approach
 
-		std::normal_distribution<double> distribution(sample_mean, thompson_struct.sigma[i]); //new approach
-		thompson_struct.sampling_arms[i] = distribution(generator); 
+		//std::normal_distribution<double> distribution(sample_mean, thompson_struct.sigma[i]); //new approach
+		//thompson_struct.sampling_arms[i] = distribution(generator); 
 	}	
 
 	//find argmax of the possible actions sampled from vector
@@ -816,6 +817,66 @@ void XRServer :: ThompsonSampling()
 	printf("THOMPSON: action taken: %d, n_times of action: %.1f\n", argmax, thompson_struct.n_times_selected[argmax]);
 };
 
+
+void XRServer :: ThompsonSampling_beta() //beta-bernoulli distribution for sampling
+{
+	if (passes == 1) {
+		//printf("First time algorithm has ran, however metrics should still be available from sliding window\n\n");
+
+	}
+	else{
+		//upload reward based on QoE_metric
+		int pargmax = thompson_struct.prev_argmax; //aux variable to not spam the name of the struct everywhere
+
+		thompson_struct.current_reward = past_action_delayed_reward[1]; //get reward from the previously done action
+		thompson_struct.reward_hist.push_back(thompson_struct.current_reward);
+		thompson_struct.action_hist.push_back(thompson_struct.current_action);
+		thompson_struct.action_v[pargmax] = (thompson_struct.action_v[pargmax] * ( thompson_struct.n_times_selected[pargmax] - 1 ) + thompson_struct.current_reward)/(thompson_struct.n_times_selected[pargmax]); //update value action matrix 
+		
+		printf("\n\t[DBG Thompson REWARD] Past action %d got reward of %.3f\n", pargmax, thompson_struct.current_reward); 
+	}
+	past_load = Load; 
+	
+	printf("\t\t[DBG_THOMPSON] Action value vector:\n");
+	for (int i= 0; i< N_ACTIONS_THOMPSON;i++) //sample from gaussian distribution with nº of times action k has been taken
+	{	
+		double sample_mean = thompson_struct.action_v[i]; //for bigger numerical differences a 5???? //CHECK IT
+		printf("%d , %.3f\tnº times %.0f\n", i , sample_mean, thompson_struct.n_times_selected[i]); 
+		thompson_struct.sigma[i] = 1/(thompson_struct.n_times_selected[i] + 1);
+
+		thompson_struct.sampling_arms[i] = sample_mean + thompson_struct.sigma[i] * d(gen); // original approach
+
+		//std::normal_distribution<double> distribution(sample_mean, thompson_struct.sigma[i]); //marc's approach
+		//thompson_struct.sampling_arms[i] = distribution(generator); 
+	}	
+
+	//find argmax of the possible actions sampled from vector
+	int argmax = 0; 
+	double max_val = thompson_struct.sampling_arms[0];
+
+	for(int i = 0; i < N_ACTIONS_THOMPSON; i++){
+		if(thompson_struct.sampling_arms[i]>max_val){
+			max_val = thompson_struct.sampling_arms[i];
+			argmax = i; 
+			printf("[DBG_THOMPSON] %d, max_val: %.2f, current: %.2f\n" , i, max_val, thompson_struct.sampling_arms[i]); 
+
+		}
+		else{
+			printf("[DBG_THOMPSON] %d, max_val: %.2f, current: %.2f\n" , i, max_val, thompson_struct.sampling_arms[i]); 
+		}
+	}
+
+	thompson_struct.current_action = argmax;
+	thompson_struct.n_times_selected[argmax]++; 
+	thompson_struct.prev_argmax = argmax; //for computing the (delayed) reward of current action in the "next pass"
+	
+	Load = thompson_struct.current_action * 10E6; //Maybe make this not deterministic? 
+	current_action = thompson_struct.current_action; 
+
+	printf("THOMPSON: action taken: %d, n_times of action: %.1f\n", argmax, thompson_struct.n_times_selected[argmax]);
+};
+
+
 void XRServer::UpperConfidenceBounds()
 {
 	//1) Update past action's reward based on collected previous metrics from last 'cycle'
@@ -838,7 +899,7 @@ void XRServer::UpperConfidenceBounds()
 
 	for (int i = 0; i < N_ACTIONS_UCB; i++) 
 	{
-		double sample = ucb_struct.action_v[i] * 100 + sqrt(( 0.1 * log(ucb_struct.cntr)) / ucb_struct.n_times_selected[i]);
+		double sample = ucb_struct.action_v[i]  +  0.01  * sqrt(( log(ucb_struct.cntr)) / ucb_struct.n_times_selected[i]);
 		ucb_struct.action_confidence[i] = sample; 
 		printf("[DBG_UCB] Confidence over action %d is %.4f\t nº times: %.0f\n", i, sample, ucb_struct.n_times_selected[i] ); 
 	}
@@ -936,7 +997,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	double RTT_slide = 0;
 	double RX_frames_slide = 0; 
 	double MOWDG_slide = 0;
-	double Frameloss_slide = 0; 
+	//double Frameloss_slide = 0; 
 	double no_lost_packets = 0; 
 
 
@@ -982,7 +1043,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		RX_frames_slide = RX_frames_slide / no_packets ;
 		MOWDG_slide = MOWDG_slide/ no_feedback_packets; 
 		//printf("\t[DBG_SLIDING_SERVER\n]: no_packets in window : %d, nº lost:%.0f\n", no_packets, no_lost_packets);
-		Frameloss_slide = no_lost_packets/(no_packets + no_lost_packets); //WE DONT USE THIS ONE, NOT GOOD
+		//Frameloss_slide = no_lost_packets/(no_packets + no_lost_packets); //WE DONT USE THIS ONE, NOT GOOD
 	}
 	else{
 		printf("dividing by zero?????? rx: %d feedback: %d \n", no_packets, no_feedback_packets);
@@ -1370,7 +1431,18 @@ bool compareStructbyNumseq(const sliding_window_t& a, const sliding_window_t& b)
     return a.num_seq < b.num_seq; // smallest first
 };
 
+double sampleFromBeta(double alpha, double beta) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
 
+    std::gamma_distribution<double> gammaDistAlpha(alpha, 1.0);
+    std::gamma_distribution<double> gammaDistBeta(beta, 1.0);
+
+    double x = gammaDistAlpha(gen);
+    double y = gammaDistBeta(gen);
+
+    return x / (x + y);
+};
 
 
 #endif
