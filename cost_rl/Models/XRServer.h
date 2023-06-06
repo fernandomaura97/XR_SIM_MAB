@@ -33,9 +33,9 @@ using namespace std;
 
 
 /* ##############################           AGENT TYPE             #####################################*/
-#define CTL_GREEDY_MAB 		0	
+#define CTL_GREEDY_MAB 		1	
 #define CTL_THOMPSON 		0
-#define CTL_THOMPSON_BETA	1
+#define CTL_THOMPSON_BETA	0
 #define CTL_UCB 	 		0
 #define CTL_Q_ONLINE   	 	0
 
@@ -613,8 +613,8 @@ void XRServer :: in(data_packet &packet)
 		jitter_sum_quadratic += pow(packet.m_owdg, 2); //Quadratic sum of value
 		last_mowdg = packet.m_owdg;
 		last_threshold = packet.threshold_gamma; 
-		int signal_overuse = overuse_detector(packet.m_owdg, packet.threshold_gamma);
-
+		//int signal_overuse = overuse_detector(packet.m_owdg, packet.threshold_gamma);
+		int signal_overuse 	=1;
 		if(signal_overuse == 1){ 
 			rw_threshold = 0.5;	//NORMAL IS REWARDED 3 TIMES AS UNDERUSE OR OVERUSE, FOR STABILITY
 			//printf("[dbg]NORMAL\n");
@@ -770,6 +770,9 @@ void XRServer :: ThompsonSampling() //GAUSSIAN
 	if (passes == 1) {
 		//printf("First time algorithm has ran, however metrics should still be available from sliding window\n\n");
 
+		for( int i = 0; i <N_ACTIONS_THOMPSON; i++){
+			thompson_struct.action_v[i] = 1; 
+		}
 	}
 	else{
 		//upload reward based on QoE_metric
@@ -898,7 +901,9 @@ void XRServer::UpperConfidenceBounds()
 {
 	//1) Update past action's reward based on collected previous metrics from last 'cycle'
 	if (passes == 1) {
-		//first time no metrics are there :) 		
+		//first time no metrics are there :) 	
+
+		//TODO: INITIALIZE TO 1 the VALUE VECTOR? 	
 	}
 	else{
 		
