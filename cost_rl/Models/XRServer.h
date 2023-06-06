@@ -33,7 +33,7 @@ using namespace std;
 
 
 /* ##############################           AGENT TYPE             #####################################*/
-#define CTL_GREEDY_MAB 		1	
+#define CTL_GREEDY_MAB 		1
 #define CTL_THOMPSON 		0
 #define CTL_THOMPSON_BETA	0
 #define CTL_UCB 	 		0
@@ -50,7 +50,7 @@ using namespace std;
 // Online Q-learning parametres: 
 const int ITER_SIZE = 1000;
 const int ACTION_SIZE= 3;
-const float ALPHA =0.5;
+const float ALPHA =0.2;
 const float GAMMA= 0.9;
 const int STATE_SIZE = 10;
 double QoE_metric; 
@@ -84,7 +84,7 @@ component XRServer : public TypeII
 		void update( int state, int action, double reward, int next_state);
 
 		int feature_map(double Load);
-		double reward(int state, int next_a);
+		double reward_f(int state, int next_a);
 
 	public: // Connections
 		outport void out(data_packet &packet);
@@ -341,19 +341,26 @@ void XRServer :: Start()
 			printf("%d: %f \n", r, MAB_rewards_greedy[r]);      // REVIEW: SET T0 1.0 ? 
 
 		}
-	#else 
+	#elif CTL_Q_ONLINE == 1 
 
-		for (int r=0;r<20;r++)
-		{
-			MAB_rewards[r]=0.0;
-			printf("%f ",MAB_rewards[r]);
+		printf("Initializing rewards of Q-learner:\n");
+		printf("\t0  \t1  \t2\n ");
+		for (int r=0;r<N_STATES;r++)
+		{	
+			printf("S%d\t", r);
+			for (int h = 0; h<3; h++)
+			{	
+				Q_matrix[r][h]=1.0;
+				printf("%f ",Q_matrix[r][h]);
+			}
+			printf("\n");
 		}
 	#endif
 
 
 	thompson_struct.current_action = feature_map(Load) ;//INITIAL LOAD; 
 	//thompson_struct.action_hist.push_back( ##INITIAL LOAD ); //First action
-	//thompson_struct.reward_hist.push_back( reward( feature_map(Load), 1) );
+	//thompson_struct.reward_hist.push_back( reward_f( feature_map(Load), 1) );
 	//thompson_struct.n_times_selected[thompson_struct.current_action] = 1;
 
 	CUMulative_reward = 0; 
@@ -699,11 +706,12 @@ void XRServer :: update( int state, int action, double reward, int next_state) {
     //double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
 	double next_max = *max_element(std::begin(Q_matrix[next_state]),  std::end(Q_matrix[next_state]));
     double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
-
+	printf("[DBG Q update] Old value: %.2f, new_value: %.2f\n", old_value, new_value)
     Q_matrix[state][action] = new_value;
 };
 
-void XRServer :: GreedyControl()
+/*
+void XRServer :: GreedyControl()  //sampling Loads fully randomly
 {
 	//1) Update rewards based on collected previous metrics from last 'cycle'
 	if (passes == 1) {
@@ -715,7 +723,7 @@ void XRServer :: GreedyControl()
 		MAB_rewards_greedy[current_action] = alpha_mab * MAB_rewards_greedy[current_action] + (1 - alpha_mab) * past_action_delayed_reward[1];
 		printf("\t\t[DBG_REWARD EGREEDY] Past action %d got reward of %.3f", current_action, past_action_delayed_reward[1]); 
 	}
-
+	past_load = Load; 
 
 	// 2) Next Action
 	
@@ -724,10 +732,10 @@ void XRServer :: GreedyControl()
 		// Explore
 		printf("***************** EXPLORE MAB**************************** eps: %.3f\n", epsilon_greedy_decreasing);
 		next_action_MAB = Random(10); //Choose between 10,20,30,40,50,60,70,80,90 or 100 MBps 
-		/*
+		
 		//If action = 0: increase. 	
-		if a == 1: KEEP load, 
-		if a == 2: Decrease Load */
+		//if a == 1: KEEP load, 
+		//if a == 2: Decrease Load 
 	}
 	else
 	{
@@ -748,6 +756,74 @@ void XRServer :: GreedyControl()
 			}
 		}
 		printf("[E-GREEDY] The action with max reward is %d\n",index_max);
+		next_action_MAB = index_max;
+	}
+
+	Load = (next_action_MAB + 1) * 10E6; 
+	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
+
+	printf("%f - Load = %.0fE6 | next_action = %d\n",SimTime(),Load/(1E6),next_action_MAB);
+	
+	current_action = next_action_MAB;
+	
+	
+	//update ε
+	epsilon_greedy_decreasing = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
+	
+	
+};
+*/
+void XRServer :: GreedyControl()  //sampling only "neighbouring" loads 
+{
+	//1) Update rewards based on collected previous metrics from last 'cycle'
+	if (passes == 1) {
+		//first time no metrics are there :) 		
+	}
+	else{
+		
+		//MAB_rewards_greedy[current_action] = alpha_mab * MAB_rewards_greedy[current_action] + (1 - alpha_mab) * ( 90 * MIN (1 , received_frames_MAB/sent_frames_MAB ) + 10* (Load / 10E7) ) / 100;
+		MAB_rewards_greedy[current_action] = alpha_mab * MAB_rewards_greedy[current_action] + (1 - alpha_mab) * past_action_delayed_reward[1];
+		printf("\t\t[DBG_REWARD EGREEDY] Past action %d got reward of %.3f", current_action, past_action_delayed_reward[1]); 
+	}
+	past_load = Load; 
+
+	// 2) Next Action
+	int index_prev_load = next_action_MAB; //aux var for sampling only neighbour loads
+	
+	if(Random() <= epsilon_greedy_decreasing)
+	{
+		// Explore
+		printf("***************** EXPLORE MAB**************************** eps: %.3f\n", epsilon_greedy_decreasing);
+		next_action_MAB = (index_prev_load - 1) + Random(3); //Choose among the neigbouring of the past action
+		/*
+		//If action = 0: increase. 	
+		if a == 1: KEEP load, 
+		if a == 2: Decrease Load */
+	}
+	else
+	{
+		printf("***************** EXPLOIT MAB **************************** eps: %.3f\n", epsilon_greedy_decreasing);
+
+		// Get the maximum 
+		int index_max = 0;
+		double max_reward = MAB_rewards_greedy[0];
+		printf("[E-GREEDY VALUE MATRIX] \n");
+
+		
+		
+		for (int jj=0; jj < 3 ; jj++)
+		{	
+			int r = index_prev_load - 1 + jj; //r will be only neigbouring states, we will take argmax of :increment, same and decrement
+			
+			printf("%d %f\n",r,MAB_rewards_greedy[r]);
+			
+			if(max_reward < MAB_rewards_greedy[r])
+			{
+				index_max = r;
+				max_reward = MAB_rewards_greedy[r];
+			}
+		}
+		printf("[E-GREEDY] The action with max reward (among neighbours) is %d\n",index_max);
 		next_action_MAB = index_max;
 	}
 
@@ -802,7 +878,7 @@ void XRServer :: ThompsonSampling() //GAUSSIAN
 		printf("%d , %.3f\tnº times %.0f\n", i , sample_mean, thompson_struct.n_times_selected[i]); 
 		thompson_struct.sigma[i] = 1/(thompson_struct.n_times_selected[i] + 1);
 
-		thompson_struct.sampling_arms[i] = sample_mean + thompson_struct.sigma[i] * d(gen); // original approach
+		thompson_struct.sampling_arms[i] = sample_mean +thompson_struct.sigma[i] * d(gen); // original approach, reduced variance
 
 		//std::normal_distribution<double> distribution(sample_mean, thompson_struct.sigma[i]); //new approach
 		//thompson_struct.sampling_arms[i] = distribution(generator); 
@@ -947,6 +1023,7 @@ void XRServer::UpperConfidenceBounds()
 	current_action = ucb_struct.current_action; 	
 };
 
+/*
 void XRServer :: QLearning()
 {
 	if (passes == 1) {
@@ -954,12 +1031,13 @@ void XRServer :: QLearning()
 	}
 	else{
 		//Obtain reward based on QoE_metric performance and update the Q-matrix
-		next_state = feature_map(Load); 
+		next_state = feature_map(Load); 											//TODO: Try logarithmic state-space
 		NumberPacketsPerFrame = ceil((Load/L_data)/fps);	
 
-		//double r = reward(state_q, next_action);
+		//double r = reward_f(state_q, next_action);
 		double r = past_action_delayed_reward[1]; 
-
+		
+		printf("[DBGG QLEARN] state_q(%d), next_action = %d, R = %f, next_state = %d\n", state_q, next_action, r, next_state);
 	// Update the Q-value for the current state-action pair:			
 		update(state_q, next_action, r, next_state);
 
@@ -977,7 +1055,8 @@ void XRServer :: QLearning()
 	if(Random()<= epsilon_greedy_decreasing_qlearn) //TODO: ADD linear decreasing epsilon BASED ON KNOWLEDGE/BELIEF (OF CURRENT STATE? ) 
 	{	// Explore
 		printf("***************** EXPLORE Q **************************** %f\n", SimTime());
-		next_action = Random(2);
+		next_action = Random(3);
+		printf("[NEXTNEXTNEXTACTION] = %d\n", next_action);
 	} 	
 	else
 	{
@@ -986,28 +1065,116 @@ void XRServer :: QLearning()
 		// Choose the action with the highest Q-value
 		for (int a = 0; a < ACTION_SIZE; a++)
 		{
-			next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action;
+			next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action; //argmax of Q_matrix
 		}
+		printf("[OPT_ACTION] = %d\n", next_action);
+
 	}
 	printf("Next action: %d\n ", next_action);
-	if(next_action == 0){				//CHOOSE NEXT LOAD BASED ON ACTION
+	if(next_action == 0 ){				//CHOOSE NEXT LOAD BASED ON ACTION
 		Load = DEC_CONTROL * past_load; 
-		load_changes++;
 	}
 	else if (next_action == 1){ //keep
 		Load = past_load;
 	}
 	else if (next_action == 2){ //increase
 		Load = INC_CONTROL * past_load;
-		load_changes++; 
 		if(Load >= MAXLOAD){
 			Load = MAXLOAD;
 			printf("WARN : In maxload already!\n");
 		}
 	}
 
+	printf("[DBG Q-learn] CURRENT LOAD: %.2f, Q matrix: \n", Load);
+	for (int i = 0; i < N_STATES; i++) {	// Matrix 3 Q_t50
+		printf("(S%d)\t", i);
+		for (int j = 0; j < 3; j++) {
+			printf("%.3f\t", Q_matrix[i][j]);
+		}
+		printf("\n");
+	}		
 	epsilon_greedy_decreasing_qlearn = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
 };
+*/
+
+
+void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS 
+{
+	if (passes == 1) {
+		//printf("First time algorithm has ran, however "environment" metrics should still be available from sliding window\n\n");
+	}
+	else{
+		//Obtain reward based on QoE_metric performance and update the Q-matrix
+		
+		double r = past_action_delayed_reward[1]; 
+		
+		printf("[DBGG QLEARN] state_q(%d), next_action = %d, R = %f, next_state = %d\n", state_q, next_action, r, next_state);
+	// Update the Q-value for the current state-action pair:			
+		update(state_q, next_action, r, next_state);
+
+	// Update the current state for next pass of the algorithm
+		current_action = next_action;
+		current_state = next_state; //
+		state_q = next_state; 			// WARNING CHECK AND TEST THIS
+		printf("next state: %d", next_state);	
+	
+		printf("\n\t[DBG REWARD Q] Past action %d got reward of %.3f", current_action, r); 
+	}
+
+	past_load = Load; 
+
+	if(Random()<= epsilon_greedy_decreasing_qlearn) //TODO: ADD linear decreasing epsilon BASED ON KNOWLEDGE/BELIEF (OF CURRENT STATE? ) 
+	{	// Explore
+		printf("***************** EXPLORE Q **************************** %f\n", SimTime());
+		next_action = Random(3);
+		printf("[NEXTNEXTNEXTACTION] = %d\n", next_action);
+	} 	
+	else
+	{
+		printf("***************** EXPLOIT Q**************************** %f\n", SimTime());
+
+		// Choose the action with the highest Q-value
+		for (int a = 0; a < ACTION_SIZE; a++)
+		{
+			next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action; //argmax of Q_matrix
+		}
+		printf("[OPT_ACTION] = %d\n", next_action);
+
+	}
+	printf("Next action: %d\n ", next_action);
+
+
+	if(next_action == 0 ){				//CHOOSE NEXT LOAD BASED ON ACTION
+		Load =  past_load - 5E6;				//decrease 
+	}
+	else if (next_action == 1){ //keep
+		Load = past_load;
+	}
+	else if (next_action == 2){ //increase
+		Load = past_load + 5E6;
+		if(Load >= MAXLOAD){
+			Load = MAXLOAD;
+			printf("WARN : In maxload already!\n");
+		}
+	}
+
+	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
+	next_state = feature_map(Load); 											//TODO: Try logarithmic state-space
+			
+
+
+	printf("[DBG Q-learn] CURRENT LOAD: %.2f, Q matrix: \n", Load);
+	for (int i = 0; i < N_STATES; i++) {	// Matrix 3 Q_t50
+		printf("(S%d)\t", i);
+		for (int j = 0; j < 3; j++) {
+			printf("%.3f\t", Q_matrix[i][j]);
+		}
+		printf("\n");
+	}
+	epsilon_greedy_decreasing_qlearn = MAX(0.1, (0.25 - passes / 200000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
+};
+
+
 
 void XRServer :: AdaptiveVideoControl(trigger_t & t)
 {
@@ -1068,12 +1235,14 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		//Frameloss_slide = no_lost_packets/(no_packets + no_lost_packets); //WE DONT USE THIS ONE, NOT GOOD
 	}
 	else{
-		printf("dividing by zero?????? rx: %d feedback: %d \n", no_packets, no_feedback_packets);
+		printf("\n\n\n\ndividing by zero?????? rx: %d feedback: %d \n\n\n\n", no_packets, no_feedback_packets);
 
 		past_action_delayed_reward[0] =	past_action_delayed_reward[1];
 		past_action_delayed_reward[1] = 0; //0 reward for that, or negative : TODO 
 	}		
 	// Boris Metrics: Computed over empirical average in an interval
+
+		if(received_video_frames_interval>=89){received_video_frames_interval = 90;} //small hack to prevent variance due to frames being received AFTER measurement in ideal conditions
 
 		double ratio = received_video_frames_interval/generated_video_frames_interval;
 		
@@ -1097,17 +1266,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		
 		NumberPacketsPerFrame = ceil((Load/L_data)/fps);
 
-		// ---------- Reset variables for the next interval---------
-		generated_video_frames_interval=0;
-		received_video_frames_interval=0;
-		RTT_interval = 0;
-		received_video_packets_interval_ref=received_video_packets;
-		generated_video_packets_interval_ref=generated_packets;
-
-		QoS_struct.RTT = RTT_slide; 
-		QoS_struct.MOWDG = MOWDG_slide; 
-		QoS_struct.RXframes_ratio = MIN(1,ratio); //min so we don't exceed one when we have packets out of order 
-
+		
 
 		//FER REWARDS
 		
@@ -1125,7 +1284,8 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		//BORIS REWARDS
 		//QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
 
-		QoE_metric = (98*(received_frames_MAB/sent_frames_MAB)+2*(Load/100E6))/100;	// second reward function proposed by Boris
+
+		QoE_metric = (98*(received_video_frames_interval/generated_video_frames_interval)+2*(Load/100E6))/100;	// second reward function proposed by Boris
 
 		printf("\t\t[DBG_REWARD]QOE normalized: %.3f , Ratio Load/Maxload: %.3f \n\n", QoE_metric, Load/MAXLOAD);
 			
@@ -1139,6 +1299,17 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		printf("[DBG CUM] Cumulative reward: %.2f, \n", CUMulative_reward);
 
 		passes++; // Count how many times we have passed through the chosen algorithm, used for e-greedy or confidence bounds
+
+		// ---------- Reset variables for the next interval---------
+		generated_video_frames_interval=0;
+		received_video_frames_interval=0;
+		RTT_interval = 0;
+		received_video_packets_interval_ref=received_video_packets;
+		generated_video_packets_interval_ref=generated_packets;
+
+		QoS_struct.RTT = RTT_slide; 
+		QoS_struct.MOWDG = MOWDG_slide; 
+		QoS_struct.RXframes_ratio = MIN(1,ratio); //min so we don't exceed one when we have packets out of order 
 
 //// 2: APPLY ONE PASS OF CHOSEN CONTROL ALGORITHM
 
@@ -1154,6 +1325,10 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		QLearning(); 
 	#endif
 
+	if(abs(Load - past_load)>= 1E6){
+		load_changes++;
+	}
+
 	//printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,past_action_delayed_reward[1],current_action,received_frames_MAB,sent_frames_MAB);
 	//printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
 
@@ -1164,7 +1339,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
 		csv_.v__current_action.push_back(current_action);
-		csv_.v__reward.push_back(reward(current_state, current_action));
+		csv_.v__reward.push_back(reward_f(current_state, current_action));
 		csv_.v__load.push_back(Load);
 		csv_.v__FM.push_back(feature_map(Load));
 		csv_.v__QoE.push_back(QoE_metric);
@@ -1182,7 +1357,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
 		csv_.v__current_action.push_back(current_action);
-		csv_.v__reward.push_back(reward(current_state, current_action));
+		csv_.v__reward.push_back(reward_f(current_state, current_action));
 		csv_.v__load.push_back(Load);
 		csv_.v__FM.push_back(feature_map(Load));
 		csv_.v__QoE.push_back(QoE_metric);
@@ -1194,22 +1369,23 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
 		csv_.v_CUM_rw.push_back(CUMulative_reward);
 
-		if(passes == 100) //10 seconds
+		if(passes == 10/TIME_BETWEEN_UPDATES) //10 seconds
 		{
 			std::memcpy(Q_matrix_t10, Q_matrix, sizeof(Q_matrix)); 
 		}
-		else if(passes == 300) //30 seconds
+		else if(passes == 30/TIME_BETWEEN_UPDATES) //30 seconds
 		{
 			std::memcpy(Q_matrix_t30, Q_matrix, sizeof(Q_matrix)); 
 		}
-		else if(passes == 500) //50 seconds
+		else if(passes == 50/TIME_BETWEEN_UPDATES) //50 seconds
 		{
 			std::memcpy(Q_matrix_t50, Q_matrix, sizeof(Q_matrix)); 
 		}
-		else if(passes == 1000) //100 seconds
+		else if(passes == 100/TIME_BETWEEN_UPDATES) //100 seconds
 		{
 			std::memcpy(Q_matrix_t100, Q_matrix, sizeof(Q_matrix)); 
 		}
+		
         //DEPRECATED: COULD DELETE MAYBE (check first)
 		/*
 		sent_frames_MAB = 0;
@@ -1221,7 +1397,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
 		csv_.v__current_action.push_back(ucb_struct.current_action);
-		csv_.v__reward.push_back(reward(2, current_action)); // arbitrary int "2" to get reward not based on state
+		csv_.v__reward.push_back(reward_f(2, current_action)); // arbitrary int "2" to get reward not based on state
 		csv_.v__load.push_back(Load);
 		csv_.v__FM.push_back(feature_map(Load));
 		csv_.v__QoE.push_back(QoE_metric);
@@ -1239,7 +1415,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
 		csv_.v__current_action.push_back(current_action);
-		csv_.v__reward.push_back(reward(2, current_action)); // arbitrary int "2" to get reward not based on state
+		csv_.v__reward.push_back(reward_f(2, current_action)); // arbitrary int "2" to get reward not based on state
 		csv_.v__load.push_back(Load);
 		csv_.v__FM.push_back(feature_map(Load));
 		csv_.v__QoE.push_back(QoE_metric);
@@ -1376,7 +1552,7 @@ int XRServer::feature_map(double Load){
 };
 
 
-double XRServer::reward(int state, int next_a){
+double XRServer::reward_f(int state, int next_a){
 	
 	double rw;
 
@@ -1394,7 +1570,7 @@ double XRServer::reward(int state, int next_a){
 		} 
 		
 		else {rw = 0.95* QoE_metric + 0.05*( (state * 5E6)/MAXLOAD);}  // TODO : state*5E6 could just be changed for the current Load. Original motivation was to make some coarse feature mapping 
-		printf("\n\n\treward: %.2f\t QoE metric: %.3f\n", rw, QoE_metric);
+		//printf("\n\n[DBG RW FUNCTION?]reward: %.2f\t QoE metric: %.3f\n", rw, QoE_metric);
 		return rw;
 
 	#else
