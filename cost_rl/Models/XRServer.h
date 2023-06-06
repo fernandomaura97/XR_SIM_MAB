@@ -706,7 +706,7 @@ void XRServer :: update( int state, int action, double reward, int next_state) {
     //double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
 	double next_max = *max_element(std::begin(Q_matrix[next_state]),  std::end(Q_matrix[next_state]));
     double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
-	printf("[DBG Q update] Old value: %.2f, new_value: %.2f\n", old_value, new_value)
+	printf("[DBG Q update] Old value: %.2f, new_value: %.2f\n", old_value, new_value);
     Q_matrix[state][action] = new_value;
 };
 
@@ -795,6 +795,8 @@ void XRServer :: GreedyControl()  //sampling only "neighbouring" loads
 		// Explore
 		printf("***************** EXPLORE MAB**************************** eps: %.3f\n", epsilon_greedy_decreasing);
 		next_action_MAB = (index_prev_load - 1) + Random(3); //Choose among the neigbouring of the past action
+		
+		next_action_MAB = MIN(MAX(0, next_action_MAB), N_ACTIONS_MAB - 1);
 		/*
 		//If action = 0: increase. 	
 		if a == 1: KEEP load, 
@@ -808,20 +810,37 @@ void XRServer :: GreedyControl()  //sampling only "neighbouring" loads
 		int index_max = 0;
 		double max_reward = MAB_rewards_greedy[0];
 		printf("[E-GREEDY VALUE MATRIX] \n");
-
+		for (int l=0; l < N_ACTIONS_MAB ; l++)
+		{		
+			printf("%d %f\n",l,MAB_rewards_greedy[l]);
+		}
 		
-		
+		printf("\tChosen options: \n");
 		for (int jj=0; jj < 3 ; jj++)
 		{	
-			int r = index_prev_load - 1 + jj; //r will be only neigbouring states, we will take argmax of :increment, same and decrement
+			int aux; 
+
+			if((index_prev_load != 9) && (index_prev_load != 0))
+			{	
+					aux = -1; 
+			}
+			else if (index_prev_load == 0){ //edge case: if last_action 0 then compute argmax between 0,1 and 2 
+					aux = 0;
+			}
+			else if (index_prev_load == N_ACTIONS_MAB - 1){ // if at 9, check for 7,8 and 9
+					aux = -2;
+				}
+			int r = index_prev_load + aux + jj; //r will be only neigbouring states, we will take argmax of :increment, same and decrement
 			
-			printf("%d %f\n",r,MAB_rewards_greedy[r]);
-			
+			r = MIN(MAX(r,0), N_ACTIONS_MAB-1) ; //just in case (shouldn't be necessary)
+
+			printf("\t\t%d %f\n",r,MAB_rewards_greedy[r]);
+				
 			if(max_reward < MAB_rewards_greedy[r])
 			{
 				index_max = r;
 				max_reward = MAB_rewards_greedy[r];
-			}
+			}				
 		}
 		printf("[E-GREEDY] The action with max reward (among neighbours) is %d\n",index_max);
 		next_action_MAB = index_max;
@@ -833,8 +852,7 @@ void XRServer :: GreedyControl()  //sampling only "neighbouring" loads
 	printf("%f - Load = %.0fE6 | next_action = %d\n",SimTime(),Load/(1E6),next_action_MAB);
 	
 	current_action = next_action_MAB;
-	
-	
+		
 	//update ε
 	epsilon_greedy_decreasing = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
 	
