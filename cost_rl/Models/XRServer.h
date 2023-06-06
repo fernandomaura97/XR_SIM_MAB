@@ -33,7 +33,7 @@ using namespace std;
 
 
 /* ##############################           AGENT TYPE             #####################################*/
-#define CTL_GREEDY_MAB 		1
+#define CTL_GREEDY_MAB 		0
 #define CTL_THOMPSON 		0
 #define CTL_THOMPSON_BETA	0
 #define CTL_UCB 	 		0
@@ -1302,8 +1302,29 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		//BORIS REWARDS
 		//QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
 
+		
 
-		QoE_metric = (98*(received_video_frames_interval/generated_video_frames_interval)+2*(Load/100E6))/100;	// second reward function proposed by Boris
+		double reward_FL;   // a bit of reward shaping here : FrameLoss and RTT shaping
+		double reward_RTT ; 
+
+		
+		if(ratio< 0.8){ reward_FL = -(1 - ratio); } //Bad FL causes negative reward
+		else if ((0.8 <= ratio) && (ratio < 0.9)){
+			reward_FL = (ratio - 0.8) * 5;   //starts at 0, ends at 0.5
+		}
+		else{reward_FL = ratio; } //ratio greater than 0.9 will get larger rewards close to one. 
+		
+		double ratio_RTT = RTT_interval / generated_video_frames_interval; 
+		
+		if(ratio_RTT <= 0.05) {reward_RTT = 1;}
+		else if ((0.1>ratio_RTT) && (0.05<ratio_RTT)){ reward_RTT = 1 - ratio_RTT ; }
+		else{ //RTT greater than 100ms
+			reward_RTT = 1 - ratio_RTT * 3; //just make it decrease even faster, or get negative for bad values of RTT (greater than 333.33 ms ) 
+		}
+		QoE_metric = (98*(0.6*reward_RTT + 0.4 * reward_FL)+ 2*(Load/100E6))/100;	
+
+		//QoE_metric = (98*(received_video_frames_interval/generated_video_frames_interval)+2*(Load/100E6))/100;	// original reward function
+
 
 		printf("\t\t[DBG_REWARD]QOE normalized: %.3f , Ratio Load/Maxload: %.3f \n\n", QoE_metric, Load/MAXLOAD);
 			
