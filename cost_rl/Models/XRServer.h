@@ -47,6 +47,8 @@ using namespace std;
 #define N_ACTIONS_UCB 10 
 
 
+#define TAU_SOFTMAX 100
+
 // Online Q-learning parametres: 
 const int ITER_SIZE = 1000;
 const int ACTION_SIZE= 3;
@@ -231,6 +233,8 @@ component XRServer : public TypeII
 		
 		double MAB_rewards[N_STATES];
 		double MAB_rewards_greedy[N_ACTIONS_MAB];
+		double MAB_rewards_softmax[N_ACTIONS_MAB];
+
 		//int current_action = 0;
 		double sent_frames_MAB = 0;
 		double received_frames_MAB = 0;
@@ -820,15 +824,15 @@ void XRServer :: GreedyControl()  //sampling only "neighbouring" loads
 		{	
 			int aux; 
 
-			if((index_prev_load != 9) && (index_prev_load != 0))
+			if((index_prev_load < 9) && (index_prev_load > 0))
 			{	
 					aux = -1; 
 			}
 			else if (index_prev_load == 0){ //edge case: if last_action 0 then compute argmax between 0,1 and 2 
-					aux = 0;
+					aux = -1;
 			}
 			else if (index_prev_load == N_ACTIONS_MAB - 1){ // if at 9, check for 7,8 and 9
-					aux = -2;
+					aux = -1;
 				}
 			int r = index_prev_load + aux + jj; //r will be only neigbouring states, we will take argmax of :increment, same and decrement
 			
@@ -858,6 +862,125 @@ void XRServer :: GreedyControl()  //sampling only "neighbouring" loads
 	
 	
 };
+
+void XRServer :: Softmax_Control()  //Using softmax in exploration
+{
+	//1) Update rewards based on collected previous metrics from last 'cycle'
+	if (passes == 1) {
+		//first time no metrics are there 		
+	}
+	else{
+		//MAB_rewards_greedy[current_action] = alpha_mab * MAB_rewards_greedy[current_action] + (1 - alpha_mab) * ( 90 * MIN (1 , received_frames_MAB/sent_frames_MAB ) + 10* (Load / 10E7) ) / 100;
+		MAB_rewards_softmax[current_action] = alpha_mab * MAB_rewards_softmax[current_action] + (1 - alpha_mab) * past_action_delayed_reward[1];
+		printf("\t\t[DBG_REWARD EGREEDY] Past action %d got reward of %.3f", current_action, past_action_delayed_reward[1]); 
+	}
+	past_load = Load; 
+	// 2) Next Action
+	int index_prev_load = next_action_MAB; //aux var for sampling only neighbour loads
+	
+	if(Random() <= epsilon_greedy_decreasing)
+	{
+		// Explore
+		printf("***************** EXPLORE SOFTMAX**************************** eps: %.3f\n", epsilon_greedy_decreasing);
+		double softmax_array[N_ACTIONS_MAB]; 
+		for (int i= 0; i<N_ACTIONS_MAB; i++){
+			softmax_array[i] = 
+		}
+		/*
+		//If action = 0: increase. 	
+		if a == 1: KEEP load, 
+		if a == 2: Decrease Load */
+	}
+	else
+	{
+		printf("***************** EXPLOIT SOFTMAX **************************** eps: %.3f\n", epsilon_greedy_decreasing);
+
+		// Get the maximum 
+		int index_max = 0;
+		double max_reward = MAB_rewards_softmax[0];
+		printf("[E-GREEDY VALUE MATRIX] \n");
+		for (int l=0; l < N_ACTIONS_MAB ; l++)
+		{		
+			printf("%d %f\n",l,MAB_rewards_softmax[l]);
+		}
+		
+		printf("\tChosen options: \n");
+		for (int jj=0; jj < 3 ; jj++)
+		{	
+			int aux; 
+
+			if((index_prev_load < 9) && (index_prev_load > 0))
+			{	
+					aux = -1; 
+			}
+			else if (index_prev_load == 0){ //edge case: if last_action 0 then compute argmax between 0,1 and 2 
+					aux = -1;
+			}
+			else if (index_prev_load == N_ACTIONS_MAB - 1){ // if at 9, check for 7,8 and 9
+					aux = -1;
+				}
+			int r = index_prev_load + aux + jj; //r will be only neigbouring states, we will take argmax of :increment, same and decrement
+			
+			r = MIN(MAX(r,0), N_ACTIONS_MAB-1) ; //just in case (shouldn't be necessary)
+
+			printf("\t\t%d %f\n",r,MAB_rewards_softmax[r]);
+				
+			if(max_reward < MAB_rewards_softmax[r])
+			{
+				index_max = r;
+				max_reward = MAB_rewards_softmax[r];
+			}				
+		}
+		printf("[E-GREEDY] The action with max reward (among neighbours) is %d\n",index_max);
+		next_action_MAB = index_max;
+	}
+
+	Load = (next_action_MAB + 1) * 10E6; 
+	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
+
+	printf("%f - Load = %.0fE6 | next_action = %d\n",SimTime(),Load/(1E6),next_action_MAB);
+	
+	current_action = next_action_MAB;
+		
+	//update ε
+	epsilon_greedy_decreasing = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
+	
+	
+};
+
+
+
+//// DANGER ZONE /////
+
+void XRServer::exploreSoftmax(std::vector<double>& probabilities)
+{
+    // Calculate softmax probabilities
+    std::vector<double> softmaxProbabilities(N_ACTIONS_MAB);
+    double sumExp = 0.0;
+    for (int r = 0; r < N_ACTIONS_MAB; r++) {
+        softmaxProbabilities[r] = exp(MAB_rewards_greedy[r])/TAU_SOFTMAX;
+        sumExp += softmaxProbabilities[r];
+		
+    }
+    for (int r = 0; r < N_ACTIONS_MAB; r++) {
+        softmaxProbabilities[r] /= sumExp;
+    }
+
+    // Choose the next action based on softmax probabilities
+    double randomNum = Random();
+    double accumulativeProb = 0.0;
+    int nextAction = 0;
+    while (nextAction < N_ACTIONS_MAB - 1 && accumulativeProb + softmaxProbabilities[nextAction] < randomNum) {
+        accumulativeProb += softmaxProbabilities[nextAction];
+        nextAction++;
+    }
+
+    // Update the next action
+    next_action_MAB = nextAction;
+}
+///////////////// DANGER ZONE END
+
+
 
 void XRServer :: ThompsonSampling() //GAUSSIAN
 {
@@ -1231,9 +1354,12 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		}
 
 	}
+																		// TODO: USE THE MOWDG_slide as model of the jitter!!!!!  
 	
 	//And compute averages over this window
-	if((no_feedback_packets != 0) && (no_packets != 0) ){		//just make sure to not divide by 0
+
+	// ************* EXPERIMENTAL METRICS WITH SLIDING WINDOW *************************** //
+	/*if((no_feedback_packets != 0) && (no_packets != 0) ){		//just make sure to not divide by 0
 		
 		std::sort( sliding_vector.begin(), sliding_vector.end(), compareStructbyNumseq );
 
@@ -1258,6 +1384,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		past_action_delayed_reward[0] =	past_action_delayed_reward[1];
 		past_action_delayed_reward[1] = 0; //0 reward for that, or negative : TODO 
 	}		
+	*/
 	// Boris Metrics: Computed over empirical average in an interval
 
 		if(received_video_frames_interval>=89){received_video_frames_interval = 90;} //small hack to prevent variance due to frames being received AFTER measurement in ideal conditions
@@ -1321,9 +1448,9 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		else{ //RTT greater than 100ms
 			reward_RTT = 1 - ratio_RTT * 3; //just make it decrease even faster, or get negative for bad values of RTT (greater than 333.33 ms ) 
 		}
-		QoE_metric = (98*(0.6*reward_RTT + 0.4 * reward_FL)+ 2*(Load/100E6))/100;	
+		//QoE_metric = (98*(0.6*reward_RTT + 0.4 * reward_FL)+ 2*(Load/100E6))/100;	
 
-		//QoE_metric = (98*(received_video_frames_interval/generated_video_frames_interval)+2*(Load/100E6))/100;	// original reward function
+		QoE_metric = (98*(received_video_frames_interval/generated_video_frames_interval)+2*(Load/100E6))/100;	// original reward function
 
 
 		printf("\t\t[DBG_REWARD]QOE normalized: %.3f , Ratio Load/Maxload: %.3f \n\n", QoE_metric, Load/MAXLOAD);
