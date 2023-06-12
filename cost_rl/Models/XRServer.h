@@ -28,9 +28,10 @@ using namespace std;
 #define INC_CONTROL 	1.01	//how much we increase or decrease our load depending on action chosen, in Q-LEARNING. 
 #define DEC_CONTROL 	0.99
 
-#define N_STATES 		20   	//for feature map of the "Throughput" state space
-#define N_ACTIONS_MAB 	10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
-
+#define N_STATES 			20   	//for feature map of the "Throughput" state space
+#define N_ACTIONS_MAB 		10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
+#define N_ACTIONS_THOMPSON 	10 
+#define N_ACTIONS_UCB 		10 
 
 /* ##############################           AGENT TYPE             #####################################*/
 #define CTL_GREEDY_MAB 		0
@@ -38,16 +39,16 @@ using namespace std;
 #define CTL_THOMPSON_BETA	0
 #define CTL_UCB 	 		0
 #define CTL_Q_ONLINE   	 	0
+#define CTL_SOFTMAX         1
 
 
 #define TIME_BETWEEN_UPDATES 1.0  //How often the AGENT will choose new ACTION
 #define TIME_SLIDING_WINDOW  1.0  //How many packets are temporally taken into account for sliding window. NOW: 1 second
 
-#define N_ACTIONS_THOMPSON 10 
-#define N_ACTIONS_UCB 10 
-
-
 #define TAU_SOFTMAX 100
+
+#define RW_FL_RTT	 1 
+#define RW_FL 		 0
 
 // Online Q-learning parametres: 
 const int ITER_SIZE = 1000;
@@ -82,7 +83,8 @@ component XRServer : public TypeII
 		void ThompsonSampling(); 
 		void ThompsonSampling_beta(); 
 		void UpperConfidenceBounds(); 
-
+		void Softmax_Control(); 
+		
 		void update( int state, int action, double reward, int next_state);
 
 		int feature_map(double Load);
@@ -342,7 +344,7 @@ void XRServer :: Start()
 		for (int r=0;r<N_ACTIONS_MAB;r++)
 		{
 			MAB_rewards_greedy[r]=1.0;							
-			printf("%d: %f \n", r, MAB_rewards_greedy[r]);      // REVIEW: SET T0 1.0 ? 
+			printf("%d: %f \n", r, MAB_rewards_greedy[r]);      
 
 		}
 	#elif CTL_Q_ONLINE == 1 
@@ -359,6 +361,15 @@ void XRServer :: Start()
 			}
 			printf("\n");
 		}
+
+	#elif CTL_SOFTMAX
+		printf("Initializing rewards of Softmax\n");
+		for (int i = 0; i<N_ACTIONS_MAB; i++)
+		{	
+			MAB_rewards_softmax[i] = 1.0;
+			printf("%d: %f \n", i, MAB_rewards_softmax[i]); 
+		}
+
 	#endif
 
 
@@ -461,12 +472,14 @@ void XRServer :: Stop()
 			printf("\t arm %d α: %.2f, β: %.2f\n",i + 1 , thompson_struct.bernoulli_alpha[i], thompson_struct.bernoulli_beta[i]); 
 
 		}
+	#elif CTL_SOFTMAX == 1 
+		std::string greedyornot = "SOFT";
 	#elif CTL_UCB == 1
 		std::string greedyornot = "UCB";
 	#else
 		std::string greedyornot = "VANILLA";
 	#endif
-	std::string filename = greedyornot +"S" + s_seed +  "-Res_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +"Nbg" +std::to_string((int)st_input_args.BGsources) + ".csv";
+	std::string filename = greedyornot +"_S" + s_seed +  "_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +"Nbg" +std::to_string((int)st_input_args.BGsources) + ".csv";
 
 	//1std::string filename = "Res_T"+std::to_string((int)st_input_args.STime)+"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+std::to_string((int)st_input_args.XRLoad/10E6 )+"_BG"+std::to_string((int)st_input_args.BGLoad/10E6) +".csv";
 	printf("\n\nFILENAME: %s\n",filename.c_str());
@@ -859,8 +872,6 @@ void XRServer :: GreedyControl()  //sampling only "neighbouring" loads
 		
 	//update ε
 	epsilon_greedy_decreasing = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
-	
-	
 };
 
 void XRServer :: Softmax_Control()  //Using softmax in exploration
@@ -872,7 +883,7 @@ void XRServer :: Softmax_Control()  //Using softmax in exploration
 	else{
 		//MAB_rewards_greedy[current_action] = alpha_mab * MAB_rewards_greedy[current_action] + (1 - alpha_mab) * ( 90 * MIN (1 , received_frames_MAB/sent_frames_MAB ) + 10* (Load / 10E7) ) / 100;
 		MAB_rewards_softmax[current_action] = alpha_mab * MAB_rewards_softmax[current_action] + (1 - alpha_mab) * past_action_delayed_reward[1];
-		printf("\t\t[DBG_REWARD EGREEDY] Past action %d got reward of %.3f", current_action, past_action_delayed_reward[1]); 
+		printf("\t\t[DBG_REWARD SOFTMAX] Past action %d got reward of %.3f", current_action, past_action_delayed_reward[1]); 
 	}
 	past_load = Load; 
 	// 2) Next Action
@@ -882,14 +893,35 @@ void XRServer :: Softmax_Control()  //Using softmax in exploration
 	{
 		// Explore
 		printf("***************** EXPLORE SOFTMAX**************************** eps: %.3f\n", epsilon_greedy_decreasing);
-		double softmax_array[N_ACTIONS_MAB]; 
-		for (int i= 0; i<N_ACTIONS_MAB; i++){
-			softmax_array[i] = 
+
+		std::vector<double> softmaxProbabilities(N_ACTIONS_MAB);
+		double sumExp = 0.0;
+		for (int r = 0; r < N_ACTIONS_MAB; r++) {
+			softmaxProbabilities[r] = exp(MAB_rewards_softmax[r]/TAU_SOFTMAX) ;
+			printf("[DEBUGOPOIIII] Values %d: %f \n\n", r, softmaxProbabilities[r]);
+			sumExp += softmaxProbabilities[r];		
 		}
-		/*
-		//If action = 0: increase. 	
-		if a == 1: KEEP load, 
-		if a == 2: Decrease Load */
+		for (int r = 0; r < N_ACTIONS_MAB; r++) {
+			softmaxProbabilities[r] /= sumExp;
+		}
+
+		// Choose the next action based on softmax probabilities
+		double randomNum = Random();
+
+		double accumulativeProb = 0.0;
+		int nextAction = 0;
+		printf("\t[DBG_SOFTMAX] Random number is: %.2f\n", randomNum);
+
+		while (nextAction < N_ACTIONS_MAB - 1 && ( accumulativeProb + softmaxProbabilities[nextAction] < randomNum) ) 
+		{	
+			accumulativeProb += softmaxProbabilities[nextAction];
+			printf("Action %d\t prob: %.5f, CUM_ %.2f\n", nextAction, softmaxProbabilities[nextAction], accumulativeProb);
+			nextAction++;
+		}
+
+		// Update the next action
+		next_action_MAB = nextAction;
+		//TODO: COMBINE WITH NEIGHBOURING ACTIONS? 
 	}
 	else
 	{
@@ -898,89 +930,29 @@ void XRServer :: Softmax_Control()  //Using softmax in exploration
 		// Get the maximum 
 		int index_max = 0;
 		double max_reward = MAB_rewards_softmax[0];
-		printf("[E-GREEDY VALUE MATRIX] \n");
+		printf("[SOFTMAX MATRIX] \n");
 		for (int l=0; l < N_ACTIONS_MAB ; l++)
 		{		
 			printf("%d %f\n",l,MAB_rewards_softmax[l]);
+			if(max_reward< MAB_rewards_softmax[l]){
+				index_max = l;
+				max_reward = MAB_rewards_softmax[l];
+			}
 		}
 		
-		printf("\tChosen options: \n");
-		for (int jj=0; jj < 3 ; jj++)
-		{	
-			int aux; 
-
-			if((index_prev_load < 9) && (index_prev_load > 0))
-			{	
-					aux = -1; 
-			}
-			else if (index_prev_load == 0){ //edge case: if last_action 0 then compute argmax between 0,1 and 2 
-					aux = -1;
-			}
-			else if (index_prev_load == N_ACTIONS_MAB - 1){ // if at 9, check for 7,8 and 9
-					aux = -1;
-				}
-			int r = index_prev_load + aux + jj; //r will be only neigbouring states, we will take argmax of :increment, same and decrement
-			
-			r = MIN(MAX(r,0), N_ACTIONS_MAB-1) ; //just in case (shouldn't be necessary)
-
-			printf("\t\t%d %f\n",r,MAB_rewards_softmax[r]);
-				
-			if(max_reward < MAB_rewards_softmax[r])
-			{
-				index_max = r;
-				max_reward = MAB_rewards_softmax[r];
-			}				
-		}
-		printf("[E-GREEDY] The action with max reward (among neighbours) is %d\n",index_max);
-		next_action_MAB = index_max;
+		printf("[SOFTMAX] The action with max reward is %d\n",index_max);
+		next_action_MAB = index_max;	
 	}
 
 	Load = (next_action_MAB + 1) * 10E6; 
 	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
 
 	printf("%f - Load = %.0fE6 | next_action = %d\n",SimTime(),Load/(1E6),next_action_MAB);
-	
-	current_action = next_action_MAB;
-		
+	current_action = next_action_MAB;		
 	//update ε
 	epsilon_greedy_decreasing = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
 	
-	
 };
-
-
-
-//// DANGER ZONE /////
-
-void XRServer::exploreSoftmax(std::vector<double>& probabilities)
-{
-    // Calculate softmax probabilities
-    std::vector<double> softmaxProbabilities(N_ACTIONS_MAB);
-    double sumExp = 0.0;
-    for (int r = 0; r < N_ACTIONS_MAB; r++) {
-        softmaxProbabilities[r] = exp(MAB_rewards_greedy[r])/TAU_SOFTMAX;
-        sumExp += softmaxProbabilities[r];
-		
-    }
-    for (int r = 0; r < N_ACTIONS_MAB; r++) {
-        softmaxProbabilities[r] /= sumExp;
-    }
-
-    // Choose the next action based on softmax probabilities
-    double randomNum = Random();
-    double accumulativeProb = 0.0;
-    int nextAction = 0;
-    while (nextAction < N_ACTIONS_MAB - 1 && accumulativeProb + softmaxProbabilities[nextAction] < randomNum) {
-        accumulativeProb += softmaxProbabilities[nextAction];
-        nextAction++;
-    }
-
-    // Update the next action
-    next_action_MAB = nextAction;
-}
-///////////////// DANGER ZONE END
-
-
 
 void XRServer :: ThompsonSampling() //GAUSSIAN
 {
@@ -1268,18 +1240,18 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 	{	// Explore
 		printf("***************** EXPLORE Q **************************** %f\n", SimTime());
 		next_action = Random(3);
-		printf("[NEXTNEXTNEXTACTION] = %d\n", next_action);
+		printf("[Q_NEXT_ACTION(XPLORE)] = %d\n", next_action);
 	} 	
 	else
 	{
 		printf("***************** EXPLOIT Q**************************** %f\n", SimTime());
 
-		// Choose the action with the highest Q-value
+		// Choose the action with the highest Q-value given current state State_q
 		for (int a = 0; a < ACTION_SIZE; a++)
 		{
 			next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action; //argmax of Q_matrix
 		}
-		printf("[OPT_ACTION] = %d\n", next_action);
+		printf("[Q_NEXT_ACTION(XPLOIT)] = %d\n", next_action);
 
 	}
 	printf("Next action: %d\n ", next_action);
@@ -1447,11 +1419,12 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		else if ((0.1>ratio_RTT) && (0.05<ratio_RTT)){ reward_RTT = 1 - ratio_RTT ; }
 		else{ //RTT greater than 100ms
 			reward_RTT = 1 - ratio_RTT * 3; //just make it decrease even faster, or get negative for bad values of RTT (greater than 333.33 ms ) 
-		}
-		//QoE_metric = (98*(0.6*reward_RTT + 0.4 * reward_FL)+ 2*(Load/100E6))/100;	
-
-		QoE_metric = (98*(received_video_frames_interval/generated_video_frames_interval)+2*(Load/100E6))/100;	// original reward function
-
+		}		
+		#if RW_FL_RTT
+			QoE_metric = (98*(0.6*reward_RTT + 0.4 * reward_FL)+ 2*(Load/100E6))/100;	
+		#elif RW_FL
+			QoE_metric = (98*(received_video_frames_interval/generated_video_frames_interval)+2*(Load/100E6))/100;	// original reward function
+		#endif
 
 		printf("\t\t[DBG_REWARD]QOE normalized: %.3f , Ratio Load/Maxload: %.3f \n\n", QoE_metric, Load/MAXLOAD);
 			
@@ -1460,9 +1433,9 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		past_action_delayed_reward[1] = QoE_metric;  //if reward already entails maximizing load!
 		//past_action_delayed_reward[1] = 0.95 * QoE_metric + 0.05 * Load/MAXLOAD; //stateless reward: For q-learning use reward function with state and action 
 
-		printf("\t\t[DBG_REWARD] Past action: %d, reward obtained: %.3f, QoE_metric: %.3f \n", current_action, past_action_delayed_reward[1], QoE_metric );
+		//printf("\t\t[DBG_REWARD] Past action: %d, reward obtained: %.3f, QoE_metric: %.3f \n", current_action, past_action_delayed_reward[1], QoE_metric );
 		CUMulative_reward += past_action_delayed_reward[1]; 
-		printf("[DBG CUM] Cumulative reward: %.2f, \n", CUMulative_reward);
+		//printf("[DBG CUM] Cumulative reward: %.2f, \n", CUMulative_reward);
 
 		passes++; // Count how many times we have passed through the chosen algorithm, used for e-greedy or confidence bounds
 
@@ -1487,12 +1460,14 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		UpperConfidenceBounds(); 
 	#elif CTL_GREEDY_MAB == 1
 		GreedyControl();
+	#elif CTL_SOFTMAX == 1
+		Softmax_Control(); 
 	#elif CTL_Q_ONLINE == 1 
 		QLearning(); 
 	#endif
 
 	if(abs(Load - past_load)>= 1E6){
-		load_changes++;
+		load_changes++; //TO COMPUTE load change ratio for each algorithm (prevent excessive switching)
 	}
 
 	//printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,past_action_delayed_reward[1],current_action,received_frames_MAB,sent_frames_MAB);
