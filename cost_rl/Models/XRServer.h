@@ -38,14 +38,16 @@ using namespace std;
 #define CTL_THOMPSON 		0
 #define CTL_THOMPSON_BETA	0
 #define CTL_UCB 	 		0
-#define CTL_Q_ONLINE   	 	0
-#define CTL_SOFTMAX         1
+#define CTL_Q_ONLINE   	 	1
+#define CTL_SOFTMAX         0
+#define CTL_SARSA			0 
+
 
 
 #define TIME_BETWEEN_UPDATES 1.0  //How often the AGENT will choose new ACTION
 #define TIME_SLIDING_WINDOW  1.0  //How many packets are temporally taken into account for sliding window. NOW: 1 second
 
-#define TAU_SOFTMAX 100
+#define TAU_SOFTMAX 10
 
 #define RW_FL_RTT	 1 
 #define RW_FL 		 0
@@ -53,7 +55,7 @@ using namespace std;
 // Online Q-learning parametres: 
 const int ITER_SIZE = 1000;
 const int ACTION_SIZE= 3;
-const float ALPHA =0.2;
+const float ALPHA = 0.3;
 const float GAMMA= 0.9;
 const int STATE_SIZE = 10;
 double QoE_metric; 
@@ -80,6 +82,7 @@ component XRServer : public TypeII
 		
 		void GreedyControl();
 		void QLearning();
+		void SARSA(); 
 		void ThompsonSampling(); 
 		void ThompsonSampling_beta(); 
 		void UpperConfidenceBounds(); 
@@ -257,7 +260,7 @@ component XRServer : public TypeII
 
 		double epsilon_greedy_decreasing; 
 		double epsilon_greedy_decreasing_qlearn; 
-
+		
 		/*
 		double packet_loss_window;
 		double packet_received_window;
@@ -357,7 +360,7 @@ void XRServer :: Start()
 			for (int h = 0; h<3; h++)
 			{	
 				Q_matrix[r][h]=1.0;
-				printf("%f ",Q_matrix[r][h]);
+				printf("%.2f ",Q_matrix[r][h]);
 			}
 			printf("\n");
 		}
@@ -719,11 +722,17 @@ void XRServer :: in(data_packet &packet)
 
 // Define the update function for Q-learning vector
 void XRServer :: update( int state, int action, double reward, int next_state) {
-    double old_value = Q_matrix[state][action];
+    double old_value = Q_matrix[state-1][action];
     //double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
 	double next_max = *max_element(std::begin(Q_matrix[next_state]),  std::end(Q_matrix[next_state]));
     double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
-	printf("[DBG Q update] Old value: %.2f, new_value: %.2f\n", old_value, new_value);
+	printf("[DBG Q update]  Old value: %.2f, new_value: %.2f, NEXTMAX: %f\n", old_value, new_value, next_max);
+	printf("[MORE DBG] State is: %d, Q_values are: \n", state);
+	for (int i = 0; i<3; i++)
+	{
+		printf("%f\t", Q_matrix[state][i]); 
+	}
+	printf("\n");
     Q_matrix[state][action] = new_value;
 };
 
@@ -898,7 +907,7 @@ void XRServer :: Softmax_Control()  //Using softmax in exploration
 		double sumExp = 0.0;
 		for (int r = 0; r < N_ACTIONS_MAB; r++) {
 			softmaxProbabilities[r] = exp(MAB_rewards_softmax[r]/TAU_SOFTMAX) ;
-			printf("[DEBUGOPOIIII] Values %d: %f \n\n", r, softmaxProbabilities[r]);
+			//printf("[DBG SOFTMAX] Values %d: %f \n\n", r, softmaxProbabilities[r]);
 			sumExp += softmaxProbabilities[r];		
 		}
 		for (int r = 0; r < N_ACTIONS_MAB; r++) {
@@ -910,18 +919,17 @@ void XRServer :: Softmax_Control()  //Using softmax in exploration
 
 		double accumulativeProb = 0.0;
 		int nextAction = 0;
-		printf("\t[DBG_SOFTMAX] Random number is: %.2f\n", randomNum);
+		//printf("\t[DBG_SOFTMAX] Random number is: %.2f\n", randomNum);
 
 		while (nextAction < N_ACTIONS_MAB - 1 && ( accumulativeProb + softmaxProbabilities[nextAction] < randomNum) ) 
 		{	
 			accumulativeProb += softmaxProbabilities[nextAction];
-			printf("Action %d\t prob: %.5f, CUM_ %.2f\n", nextAction, softmaxProbabilities[nextAction], accumulativeProb);
+			//printf("[DBG SOFTMAX]Action %d\t prob: %.5f, CUM_ %.2f\n", nextAction, softmaxProbabilities[nextAction], accumulativeProb);
 			nextAction++;
 		}
 
 		// Update the next action
 		next_action_MAB = nextAction;
-		//TODO: COMBINE WITH NEIGHBOURING ACTIONS? 
 	}
 	else
 	{
@@ -1080,6 +1088,8 @@ void XRServer :: ThompsonSampling_beta() //beta-bernoulli distribution for sampl
 	thompson_struct.prev_argmax = argmax; //for computing the (delayed) reward of current action in the "next pass"
 	
 	Load = thompson_struct.current_action * 10E6; //Maybe make this not deterministic? 
+		NumberPacketsPerFrame = ceil((Load/L_data)/fps);
+
 	current_action = thompson_struct.current_action; 
 
 	printf("THOMPSON: action taken: %d, n_times of action: %.1f\n", argmax, thompson_struct.n_times_selected[argmax]);
@@ -1220,6 +1230,7 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 		//Obtain reward based on QoE_metric performance and update the Q-matrix
 		
 		double r = past_action_delayed_reward[1]; 
+		if ((state_q == 19) && (QoE_metric <= 0.8)){ r = 0.01;  } // we don't want to get stuck on 20 if it's detrimental to the QoE. 
 		
 		printf("[DBGG QLEARN] state_q(%d), next_action = %d, R = %f, next_state = %d\n", state_q, next_action, r, next_state);
 	// Update the Q-value for the current state-action pair:			
@@ -1241,6 +1252,7 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 		printf("***************** EXPLORE Q **************************** %f\n", SimTime());
 		next_action = Random(3);
 		printf("[Q_NEXT_ACTION(XPLORE)] = %d\n", next_action);
+		
 	} 	
 	else
 	{
@@ -1266,6 +1278,83 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 	else if (next_action == 2){ //increase
 		Load = past_load + 5E6;
 		if(Load >= MAXLOAD){
+			Load = MAXLOAD - 1E6;
+			printf("WARN : In maxload already!\n");
+		}
+	}
+
+	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
+	next_state = feature_map(Load); 											//TODO: Try logarithmic state-space
+			
+	printf("[DBG Q-learn after choice] CURRENT LOAD: %.2f E6; State_now: %d, Next_state: %d, Q matrix: \n", Load/1E6, current_state, next_state );
+
+	for (int i = 0; i < N_STATES; i++) {	// Matrix 3 Q_t50
+		printf("(S%d)\t", i);
+		for (int j = 0; j < 3; j++) {
+			printf("%.3f\t", Q_matrix[i][j]);
+		}
+		printf("\n");
+	}
+	epsilon_greedy_decreasing_qlearn = MAX(0.1, (0.25 - passes / 200000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
+};
+
+
+
+void XRServer :: SARSA() //TESTING: WITH DETERMINISTIC TRANSITIONS 
+{
+	if (passes == 1) {
+		//printf("First time algorithm has ran, however "environment" metrics should still be available from sliding window\n\n");
+	}
+	else{
+		//Obtain reward based on QoE_metric performance and update the Q-matrix
+		
+		double r = past_action_delayed_reward[1]; 
+		
+		printf("[DBGG SARSA] state_q(%d), next_action = %d, R = %f, next_state = %d\n", state_q, next_action, r, next_state);
+	// Update the Q-value for the current state-action pair:			
+		update(state_q, next_action, r, next_state);
+
+	// Update the current state for next pass of the algorithm
+		current_action = next_action;
+		current_state = next_state; //
+		state_q = next_state; 			// WARNING CHECK AND TEST THIS
+		printf("next state: %d", next_state);	
+	
+		printf("\n\t[DBG REWARD SARSA] Past action %d got reward of %.3f", current_action, r); 
+	}
+
+	past_load = Load; 
+
+	if(Random()<= epsilon_greedy_decreasing_qlearn) //TODO: ADD linear decreasing epsilon BASED ON KNOWLEDGE/BELIEF (OF CURRENT STATE? ) 
+	{	// Explore
+		printf("***************** EXPLORE SARSA **************************** %f\n", SimTime());
+		next_action = Random(3);
+		printf("[Q_NEXT_ACTION(XPLORE)] = %d\n", next_action);
+	} 	
+	else
+	{
+		printf("***************** EXPLOIT SARSA **************************** %f\n", SimTime());
+
+		// Choose the action with the highest Q-value given current state State_q
+		for (int a = 0; a < ACTION_SIZE; a++)
+		{
+			next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action; //argmax of Q_matrix
+		}
+		printf("[SARSA_NEXT_ACTION(XPLOIT)] = %d\n", next_action);
+
+	}
+	printf("Next action: %d\n ", next_action);
+
+
+	if(next_action == 0 ){				//CHOOSE NEXT LOAD BASED ON ACTION
+		Load =  past_load - 5E6;				//decrease 
+	}
+	else if (next_action == 1){ //keep
+		Load = past_load;
+	}
+	else if (next_action == 2){ //increase
+		Load = past_load + 5E6;
+		if(Load >= MAXLOAD){
 			Load = MAXLOAD;
 			printf("WARN : In maxload already!\n");
 		}
@@ -1276,7 +1365,7 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 			
 
 
-	printf("[DBG Q-learn] CURRENT LOAD: %.2f, Q matrix: \n", Load);
+	printf("[DBG SARSA after choice] CURRENT LOAD: %.2f State_now: %d, Next_state: %d, Q matrix: \n", Load, current_state, next_state );
 	for (int i = 0; i < N_STATES; i++) {	// Matrix 3 Q_t50
 		printf("(S%d)\t", i);
 		for (int j = 0; j < 3; j++) {
@@ -1305,7 +1394,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 	int no_packets = 0;
 	int no_feedback_packets = 0;  
- 
+	
 	for (auto it = sliding_vector.begin(); it!=sliding_vector.end(); ){
 		if(it->Timestamp <= (CurrentTime - TIME_SLIDING_WINDOW))
 		{
@@ -1359,7 +1448,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	*/
 	// Boris Metrics: Computed over empirical average in an interval
 
-		if(received_video_frames_interval>=89){received_video_frames_interval = 90;} //small hack to prevent variance due to frames being received AFTER measurement in ideal conditions
+		if(received_video_frames_interval>=89){received_video_frames_interval = 90;} //small hack to prevent (too much) variance due to frames being received AFTER measurement in ideal conditions
 
 		double ratio = received_video_frames_interval/generated_video_frames_interval;
 		
@@ -1416,9 +1505,10 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		double ratio_RTT = RTT_interval / generated_video_frames_interval; 
 		
 		if(ratio_RTT <= 0.05) {reward_RTT = 1;}
-		else if ((0.1>ratio_RTT) && (0.05<ratio_RTT)){ reward_RTT = 1 - ratio_RTT ; }
+		else if ((0.1>ratio_RTT) && (0.05<ratio_RTT)){ reward_RTT = 1 - 10*ratio_RTT ; }
+		
 		else{ //RTT greater than 100ms
-			reward_RTT = 1 - ratio_RTT * 3; //just make it decrease even faster, or get negative for bad values of RTT (greater than 333.33 ms ) 
+			reward_RTT = 1 - ratio_RTT * 20; //just make it decrease even faster, or get negative for bad values of RTT (greater than 333.33 ms ) 
 		}		
 		#if RW_FL_RTT
 			QoE_metric = (98*(0.6*reward_RTT + 0.4 * reward_FL)+ 2*(Load/100E6))/100;	
@@ -1464,7 +1554,11 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		Softmax_Control(); 
 	#elif CTL_Q_ONLINE == 1 
 		QLearning(); 
+	#elif CTL_SARSA 
+		SARSA(); 
 	#endif
+
+
 
 	if(abs(Load - past_load)>= 1E6){
 		load_changes++; //TO COMPUTE load change ratio for each algorithm (prevent excessive switching)
@@ -1493,7 +1587,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 		csv_.v_CUM_rw.push_back(CUMulative_reward);
 			
-	#elif CTL_Q_ONLINE ==  1 //if Q-learning approach apply this control
+	#elif ( CTL_Q_ONLINE || CTL_SARSA ) //if Q-learning approach apply this control
 	// UPDATE ALL CSV VECTORS
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
@@ -1567,6 +1661,10 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v__RTT.push_back(RTT_metric);
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
 		csv_.v_CUM_rw.push_back(CUMulative_reward);
+
+	#elif CTL_SOFTMAX //TODO
+
+
 
 	#endif
 
@@ -1683,7 +1781,7 @@ int* XRServer::feature_map(double Load){
 int XRServer::feature_map(double Load){
 
 	static int State; 
-	for (int i = 0; i < 21; ++i){ //iterate through whole state vector
+	for (int i = 0; i < 20; ++i){ //iterate through whole state vector
 		if ((Load >= 5E6*(i-1)) && (Load <= (5E6 *i -1))){
 		    //printf("load between %f, %f", 5E6*(i-1), (5E6 *i -1));
 			State = i;
