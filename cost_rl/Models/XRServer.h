@@ -251,7 +251,7 @@ component XRServer : public TypeII
 		double rw_threshold; 
 
 		int signal_overuse; 
-		double Q_matrix[N_STATES][3]; 
+		double Q_matrix[N_STATES ][3]; 
 
 		double Q_matrix_t10[N_STATES][3]; 
 		double Q_matrix_t30[N_STATES][3]; 
@@ -720,21 +720,6 @@ void XRServer :: in(data_packet &packet)
 };
 
 
-// Define the update function for Q-learning vector
-void XRServer :: update( int state, int action, double reward, int next_state) {
-    double old_value = Q_matrix[state-1][action];
-    //double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
-	double next_max = *max_element(std::begin(Q_matrix[next_state]),  std::end(Q_matrix[next_state]));
-    double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
-	printf("[DBG Q update]  Old value: %.2f, new_value: %.2f, NEXTMAX: %f\n", old_value, new_value, next_max);
-	printf("[MORE DBG] State is: %d, Q_values are: \n", state);
-	for (int i = 0; i<3; i++)
-	{
-		printf("%f\t", Q_matrix[state][i]); 
-	}
-	printf("\n");
-    Q_matrix[state][action] = new_value;
-};
 
 /*
 void XRServer :: GreedyControl()  //sampling Loads fully randomly
@@ -1220,6 +1205,21 @@ void XRServer :: QLearning()
 };
 */
 
+// Define the update function for Q-learning vector
+void XRServer :: update( int state, int action, double reward, int next_state) {
+    double old_value = Q_matrix[state-1][action];
+    //double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
+	double next_max = *max_element(std::begin(Q_matrix[next_state]),  std::end(Q_matrix[next_state]));
+    double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
+	printf("[DBG Q update]  Old value: %.2f, new_value: %.2f, NEXTMAX: %f\n", old_value, new_value, next_max);
+	printf("[MORE DBG] State is: %d, Q_values are: \n", state);
+	for (int i = 0; i<3; i++)
+	{
+		printf("%f\t", Q_matrix[state][i]); 
+	}
+	printf("\n");
+    Q_matrix[state][action] = new_value;
+};
 
 void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS 
 {
@@ -1266,8 +1266,6 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 		printf("[Q_NEXT_ACTION(XPLOIT)] = %d\n", next_action);
 
 	}
-	printf("Next action: %d\n ", next_action);
-
 
 	if(next_action == 0 ){				//CHOOSE NEXT LOAD BASED ON ACTION
 		Load =  past_load - 5E6;				//decrease 
@@ -1288,7 +1286,7 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 			
 	printf("[DBG Q-learn after choice] CURRENT LOAD: %.2f E6; State_now: %d, Next_state: %d, Q matrix: \n", Load/1E6, current_state, next_state );
 
-	for (int i = 0; i < N_STATES; i++) {	// Matrix 3 Q_t50
+	for (int i = 0; i < N_STATES + 1; i++) {	// Matrix 3 Q_t50
 		printf("(S%d)\t", i);
 		for (int j = 0; j < 3; j++) {
 			printf("%.3f\t", Q_matrix[i][j]);
@@ -1366,7 +1364,7 @@ void XRServer :: SARSA() //TESTING: WITH DETERMINISTIC TRANSITIONS
 
 
 	printf("[DBG SARSA after choice] CURRENT LOAD: %.2f State_now: %d, Next_state: %d, Q matrix: \n", Load, current_state, next_state );
-	for (int i = 0; i < N_STATES; i++) {	// Matrix 3 Q_t50
+	for (int i = 0; i < N_STATES + 1; i++) {	// Matrix 3 Q_t50
 		printf("(S%d)\t", i);
 		for (int j = 0; j < 3; j++) {
 			printf("%.3f\t", Q_matrix[i][j]);
@@ -1781,7 +1779,7 @@ int* XRServer::feature_map(double Load){
 int XRServer::feature_map(double Load){
 
 	static int State; 
-	for (int i = 0; i < 20; ++i){ //iterate through whole state vector
+	for (int i = 0; i < 21; ++i){ //iterate through whole state vector
 		if ((Load >= 5E6*(i-1)) && (Load <= (5E6 *i -1))){
 		    //printf("load between %f, %f", 5E6*(i-1), (5E6 *i -1));
 			State = i;
