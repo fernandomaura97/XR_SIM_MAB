@@ -54,10 +54,10 @@ using namespace std;
 #define RW_FL 		 0
 
 // Online Q-learning parametres: 
-const int ITER_SIZE = 1000;
-const int ACTION_SIZE= 3;
-const float ALPHA = 0.1;
-const float GAMMA= 0.99;
+
+const int ACTION_SIZE= N_ACTIONS_QLEARNING;
+const float ALPHA = 0.2;
+const float GAMMA= 0.9;
 const int STATE_SIZE = 10;
 double QoE_metric; 
 const double alpha_mab = 0.4;
@@ -252,7 +252,7 @@ component XRServer : public TypeII
 		double rw_threshold; 
 
 		int signal_overuse; 
-		double Q_matrix[N_STATES ][3]; 
+		double Q_matrix[N_STATES][3]; 
 
 		double Q_matrix_t10[N_STATES][3]; 
 		double Q_matrix_t30[N_STATES][3]; 
@@ -360,7 +360,7 @@ void XRServer :: Start()
 			printf("S%d\t", r);
 			for (int h = 0; h<3; h++)
 			{	
-				Q_matrix[r][h]=0.0;
+				Q_matrix[r][h]=1.0;
 				printf("%.2f ",Q_matrix[r][h]);
 			}
 			printf("\n");
@@ -1258,9 +1258,59 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 
 	past_load = Load; 
 
+
+//////////////////////////////////////////// TEST BEGIN ///////////////////////////////////
+
 	if(Random()<= epsilon_greedy_decreasing_qlearn) //TODO: ADD linear decreasing epsilon BASED ON KNOWLEDGE/BELIEF (OF CURRENT STATE? ) 
 	{	// Explore
 		printf("***************** EXPLORE Q **************************** %.0f  %.3f \n", SimTime(), epsilon_greedy_decreasing_qlearn);
+		next_action = Random(N_ACTIONS_QLEARNING);
+
+		if(state_q == 1 ){
+			next_action = Random(3) + 2; // if first state, don't decrease
+			printf("/****** STATE 1* na: %d /n", next_action);
+
+		}
+		else if (state_q == 20){
+			next_action = Random(3); //if last state, don't increase ever? 
+			printf("/****** STATE 20* na: %d /n", next_action);
+		}
+		printf("[Q_NEXT_ACTION(XPLORE)] = %d\n", next_action);
+	} 	
+	else
+	{
+		printf("***************** EXPLOIT Q**************************** %.0f %.3f \n", SimTime(), epsilon_greedy_decreasing_qlearn);
+
+		// Choose the action with the highest Q-value given current state State_q
+		for (int a = 0; a < ACTION_SIZE; a++)
+		{
+			next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action; //argmax of Q_matrix
+		}
+
+		if(state_q == 20 && next_action == 2){
+			next_action = 1;
+	} // although this will cause the action evaluation to be split in two, i don't think it's relevant here		
+		//if (state_q == )
+		printf("[Q_NEXT_ACTION(XPLOIT)] = %d\n", next_action);
+	}
+	 
+
+	if(next_action == 0 ){				//CHOOSE NEXT LOAD BASED ON ACTION
+		Load =  past_load - MAXLOAD/N_STATES;				//decrease 
+	}
+	else if (next_action == 1){ //keep
+		Load = past_load;
+	}
+	else if (next_action == 2){ //increase
+		Load = past_load + MAXLOAD/N_STATES;
+		/*if(Load >= MAXLOAD){
+			Load = MAXLOAD - 1E6;
+			printf("WARN : In maxload already!\n");
+		}*/
+	}
+//////////////////////////////////////////// TEST END ///////////////////////////////////
+/*
+	printf("***************** EXPLORE Q **************************** %.0f  %.3f \n", SimTime(), epsilon_greedy_decreasing_qlearn);
 		next_action = Random(3);
 
 		if(state_q == 1 ){
@@ -1300,11 +1350,7 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 	}
 	else if (next_action == 2){ //increase
 		Load = past_load + MAXLOAD/N_STATES;
-		/*if(Load >= MAXLOAD){
-			Load = MAXLOAD - 1E6;
-			printf("WARN : In maxload already!\n");
-		}*/
-	}
+	}*/
 
 	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
 	next_state = feature_map(Load); 											//TODO: Try logarithmic state-space
