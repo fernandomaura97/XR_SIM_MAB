@@ -28,10 +28,11 @@ using namespace std;
 #define INC_CONTROL 	1.01	//how much we increase or decrease our load depending on action chosen, in Q-LEARNING. 
 #define DEC_CONTROL 	0.99
 
-#define N_STATES 			20   	//for feature map of the "Throughput" state space
+#define N_STATES 			21 	//for feature map of the "Throughput" state space
 #define N_ACTIONS_MAB 		10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 #define N_ACTIONS_THOMPSON 	10 
 #define N_ACTIONS_UCB 		10 
+#define N_ACTIONS_QLEARNING 5 
 
 /* ##############################           AGENT TYPE             #####################################*/
 #define CTL_GREEDY_MAB 		0
@@ -55,8 +56,8 @@ using namespace std;
 // Online Q-learning parametres: 
 const int ITER_SIZE = 1000;
 const int ACTION_SIZE= 3;
-const float ALPHA = 0.3;
-const float GAMMA= 0.9;
+const float ALPHA = 0.1;
+const float GAMMA= 0.99;
 const int STATE_SIZE = 10;
 double QoE_metric; 
 const double alpha_mab = 0.4;
@@ -337,7 +338,7 @@ void XRServer :: Start()
 	sequence_frame_counter = 0; 
 	
 	//values for applying the greedy epsilon_greedy_decreasing
-	epsilon_greedy_decreasing_qlearn = 0.25; 
+	epsilon_greedy_decreasing_qlearn = 0.5; 
 	passes = 0; 
 
 	#if CTL_GREEDY_MAB == 1
@@ -359,10 +360,12 @@ void XRServer :: Start()
 			printf("S%d\t", r);
 			for (int h = 0; h<3; h++)
 			{	
-				Q_matrix[r][h]=1.0;
+				Q_matrix[r][h]=0.0;
 				printf("%.2f ",Q_matrix[r][h]);
 			}
 			printf("\n");
+
+			//Q_matrix[]
 		}
 
 	#elif CTL_SOFTMAX
@@ -881,7 +884,7 @@ void XRServer :: Softmax_Control()  //Using softmax in exploration
 	}
 	past_load = Load; 
 	// 2) Next Action
-	int index_prev_load = next_action_MAB; //aux var for sampling only neighbour loads
+	//int index_prev_load = next_action_MAB; //aux var for sampling only neighbour loads
 	
 	if(Random() <= epsilon_greedy_decreasing)
 	{
@@ -1207,30 +1210,38 @@ void XRServer :: QLearning()
 
 // Define the update function for Q-learning vector
 void XRServer :: update( int state, int action, double reward, int next_state) {
-    double old_value = Q_matrix[state-1][action];
+    double old_value = Q_matrix[state][action];
     //double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
 	double next_max = *max_element(std::begin(Q_matrix[next_state]),  std::end(Q_matrix[next_state]));
     double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
-	printf("[DBG Q update]  Old value: %.2f, new_value: %.2f, NEXTMAX: %f\n", old_value, new_value, next_max);
-	printf("[MORE DBG] State is: %d, Q_values are: \n", state);
+	//printf("[DBG Q update]  Old value: %.2f, new_value: %.2f, NEXTMAX: %f\n", old_value, new_value, next_max);
+	//printf("[MORE DBG] State is: %d, Q_values are: \n", state);
 	for (int i = 0; i<3; i++)
 	{
 		printf("%f\t", Q_matrix[state][i]); 
 	}
 	printf("\n");
-    Q_matrix[state][action] = new_value;
+    
+	
+	Q_matrix[state][action] = new_value;
 };
 
 void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS 
-{
+{	
 	if (passes == 1) {
-		//printf("First time algorithm has ran, however "environment" metrics should still be available from sliding window\n\n");
+
+		printf("First time algorithm has ran: FM of \n\n");
+
+		for (int kkk  = 1; kkk<= 100; kkk +=5){
+			int j = feature_map(kkk * 1E6); 
+			printf("%d, %d\n", kkk, j); 
+		}
 	}
 	else{
 		//Obtain reward based on QoE_metric performance and update the Q-matrix
 		
 		double r = past_action_delayed_reward[1]; 
-		if ((state_q == 19) && (QoE_metric <= 0.8)){ r = 0.01;  } // we don't want to get stuck on 20 if it's detrimental to the QoE. 
+		if ((state_q == 20) && (QoE_metric <= 0.8)){ r = 0.01;  } // we don't want to get stuck on 20 if it's detrimental to the QoE. 
 		
 		printf("[DBGG QLEARN] state_q(%d), next_action = %d, R = %f, next_state = %d\n", state_q, next_action, r, next_state);
 	// Update the Q-value for the current state-action pair:			
@@ -1249,51 +1260,65 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 
 	if(Random()<= epsilon_greedy_decreasing_qlearn) //TODO: ADD linear decreasing epsilon BASED ON KNOWLEDGE/BELIEF (OF CURRENT STATE? ) 
 	{	// Explore
-		printf("***************** EXPLORE Q **************************** %f\n", SimTime());
+		printf("***************** EXPLORE Q **************************** %.0f  %.3f \n", SimTime(), epsilon_greedy_decreasing_qlearn);
 		next_action = Random(3);
+
+		if(state_q == 1 ){
+			next_action = Random(2) + 1; // if first state, don't decrease
+			printf("/****** STATE 1* na: %d /n", next_action);
+
+		}
+		else if (state_q == 20){
+			next_action = Random(2); //if last state, don't increase ever? 
+			printf("/****** STATE 20* na: %d /n", next_action);
+		}
 		printf("[Q_NEXT_ACTION(XPLORE)] = %d\n", next_action);
-		
 	} 	
 	else
 	{
-		printf("***************** EXPLOIT Q**************************** %f\n", SimTime());
+		printf("***************** EXPLOIT Q**************************** %.0f %.3f \n", SimTime(), epsilon_greedy_decreasing_qlearn);
 
 		// Choose the action with the highest Q-value given current state State_q
 		for (int a = 0; a < ACTION_SIZE; a++)
 		{
 			next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action; //argmax of Q_matrix
 		}
-		printf("[Q_NEXT_ACTION(XPLOIT)] = %d\n", next_action);
 
+		if(state_q == 20 && next_action == 2){
+			next_action = 1;
+	} // although this will cause the action evaluation to be split in two, i don't think it's relevant here		
+		//if (state_q == )
+		printf("[Q_NEXT_ACTION(XPLOIT)] = %d\n", next_action);
 	}
+	 
 
 	if(next_action == 0 ){				//CHOOSE NEXT LOAD BASED ON ACTION
-		Load =  past_load - 5E6;				//decrease 
+		Load =  past_load - MAXLOAD/N_STATES;				//decrease 
 	}
 	else if (next_action == 1){ //keep
 		Load = past_load;
 	}
 	else if (next_action == 2){ //increase
-		Load = past_load + 5E6;
-		if(Load >= MAXLOAD){
+		Load = past_load + MAXLOAD/N_STATES;
+		/*if(Load >= MAXLOAD){
 			Load = MAXLOAD - 1E6;
 			printf("WARN : In maxload already!\n");
-		}
+		}*/
 	}
 
 	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
 	next_state = feature_map(Load); 											//TODO: Try logarithmic state-space
 			
-	printf("[DBG Q-learn after choice] CURRENT LOAD: %.2f E6; State_now: %d, Next_state: %d, Q matrix: \n", Load/1E6, current_state, next_state );
+	printf("[DBG Q-learn after choice] CURRENT LOAD: %.2f E6; PAST LOAD: %.2f; State_now: %d, Next_state: %d, Q matrix: \n", Load/1E6, past_load, current_state, next_state );
 
-	for (int i = 0; i < N_STATES + 1; i++) {	// Matrix 3 Q_t50
+	for (int i = 0; i < N_STATES; i++) {	// Matrix 3 Q_t50
 		printf("(S%d)\t", i);
 		for (int j = 0; j < 3; j++) {
 			printf("%.3f\t", Q_matrix[i][j]);
 		}
 		printf("\n");
 	}
-	epsilon_greedy_decreasing_qlearn = MAX(0.1, (0.25 - passes / 200000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
+	epsilon_greedy_decreasing_qlearn = MAX(0.1, (0.5 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
 };
 
 
@@ -1364,7 +1389,7 @@ void XRServer :: SARSA() //TESTING: WITH DETERMINISTIC TRANSITIONS
 
 
 	printf("[DBG SARSA after choice] CURRENT LOAD: %.2f State_now: %d, Next_state: %d, Q matrix: \n", Load, current_state, next_state );
-	for (int i = 0; i < N_STATES + 1; i++) {	// Matrix 3 Q_t50
+	for (int i = 0; i < N_STATES; i++) {	// Matrix 3 Q_t50
 		printf("(S%d)\t", i);
 		for (int j = 0; j < 3; j++) {
 			printf("%.3f\t", Q_matrix[i][j]);
@@ -1452,7 +1477,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		
 		
 		//	TESTING printf("\n\n[DBG Metrics] Sliding window:\nRTT:.%.4f\tMOWDG:%.4f,\tFrameloss: %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,ratio));
-		printf("\t\t[DBG Metrics] Sliding window:RTT:.%.4f\tMOWDG:%.4f,\tFrameloss (computed over sliding window): %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,ratio)); //TEST: sustituir frameloss_slide por ratio al terminar
+		//printf("\t\t[DBG Metrics] Sliding window:RTT:.%.4f\tMOWDG:%.4f,\tFrameloss (computed over sliding window): %.3f\n", RTT_slide,  MOWDG_slide, MIN(1,ratio)); //TEST: sustituir frameloss_slide por ratio al terminar
 
 
 
@@ -1494,12 +1519,13 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		double reward_RTT ; 
 
 		
-		if(ratio< 0.8){ reward_FL = -(1 - ratio); } //Bad FL causes negative reward
-		else if ((0.8 <= ratio) && (ratio < 0.9)){
-			reward_FL = (ratio - 0.8) * 5;   //starts at 0, ends at 0.5
+		if(ratio < 0.6){ reward_FL = -(1 - ratio); } //Bad FL causes negative reward
+		else if ((0.6 <= ratio) && (ratio < 0.9)){
+			reward_FL = (ratio - 0.6) * 1.666667;   //starts at 0, ends at 0.45
+			printf("MEGADEBUG %f ^^^^^^^\n", reward_FL);
 		}
 		else{reward_FL = ratio; } //ratio greater than 0.9 will get larger rewards close to one. 
-		
+
 		double ratio_RTT = RTT_interval / generated_video_frames_interval; 
 		
 		if(ratio_RTT <= 0.05) {reward_RTT = 1;}
@@ -1509,12 +1535,12 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 			reward_RTT = 1 - ratio_RTT * 20; //just make it decrease even faster, or get negative for bad values of RTT (greater than 333.33 ms ) 
 		}		
 		#if RW_FL_RTT
-			QoE_metric = (98*(0.6*reward_RTT + 0.4 * reward_FL)+ 2*(Load/100E6))/100;	
+			QoE_metric = (99*(0.6*reward_RTT + 0.4 * reward_FL)+ 1*(Load/100E6))/100;	
 		#elif RW_FL
 			QoE_metric = (98*(received_video_frames_interval/generated_video_frames_interval)+2*(Load/100E6))/100;	// original reward function
 		#endif
 
-		printf("\t\t[DBG_REWARD]QOE normalized: %.3f , Ratio Load/Maxload: %.3f \n\n", QoE_metric, Load/MAXLOAD);
+		printf("\t\t[DBG_REWARD]QOE normalized: %.3f , Ratio Load/Maxload: %.3f , RW_RTT: %.2f , RW_FL: %.2f \n\n", QoE_metric, Load/MAXLOAD, reward_RTT, reward_FL);
 			
 		past_action_delayed_reward[0] = past_action_delayed_reward[1]; //store old reward value, which is used for updates (TODO: MAYBE NOT NEEDED)
 		
