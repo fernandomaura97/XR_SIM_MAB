@@ -23,8 +23,8 @@ using namespace std;
 
 #define ADAPTIVE_HEUR 	0 		//set to 1 for heuristic adaptive control
 
-#define MARKOV_CHAIN_N1		1 // markov model for Q-learning
-#define MARKOV_CHAIN_N2 	0
+#define MARKOV_CHAIN_N1		0 // markov model for Q-learning
+#define MARKOV_CHAIN_N2 	1
 
 #if MARKOV_CHAIN_N1
 	#define N_ACTIONS_QLEARNING 3
@@ -34,10 +34,10 @@ using namespace std;
 
 #define MAXLOAD 		100E6 	// max load for reward calcs
 
-#define INC_CONTROL 	1.01	//how much we increase or decrease our load depending on action chosen, in Q-LEARNING. 
+#define INC_CONTROL 	1.01	//how much we increase or decrease our load depending on action chosen, in Q-LEARNING (deprecated currently). 
 #define DEC_CONTROL 	0.99
 
-#define N_STATES 			10 	//for feature map of the "Throughput" state space
+#define N_STATES 			20 	//for feature map of the "Throughput" state space
 #define N_ACTIONS_MAB 		10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 #define N_ACTIONS_THOMPSON 	10 
 #define N_ACTIONS_UCB 		10 
@@ -1224,11 +1224,12 @@ void XRServer :: update( int state, int action, double reward, int next_state) {
     double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
 	//printf("[DBG Q update]  Old value: %.2f, new_value: %.2f, NEXTMAX: %f\n", old_value, new_value, next_max);
 	//printf("[MORE DBG] State is: %d, Q_values are: \n", state);
-	for (int i = 0; i < N_ACTIONS_QLEARNING; i++)
+	/*for (int i = 0; i < N_ACTIONS_QLEARNING; i++)
 	{
 		printf("%f\t", Q_matrix[state][i]); 
 	}
 	printf("\n");
+	*/
 	Q_matrix[state][action] = new_value;
 };
 
@@ -1251,10 +1252,10 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 		update(state_q, next_action, r, next_state);
 
 	// Update the current state for next pass of the algorithm
-		//current_action = next_action;
-		//current_state = next_state; //
-		//state_q = next_state; 			// WARNING CHECK AND TEST THIS
-		//printf("[DBG REWARD UPDATE] next state: %d", next_state);	
+		current_action = next_action;
+		current_state = next_state; //
+		state_q = next_state; 			// WARNING CHECK AND TEST THIS
+		printf("[DBG REWARD UPDATE] next state: %d", next_state);	
 	
 		printf("\n\t[DBG REWARD Q] Past action %d got reward of %.3f", current_action, r); 
 	}
@@ -1306,6 +1307,7 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 			}
 			else{
 				next_action = Random(N_ACTIONS_QLEARNING);
+				printf("\n");
 			}
 
 	
@@ -1322,7 +1324,6 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 		{
 			next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action; //argmax of Q_matrix
 		}
-		printf("[Q_NEXT_ACTION(XPLOIT)] = %d\n", next_action);
 		
 
 		#if MARKOV_CHAIN_N1
@@ -1339,34 +1340,39 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 				
 				if (state_q == 1){
 					next_action = MAX(1, next_action); 
-					printf("[DBG STATE i_1]: ACTION %d /n", next_action);
+					printf("[DBG STATE i_1]: ACTION %d \n", next_action);
 				}
 				else if (state_q == 0){ 
 					next_action = MAX(2, next_action); 
-					printf("[DBG STATE i_0]: ACTION %d /n", next_action);
+					printf("[DBG STATE i_0]: ACTION %d \n", next_action);
 				}
 
 			}
 			else if (state_q == N_STATES - 1 || state_q == (N_STATES - 2)  ){ // higher edge of MDP 
 				if (state_q == (N_STATES - 1) ) {
 					next_action = MIN(3, next_action); // no min, max : "keep load"
-					printf("[DBG STATE I_END]: ACTION %d /n", next_action);
+					printf("[DBG STATE I_END]: ACTION %d \n", next_action);
 
 				}
 				else if (state_q == (N_STATES - 2)){
 					next_action = MIN(2, next_action); // no min,  max: " increase 1"
-					printf("[ DBG STATE I_END - 1]: ACTION %d /n", next_action);
+					printf("[ DBG STATE I_END - 1]: ACTION %d \n", next_action);
 
 				} 
 			}
+			else{printf("\n");}
 		#endif
+		printf("[Q_NEXT_ACTION(XPLOIT)] = %d\n", next_action);
+
 	}
 	#if MARKOV_CHAIN_N1
-		Load = past_load + (next_action - 1) * MAXLOAD/N_STATES; 
+		Load = MIN(MAX(past_load + (next_action - 1) * MAXLOAD/N_STATES , 10E6), 100E6); 
 	#elif MARKOV_CHAIN_N2
-		Load = past_load + (next_action - 2) * MAXLOAD/N_STATES;  
+		Load = MIN(MAX(past_load + (next_action - 2) * MAXLOAD/N_STATES ,  10E6), 100E6);;  
 	#endif
+	
 	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
+	
 	next_state = feature_map(Load); 											//TODO: Try logarithmic state-space
 			
 	//printf("[DBG Q-learn after choice] CURRENT LOAD: %.2f E6; PAST LOAD: %.2f; State_now: %d, Next_state: %d, Q matrix: \n", Load/1E6, past_load, current_state, next_state );
