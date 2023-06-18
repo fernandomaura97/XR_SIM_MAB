@@ -23,16 +23,24 @@ using namespace std;
 
 #define ADAPTIVE_HEUR 	0 		//set to 1 for heuristic adaptive control
 
-#define MAXLOAD 		10E7 	// max load for reward calcs
+#define MARKOV_CHAIN_N1		1 // markov model for Q-learning
+#define MARKOV_CHAIN_N2 	0
+
+#if MARKOV_CHAIN_N1
+	#define N_ACTIONS_QLEARNING 3
+#elif MARKOV_CHAIN_N2
+	#define N_ACTIONS_QLEARNING 5
+#endif
+
+#define MAXLOAD 		100E6 	// max load for reward calcs
 
 #define INC_CONTROL 	1.01	//how much we increase or decrease our load depending on action chosen, in Q-LEARNING. 
 #define DEC_CONTROL 	0.99
 
-#define N_STATES 			21 	//for feature map of the "Throughput" state space
+#define N_STATES 			10 	//for feature map of the "Throughput" state space
 #define N_ACTIONS_MAB 		10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 #define N_ACTIONS_THOMPSON 	10 
 #define N_ACTIONS_UCB 		10 
-#define N_ACTIONS_QLEARNING 5 
 
 /* ##############################           AGENT TYPE             #####################################*/
 #define CTL_GREEDY_MAB 		0
@@ -56,7 +64,7 @@ using namespace std;
 // Online Q-learning parametres: 
 
 const int ACTION_SIZE= N_ACTIONS_QLEARNING;
-const float ALPHA = 0.2;
+const float ALPHA = 0.1;
 const float GAMMA= 0.9;
 const int STATE_SIZE = 10;
 double QoE_metric; 
@@ -252,12 +260,12 @@ component XRServer : public TypeII
 		double rw_threshold; 
 
 		int signal_overuse; 
-		double Q_matrix[N_STATES][3]; 
+		double Q_matrix[N_STATES][N_ACTIONS_QLEARNING]; 
 
-		double Q_matrix_t10[N_STATES][3]; 
-		double Q_matrix_t30[N_STATES][3]; 
-		double Q_matrix_t50[N_STATES][3]; 
-		double Q_matrix_t100[N_STATES][3]; 	
+		double Q_matrix_t10[N_STATES][N_ACTIONS_QLEARNING]; 
+		double Q_matrix_t30[N_STATES][N_ACTIONS_QLEARNING]; 
+		double Q_matrix_t50[N_STATES][N_ACTIONS_QLEARNING]; 
+		double Q_matrix_t100[N_STATES][N_ACTIONS_QLEARNING]; 	
 
 		double epsilon_greedy_decreasing; 
 		double epsilon_greedy_decreasing_qlearn; 
@@ -338,7 +346,7 @@ void XRServer :: Start()
 	sequence_frame_counter = 0; 
 	
 	//values for applying the greedy epsilon_greedy_decreasing
-	epsilon_greedy_decreasing_qlearn = 0.5; 
+	epsilon_greedy_decreasing_qlearn = 0.25; 
 	passes = 0; 
 
 	#if CTL_GREEDY_MAB == 1
@@ -358,7 +366,7 @@ void XRServer :: Start()
 		for (int r=0;r<N_STATES;r++)
 		{	
 			printf("S%d\t", r);
-			for (int h = 0; h<3; h++)
+			for (int h = 0; h<N_ACTIONS_QLEARNING; h++)
 			{	
 				Q_matrix[r][h]=1.0;
 				printf("%.2f ",Q_matrix[r][h]);
@@ -404,7 +412,7 @@ void XRServer :: Stop()
 	ofstream outfile4("Results/Qmatrix/Q_t100.txt");
 
 	for (int i = 0; i < N_STATES; ++i) {		// Matrix 1: Q_t10
-		for (int j = 0; j < 3; ++j) {
+		for (int j = 0; j < N_ACTIONS_QLEARNING; ++j) {
 			outfile1 << Q_matrix_t10[i][j] << " ";
 		}
 		outfile1 << endl;
@@ -412,7 +420,7 @@ void XRServer :: Stop()
 	outfile1.close();
 
 	for (int i = 0; i < N_STATES; ++i) {	// Matrix 2 Q_t30
-		for (int j = 0; j < 3; ++j) {
+		for (int j = 0; j < N_ACTIONS_QLEARNING; ++j) {
 			outfile2 << Q_matrix_t30[i][j] << "\t";
 		}
 		outfile2 << endl;
@@ -420,7 +428,7 @@ void XRServer :: Stop()
 	outfile2.close();
 
 	for (int i = 0; i < N_STATES; ++i) {	// Matrix 3 Q_t50
-		for (int j = 0; j < 3; ++j) {
+		for (int j = 0; j < N_ACTIONS_QLEARNING; ++j) {
 			outfile3 << Q_matrix_t50[i][j] << "\t";
 		}
 		outfile3 << endl;
@@ -428,7 +436,7 @@ void XRServer :: Stop()
 	outfile3.close();
 
 		for (int i = 0; i < N_STATES; ++i) {	// Matrix 4 Q_t100 
-			for (int j = 0; j < 3; ++j) {
+			for (int j = 0; j < N_ACTIONS_QLEARNING; ++j) {
 				outfile4 << Q_matrix_t100[i][j] << "\t";
 			}
 			outfile4 << endl;
@@ -436,7 +444,7 @@ void XRServer :: Stop()
 	outfile4.close();
 	// 	// Matrix 5 Q_final 
 		for (int i = 0; i < N_STATES; ++i) {
-			for (int j = 0; j < 3; ++j) {
+			for (int j = 0; j < N_ACTIONS_QLEARNING; ++j) {
 				outfile << Q_matrix[i][j] << "\t";
 			}
 			outfile << endl;
@@ -1216,42 +1224,37 @@ void XRServer :: update( int state, int action, double reward, int next_state) {
     double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
 	//printf("[DBG Q update]  Old value: %.2f, new_value: %.2f, NEXTMAX: %f\n", old_value, new_value, next_max);
 	//printf("[MORE DBG] State is: %d, Q_values are: \n", state);
-	for (int i = 0; i<3; i++)
+	for (int i = 0; i < N_ACTIONS_QLEARNING; i++)
 	{
 		printf("%f\t", Q_matrix[state][i]); 
 	}
 	printf("\n");
-    
-	
 	Q_matrix[state][action] = new_value;
 };
 
 void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS 
 {	
 	if (passes == 1) {
-
 		printf("First time algorithm has ran: FM of \n\n");
-
-		for (int kkk  = 1; kkk<= 100; kkk +=5){
-			int j = feature_map(kkk * 1E6); 
-			printf("%d, %d\n", kkk, j); 
-		}
 	}
 	else{
 		//Obtain reward based on QoE_metric performance and update the Q-matrix
 		
 		double r = past_action_delayed_reward[1]; 
-		if ((state_q == 20) && (QoE_metric <= 0.8)){ r = 0.01;  } // we don't want to get stuck on 20 if it's detrimental to the QoE. 
 		
-		printf("[DBGG QLEARN] state_q(%d), next_action = %d, R = %f, next_state = %d\n", state_q, next_action, r, next_state);
-	// Update the Q-value for the current state-action pair:			
+		//if ((state_q == 20) && (QoE_metric <= 0.8)){ r = 0.01;  } // we don't want to get stuck on 20 if it's detrimental to the QoE. 
+		
+		//printf("[DBGG QLEARN] state_q(%d), next_action = %d, R = %f, next_state = %d\n", state_q, next_action, r, next_state);
+		// Update the Q-value for the current state-action pair:			
+		
+		printf("\n\t[DBG Q-update] s_Q: %d, A: %d, R: %.2f, S_q': %d\n",state_q, next_action, r, next_state ); 
 		update(state_q, next_action, r, next_state);
 
 	// Update the current state for next pass of the algorithm
-		current_action = next_action;
-		current_state = next_state; //
-		state_q = next_state; 			// WARNING CHECK AND TEST THIS
-		printf("next state: %d", next_state);	
+		//current_action = next_action;
+		//current_state = next_state; //
+		//state_q = next_state; 			// WARNING CHECK AND TEST THIS
+		//printf("[DBG REWARD UPDATE] next state: %d", next_state);	
 	
 		printf("\n\t[DBG REWARD Q] Past action %d got reward of %.3f", current_action, r); 
 	}
@@ -1264,17 +1267,50 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 	if(Random()<= epsilon_greedy_decreasing_qlearn) //TODO: ADD linear decreasing epsilon BASED ON KNOWLEDGE/BELIEF (OF CURRENT STATE? ) 
 	{	// Explore
 		printf("***************** EXPLORE Q **************************** %.0f  %.3f \n", SimTime(), epsilon_greedy_decreasing_qlearn);
-		next_action = Random(N_ACTIONS_QLEARNING);
+		
+		#if MARKOV_CHAIN_N1		
 
-		if(state_q == 1 ){
-			next_action = Random(3) + 2; // if first state, don't decrease
-			printf("/****** STATE 1* na: %d /n", next_action);
+			if(state_q == 0 ){
+				next_action = Random(2) + 1; // if first state, don't decrease
+				printf("/****** STATE 1* na: %d /n", next_action);
 
-		}
-		else if (state_q == 20){
-			next_action = Random(3); //if last state, don't increase ever? 
-			printf("/****** STATE 20* na: %d /n", next_action);
-		}
+			}
+			else if (state_q == (N_STATES - 1)) {
+				next_action = Random(2); //if last state, don't increase ever? 
+				printf("/****** STATE %d* next_a: %d /n",state_q, next_action);
+			}
+			else{next_action = Random(3);}
+
+		#elif MARKOV_CHAIN_N2
+			if(state_q == 1 || state_q == 0 ){  // lower edge of MDP 
+				
+				if (state_q == 1){
+					next_action = Random(4) + 1; // if first state, don't decrease too much
+					printf("[DBG STATE i_1]: ACTION %d \n", next_action);
+				}
+				else if (state_q == 0){ 
+					next_action = Random(3) + 2; 
+					printf("[DBG STATE i_0]: ACTION %d \n", next_action);
+				}
+			}
+			else if (state_q == N_STATES - 1 || state_q == (N_STATES - 2)  ){ // higher edge of MDP 
+				if (state_q == (N_STATES - 1) ) {
+					next_action = Random(3); // no min, max : "keep load"
+					printf("[DBG STATE I_END]: ACTION %d \n", next_action);
+
+				}
+				else if (state_q == (N_STATES - 2)){
+					next_action = Random(4); // no min,  max: " increase 1"
+					printf("[ DBG STATE I_END - 1]: ACTION %d \n", next_action);
+				} 
+			}
+			else{
+				next_action = Random(N_ACTIONS_QLEARNING);
+			}
+
+	
+		#endif
+
 		printf("[Q_NEXT_ACTION(XPLORE)] = %d\n", next_action);
 	} 	
 	else
@@ -1282,84 +1318,66 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 		printf("***************** EXPLOIT Q**************************** %.0f %.3f \n", SimTime(), epsilon_greedy_decreasing_qlearn);
 
 		// Choose the action with the highest Q-value given current state State_q
-		for (int a = 0; a < ACTION_SIZE; a++)
+		for (int a = 0; a < N_ACTIONS_QLEARNING; a++)
 		{
 			next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action; //argmax of Q_matrix
 		}
-
-		if(state_q == 20 && next_action == 2){
-			next_action = 1;
-	} // although this will cause the action evaluation to be split in two, i don't think it's relevant here		
-		//if (state_q == )
 		printf("[Q_NEXT_ACTION(XPLOIT)] = %d\n", next_action);
-	}
-	 
+		
 
-	if(next_action == 0 ){				//CHOOSE NEXT LOAD BASED ON ACTION
-		Load =  past_load - MAXLOAD/N_STATES;				//decrease 
-	}
-	else if (next_action == 1){ //keep
-		Load = past_load;
-	}
-	else if (next_action == 2){ //increase
-		Load = past_load + MAXLOAD/N_STATES;
-		/*if(Load >= MAXLOAD){
-			Load = MAXLOAD - 1E6;
-			printf("WARN : In maxload already!\n");
-		}*/
-	}
-//////////////////////////////////////////// TEST END ///////////////////////////////////
-/*
-	printf("***************** EXPLORE Q **************************** %.0f  %.3f \n", SimTime(), epsilon_greedy_decreasing_qlearn);
-		next_action = Random(3);
+		#if MARKOV_CHAIN_N1
+			if(state_q == 0){
+				next_action = Random(2) + 1; // only 1 or 2 (keep or increase)
+			}
+			else if (state_q == 19){
+				next_action = Random(2); // only 0, or 1 (decrease, keep) 
 
-		if(state_q == 1 ){
-			next_action = Random(2) + 1; // if first state, don't decrease
-			printf("/****** STATE 1* na: %d /n", next_action);
+			}
+		#elif MARKOV_CHAIN_N2
+		//just making sure next action doesn't cause to get out of bounds"
+			if(state_q == 1 || state_q == 0 ){  // lower edge of MDP 
+				
+				if (state_q == 1){
+					next_action = MAX(1, next_action); 
+					printf("[DBG STATE i_1]: ACTION %d /n", next_action);
+				}
+				else if (state_q == 0){ 
+					next_action = MAX(2, next_action); 
+					printf("[DBG STATE i_0]: ACTION %d /n", next_action);
+				}
 
-		}
-		else if (state_q == 20){
-			next_action = Random(2); //if last state, don't increase ever? 
-			printf("/****** STATE 20* na: %d /n", next_action);
-		}
-		printf("[Q_NEXT_ACTION(XPLORE)] = %d\n", next_action);
-	} 	
-	else
-	{
-		printf("***************** EXPLOIT Q**************************** %.0f %.3f \n", SimTime(), epsilon_greedy_decreasing_qlearn);
+			}
+			else if (state_q == N_STATES - 1 || state_q == (N_STATES - 2)  ){ // higher edge of MDP 
+				if (state_q == (N_STATES - 1) ) {
+					next_action = MIN(3, next_action); // no min, max : "keep load"
+					printf("[DBG STATE I_END]: ACTION %d /n", next_action);
 
-		// Choose the action with the highest Q-value given current state State_q
-		for (int a = 0; a < ACTION_SIZE; a++)
-		{
-			next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action; //argmax of Q_matrix
-		}
+				}
+				else if (state_q == (N_STATES - 2)){
+					next_action = MIN(2, next_action); // no min,  max: " increase 1"
+					printf("[ DBG STATE I_END - 1]: ACTION %d /n", next_action);
 
-		if(state_q == 20 && next_action == 2){
-			next_action = 1;
-	} // although this will cause the action evaluation to be split in two, i don't think it's relevant here		
-		//if (state_q == )
-		printf("[Q_NEXT_ACTION(XPLOIT)] = %d\n", next_action);
+				} 
+			}
+		#endif
 	}
-	 
-
-	if(next_action == 0 ){				//CHOOSE NEXT LOAD BASED ON ACTION
-		Load =  past_load - MAXLOAD/N_STATES;				//decrease 
-	}
-	else if (next_action == 1){ //keep
-		Load = past_load;
-	}
-	else if (next_action == 2){ //increase
-		Load = past_load + MAXLOAD/N_STATES;
-	}*/
-
+	#if MARKOV_CHAIN_N1
+		Load = past_load + (next_action - 1) * MAXLOAD/N_STATES; 
+	#elif MARKOV_CHAIN_N2
+		Load = past_load + (next_action - 2) * MAXLOAD/N_STATES;  
+	#endif
 	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
 	next_state = feature_map(Load); 											//TODO: Try logarithmic state-space
 			
-	printf("[DBG Q-learn after choice] CURRENT LOAD: %.2f E6; PAST LOAD: %.2f; State_now: %d, Next_state: %d, Q matrix: \n", Load/1E6, past_load, current_state, next_state );
+	//printf("[DBG Q-learn after choice] CURRENT LOAD: %.2f E6; PAST LOAD: %.2f; State_now: %d, Next_state: %d, Q matrix: \n", Load/1E6, past_load, current_state, next_state );
+	
 
 	for (int i = 0; i < N_STATES; i++) {	// Matrix 3 Q_t50
+		if(i == state_q){ printf("*");}
 		printf("(S%d)\t", i);
-		for (int j = 0; j < 3; j++) {
+
+		for (int j = 0; j < N_ACTIONS_QLEARNING; j++) {
+			
 			printf("%.3f\t", Q_matrix[i][j]);
 		}
 		printf("\n");
@@ -1628,8 +1646,6 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		SARSA(); 
 	#endif
 
-
-
 	if(abs(Load - past_load)>= 1E6){
 		load_changes++; //TO COMPUTE load change ratio for each algorithm (prevent excessive switching)
 	}
@@ -1847,7 +1863,7 @@ int* XRServer::feature_map(double Load){
     return State;
 }
 */
-
+/*
 int XRServer::feature_map(double Load){
 
 	static int State; 
@@ -1855,6 +1871,20 @@ int XRServer::feature_map(double Load){
 		if ((Load >= 5E6*(i-1)) && (Load <= (5E6 *i -1))){
 		    //printf("load between %f, %f", 5E6*(i-1), (5E6 *i -1));
 			State = i;
+			printf("\t\t\n\nDBG_FEATUREMAP: state is %d\n", State);
+            }
+	}
+    return State;
+};
+*/
+int XRServer::feature_map(double Load){
+
+	static int State; 
+	for (int i = 1; i < (N_STATES + 2); ++i){ //iterate through whole state vector
+		if ((Load >= MAXLOAD/N_STATES*(i-1)) && (Load <= (MAXLOAD/N_STATES *i -1))){
+		    //printf("load between %f, %f", 5E6*(i-1), (5E6 *i -1));
+			State = i - 2;
+			// printf("\t\t\n\nDBG_FEATUREMAP: state is %d\n", State);
             }
 	}
     return State;
