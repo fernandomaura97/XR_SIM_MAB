@@ -23,8 +23,8 @@ using namespace std;
 
 #define ADAPTIVE_HEUR 	0 		//set to 1 for heuristic adaptive control
 
-#define MARKOV_CHAIN_N1		0 // markov model for Q-learning
-#define MARKOV_CHAIN_N2 	1
+#define MARKOV_CHAIN_N1		1 // markov model for Q-learning
+#define MARKOV_CHAIN_N2 	0
 
 #if MARKOV_CHAIN_N1
 	#define N_ACTIONS_QLEARNING 3
@@ -37,24 +37,26 @@ using namespace std;
 #define INC_CONTROL 	1.01	//how much we increase or decrease our load depending on action chosen, in Q-LEARNING (deprecated currently). 
 #define DEC_CONTROL 	0.99
 
-#define N_STATES 			20 	//for feature map of the "Throughput" state space
+#define N_STATES 			10 	//for feature map of the "Throughput" state space
 #define N_ACTIONS_MAB 		10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 #define N_ACTIONS_THOMPSON 	10 
 #define N_ACTIONS_UCB 		10 
 
 /* ##############################           AGENT TYPE             #####################################*/
+
+//all zeros for vanilla, either way select the one as a 1. 
 #define CTL_GREEDY_MAB 		0
 #define CTL_THOMPSON 		0
 #define CTL_THOMPSON_BETA	0
 #define CTL_UCB 	 		0
-#define CTL_Q_ONLINE   	 	1
+#define CTL_Q_ONLINE   	 	0
 #define CTL_SOFTMAX         0
 #define CTL_SARSA			0 
 
 
 
-#define TIME_BETWEEN_UPDATES 1.0  //How often the AGENT will choose new ACTION
-#define TIME_SLIDING_WINDOW  1.0  //How many packets are temporally taken into account for sliding window. NOW: 1 second
+#define TIME_BETWEEN_UPDATES 0.3 //How often the AGENT will choose new ACTION
+#define TIME_SLIDING_WINDOW  0.3  //How many packets are temporally taken into account for sliding window. NOW: 1 second
 
 #define TAU_SOFTMAX 10
 
@@ -64,11 +66,11 @@ using namespace std;
 // Online Q-learning parametres: 
 
 const int ACTION_SIZE= N_ACTIONS_QLEARNING;
-const float ALPHA = 0.1;
+const float ALPHA = 0.2;
 const float GAMMA= 0.9;
-const int STATE_SIZE = 10;
+//const int STATE_SIZE = 10;
 double QoE_metric; 
-const double alpha_mab = 0.4;
+const double alpha_mab = 0.2;
 
 static struct QoE_t{
 	double RTT;
@@ -265,7 +267,9 @@ component XRServer : public TypeII
 		double Q_matrix_t10[N_STATES][N_ACTIONS_QLEARNING]; 
 		double Q_matrix_t30[N_STATES][N_ACTIONS_QLEARNING]; 
 		double Q_matrix_t50[N_STATES][N_ACTIONS_QLEARNING]; 
-		double Q_matrix_t100[N_STATES][N_ACTIONS_QLEARNING]; 	
+		double Q_matrix_t100[N_STATES][N_ACTIONS_QLEARNING]; 
+		double Q_matrix_t300[N_STATES][N_ACTIONS_QLEARNING]; 	
+	
 
 		double epsilon_greedy_decreasing; 
 		double epsilon_greedy_decreasing_qlearn; 
@@ -368,7 +372,7 @@ void XRServer :: Start()
 			printf("S%d\t", r);
 			for (int h = 0; h<N_ACTIONS_QLEARNING; h++)
 			{	
-				Q_matrix[r][h]=1.0;
+				Q_matrix[r][h]=100.0;
 				printf("%.2f ",Q_matrix[r][h]);
 			}
 			printf("\n");
@@ -401,7 +405,9 @@ void XRServer :: Stop()
 	printf("Generated Packets = %f | Received Packets = %f\n",generated_packets,received_packets);
 	printf("Average RTT (last packet video frame) = %f \n",avRTT/rx_packet_controlRTT);
 	printf("Average Load = %f\n",av_Load/generated_video_frames);
-	printf("Number of Changes = %f | Rate of changes = %f\n",load_changes,load_changes/SimTime());
+	printf("Number of Changes = %f | Avg. Rate of changes = %f per second\n",load_changes,load_changes/SimTime());
+
+	printf("Cumulative reward = %f\n", CUMulative_reward);  
 
 	#if CTL_Q_ONLINE
 	//EXPORT Q MATRICES: 
@@ -410,6 +416,8 @@ void XRServer :: Stop()
 	ofstream outfile2("Results/Qmatrix/Q_t30.txt");
 	ofstream outfile3("Results/Qmatrix/Q_t50.txt");
 	ofstream outfile4("Results/Qmatrix/Q_t100.txt");
+	ofstream outfile5("Results/Qmatrix/Q_t300.txt");
+
 
 	for (int i = 0; i < N_STATES; ++i) {		// Matrix 1: Q_t10
 		for (int j = 0; j < N_ACTIONS_QLEARNING; ++j) {
@@ -442,6 +450,15 @@ void XRServer :: Stop()
 			outfile4 << endl;
 		}
 	outfile4.close();
+
+		for (int i = 0; i < N_STATES; ++i) {	// Matrix 5 Q_t300 
+			for (int j = 0; j < N_ACTIONS_QLEARNING; ++j) {
+				outfile5 << Q_matrix_t300[i][j] << "\t";
+			}
+			outfile5 << endl;
+		}
+	outfile5.close();
+
 	// 	// Matrix 5 Q_final 
 		for (int i = 0; i < N_STATES; ++i) {
 			for (int j = 0; j < N_ACTIONS_QLEARNING; ++j) {
@@ -476,7 +493,10 @@ void XRServer :: Stop()
 	#if CTL_GREEDY_MAB ==1
 		std::string greedyornot = "MAB-";
 	#elif CTL_Q_ONLINE == 1
-		std::string greedyornot = "Q-";
+		int nei; 
+		if (MARKOV_CHAIN_N1){ nei = 1; }
+		if (MARKOV_CHAIN_N2){nei = 2; }
+		std::string greedyornot = "Q-N" + std::to_string(nei) + "_";
 	#elif CTL_THOMPSON == 1
 		std::string greedyornot = "THMPSN";
 	#elif CTL_THOMPSON_BETA == 1
@@ -522,13 +542,13 @@ void XRServer :: Stop()
 
 	#elif CTL_THOMPSON
 		printf("Thompson rewards:\n");
+		//TODO
 	#elif CTL_THOMPSON_BETA
 		printf("Thompson  beta rewards:\n");
-
+		//TODO
 	#elif CTL_UCB	
 		printf("UCB rewards:\n");
-
-
+		//
 	#elif CTL_Q_ONLINE
 		
 		//do nothing, Q matrix already exported
@@ -1242,19 +1262,13 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 		//Obtain reward based on QoE_metric performance and update the Q-matrix
 		
 		double r = past_action_delayed_reward[1]; 
-		
-		//if ((state_q == 20) && (QoE_metric <= 0.8)){ r = 0.01;  } // we don't want to get stuck on 20 if it's detrimental to the QoE. 
-		
-		//printf("[DBGG QLEARN] state_q(%d), next_action = %d, R = %f, next_state = %d\n", state_q, next_action, r, next_state);
-		// Update the Q-value for the current state-action pair:			
-		
 		printf("\n\t[DBG Q-update] s_Q: %d, A: %d, R: %.2f, S_q': %d\n",state_q, next_action, r, next_state ); 
 		update(state_q, next_action, r, next_state);
 
 	// Update the current state for next pass of the algorithm
 		current_action = next_action;
-		current_state = next_state; //
-		state_q = next_state; 			// WARNING CHECK AND TEST THIS
+		current_state = next_state; // current_state was used for previous reward function than current
+		state_q = next_state; 		
 		printf("[DBG REWARD UPDATE] next state: %d", next_state);	
 	
 		printf("\n\t[DBG REWARD Q] Past action %d got reward of %.3f", current_action, r); 
@@ -1295,10 +1309,10 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 				}
 			}
 			else if (state_q == N_STATES - 1 || state_q == (N_STATES - 2)  ){ // higher edge of MDP 
+				
 				if (state_q == (N_STATES - 1) ) {
 					next_action = Random(3); // no min, max : "keep load"
 					printf("[DBG STATE I_END]: ACTION %d \n", next_action);
-
 				}
 				else if (state_q == (N_STATES - 2)){
 					next_action = Random(4); // no min,  max: " increase 1"
@@ -1388,7 +1402,7 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 		}
 		printf("\n");
 	}
-	epsilon_greedy_decreasing_qlearn = MAX(0.1, (0.5 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
+	epsilon_greedy_decreasing_qlearn = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
 };
 
 
@@ -1482,7 +1496,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	double RX_frames_slide = 0; 
 	double MOWDG_slide = 0;
 	//double Frameloss_slide = 0; 
-	double no_lost_packets = 0; 
+	//double no_lost_packets = 0; 
 
 
 	int no_packets = 0;
@@ -1588,21 +1602,36 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		double reward_FL;   // a bit of reward shaping here : FrameLoss and RTT shaping
 		double reward_RTT ; 
 
-		
-		if(ratio < 0.6){ reward_FL = -(1 - ratio); } //Bad FL causes negative reward
+		/*
+		if(ratio < 0.6){ reward_FL = (1 - ratio); } //Bad FL causes negative reward
 		else if ((0.6 <= ratio) && (ratio < 0.9)){
-			reward_FL = (ratio - 0.6) * 1.666667;   //starts at 0, ends at 0.45
+			reward_FL = ((ratio - 0.6) * 1.666667) ;   //starts at 0, ends at 0.5   ----> DBG: Starts at 0.4, ends at 0.9 
 			printf("MEGADEBUG %f ^^^^^^^\n", reward_FL);
 		}
 		else{reward_FL = ratio; } //ratio greater than 0.9 will get larger rewards close to one. 
+		*/
+
+		// lin exp 
+
+		if(ratio < 0.6){ reward_FL = (2.0/3.0) * ratio;  } 
+
+		else if ((0.6 <= ratio) && (ratio < 0.9)){
+			reward_FL = (4.0/3.0) * ratio - 0.4 ;   //starts at 0.4   ----> DBG: Starts at 0.4, ends at 0.8
+			printf("MEGADEBUG %f ^^^^^^^\n", reward_FL);
+		}
+		else{reward_FL = 2*ratio - 1; } //ratio greater than 0.9 will get larger rewards closer to one. 
 
 		double ratio_RTT = RTT_interval / generated_video_frames_interval; 
 		
-		if(ratio_RTT <= 0.05) {reward_RTT = 1;}
-		else if ((0.1>ratio_RTT) && (0.05<ratio_RTT)){ reward_RTT = 1 - 10*ratio_RTT ; }
-		
+		if(ratio_RTT < 0.04) 
+			{reward_RTT = 1;}
+		else if ((0.04 <= ratio_RTT) && (ratio_RTT < 0.08) )
+			{ reward_RTT = -5*ratio_RTT + 1.2 ; }
+
+		else if ((0.08 <= ratio_RTT) && (ratio_RTT < 0.12) )
+			{ reward_RTT = -15*ratio_RTT + 2 ; }
 		else{ //RTT greater than 100ms
-			reward_RTT = 1 - ratio_RTT * 20; //just make it decrease even faster, or get negative for bad values of RTT (greater than 333.33 ms ) 
+			reward_RTT = -1.111111 - (1.0/3.0) * ratio_RTT; // sigmoid like decrease for values lesser than 300 ms, negative for more 
 		}		
 		#if RW_FL_RTT
 			QoE_metric = (99*(0.6*reward_RTT + 0.4 * reward_FL)+ 1*(Load/100E6))/100;	
@@ -1662,11 +1691,10 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 //// 3: Next Action EXECUTED, store RESULTS in CSV 
 
 	#if CTL_GREEDY_MAB == 1 //if MAB approach
-		
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
 		csv_.v__current_action.push_back(current_action);
-		csv_.v__reward.push_back(reward_f(current_state, current_action));
+		csv_.v__reward.push_back(past_action_delayed_reward[1]);
 		csv_.v__load.push_back(Load);
 		csv_.v__FM.push_back(feature_map(Load));
 		csv_.v__QoE.push_back(QoE_metric);
@@ -1684,7 +1712,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
 		csv_.v__current_action.push_back(current_action);
-		csv_.v__reward.push_back(reward_f(current_state, current_action));
+		csv_.v__reward.push_back(past_action_delayed_reward[1]);
 		csv_.v__load.push_back(Load);
 		csv_.v__FM.push_back(feature_map(Load));
 		csv_.v__QoE.push_back(QoE_metric);
@@ -1712,6 +1740,11 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		{
 			std::memcpy(Q_matrix_t100, Q_matrix, sizeof(Q_matrix)); 
 		}
+
+		else if(passes == 300/TIME_BETWEEN_UPDATES) //100 seconds
+		{
+			std::memcpy(Q_matrix_t300, Q_matrix, sizeof(Q_matrix)); 
+		}
 		
         //DEPRECATED: COULD DELETE MAYBE (check first)
 		/*
@@ -1724,7 +1757,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
 		csv_.v__current_action.push_back(ucb_struct.current_action);
-		csv_.v__reward.push_back(reward_f(2, current_action)); // arbitrary int "2" to get reward not based on state
+		csv_.v__reward.push_back(past_action_delayed_reward[1])); // arbitrary int "2" to get reward not based on state
 		csv_.v__load.push_back(Load);
 		csv_.v__FM.push_back(feature_map(Load));
 		csv_.v__QoE.push_back(QoE_metric);
@@ -1742,7 +1775,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
 		csv_.v__current_action.push_back(current_action);
-		csv_.v__reward.push_back(reward_f(2, current_action)); // arbitrary int "2" to get reward not based on state
+		csv_.v__reward.push_back(past_action_delayed_reward[1])); // arbitrary int "2" to get reward not based on state
 		csv_.v__load.push_back(Load);
 		csv_.v__FM.push_back(feature_map(Load));
 		csv_.v__QoE.push_back(QoE_metric);
