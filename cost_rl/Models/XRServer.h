@@ -55,8 +55,8 @@ using namespace std;
 
 
 
-#define TIME_BETWEEN_UPDATES 0.3 //How often the AGENT will choose new ACTION
-#define TIME_SLIDING_WINDOW  0.3  //How many packets are temporally taken into account for sliding window. NOW: 1 second
+#define TIME_BETWEEN_UPDATES 1 //How often the AGENT will choose new ACTION
+#define TIME_SLIDING_WINDOW  1  //How many packets are temporally taken into account for sliding window. NOW: 1 second
 
 #define TAU_SOFTMAX 10
 
@@ -518,7 +518,7 @@ void XRServer :: Stop()
 	//1std::string filename = "Res_T"+std::to_string((int)st_input_args.STime)+"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+std::to_string((int)st_input_args.XRLoad/10E6 )+"_BG"+std::to_string((int)st_input_args.BGLoad/10E6) +".csv";
 	printf("\n\nFILENAME: %s\n",filename.c_str());
 	printf("SEED: %d\n", st_input_args.seed);
-	std::ofstream file("Results/csv/" + filename);
+	std::ofstream file("Results/csv/newplots/" + filename);
 
 	if(!file.is_open()){
 		std::cout<< "failed to open"<< std::endl;
