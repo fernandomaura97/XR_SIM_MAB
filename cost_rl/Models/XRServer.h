@@ -23,8 +23,8 @@ using namespace std;
 
 #define ADAPTIVE_HEUR 	0 		//set to 1 for heuristic adaptive control
 
-#define MARKOV_CHAIN_N1		1 // markov model for Q-learning
-#define MARKOV_CHAIN_N2 	0
+#define MARKOV_CHAIN_N1		0 // markov model for Q-learning
+#define MARKOV_CHAIN_N2 	1
 
 #if MARKOV_CHAIN_N1
 	#define N_ACTIONS_QLEARNING 3
@@ -50,7 +50,7 @@ using namespace std;
 #define CTL_THOMPSON_BETA	0
 #define CTL_UCB 	 		0
 #define CTL_Q_ONLINE   	 	0
-#define CTL_SOFTMAX         0
+#define CTL_SOFTMAX         1
 #define CTL_SARSA			0 
 
 
@@ -475,11 +475,11 @@ void XRServer :: Stop()
 	////////////////////   CSV RESULTS ////////////////////////
 
 	std::stringstream stream;
-    stream << std::fixed << std::setprecision(0) << (st_input_args.XRLoad/10E6);
+    stream << std::fixed << std::setprecision(0) << st_input_args.XRLoad/10E6;
     std::string xrl_str = stream.str();
 
     stream.str("");
-    stream << std::fixed << std::setprecision(0) << (st_input_args.BGLoad/10E6);
+    stream << std::fixed << std::setprecision(0) << (st_input_args.BGLoad/10E5);
     std::string bgl_str = stream.str();
 
 	stream.str("");
@@ -511,14 +511,14 @@ void XRServer :: Stop()
 	#elif CTL_UCB == 1
 		std::string greedyornot = "UCB";
 	#else
-		std::string greedyornot = "VANILLA";
+		std::string greedyornot = "OG";
 	#endif
 	std::string filename = greedyornot +"_S" + s_seed +  "_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +"Nbg" +std::to_string((int)st_input_args.BGsources) + ".csv";
 
 	//1std::string filename = "Res_T"+std::to_string((int)st_input_args.STime)+"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+std::to_string((int)st_input_args.XRLoad/10E6 )+"_BG"+std::to_string((int)st_input_args.BGLoad/10E6) +".csv";
 	printf("\n\nFILENAME: %s\n",filename.c_str());
 	printf("SEED: %d\n", st_input_args.seed);
-	std::ofstream file("Results/csv/newplots/" + filename);
+	std::ofstream file("Results/csv/newplots-20_6/" + filename);
 
 	if(!file.is_open()){
 		std::cout<< "failed to open"<< std::endl;
@@ -752,7 +752,7 @@ void XRServer :: in(data_packet &packet)
 
 
 
-/*
+
 void XRServer :: GreedyControl()  //sampling Loads fully randomly
 {
 	//1) Update rewards based on collected previous metrics from last 'cycle'
@@ -814,7 +814,8 @@ void XRServer :: GreedyControl()  //sampling Loads fully randomly
 	
 	
 };
-*/
+
+/*
 void XRServer :: GreedyControl()  //sampling only "neighbouring" loads 
 {
 	//1) Update rewards based on collected previous metrics from last 'cycle'
@@ -839,10 +840,7 @@ void XRServer :: GreedyControl()  //sampling only "neighbouring" loads
 		next_action_MAB = (index_prev_load - 1) + Random(3); //Choose among the neigbouring of the past action
 		
 		next_action_MAB = MIN(MAX(0, next_action_MAB), N_ACTIONS_MAB - 1);
-		/*
-		//If action = 0: increase. 	
-		if a == 1: KEEP load, 
-		if a == 2: Decrease Load */
+	
 	}
 	else
 	{
@@ -898,6 +896,7 @@ void XRServer :: GreedyControl()  //sampling only "neighbouring" loads
 	//update ε
 	epsilon_greedy_decreasing = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
 };
+*/
 
 void XRServer :: Softmax_Control()  //Using softmax in exploration
 {
@@ -1177,34 +1176,10 @@ void XRServer :: QLearning()
 		double r = past_action_delayed_reward[1]; 
 		
 		printf("[DBGG QLEARN] state_q(%d), next_action = %d, R = %f, next_state = %d\n", state_q, next_action, r, next_state);
-	// Update the Q-value for the current state-action pair:			
-		update(state_q, next_action, r, next_state);
-
-	// Update the current state for next pass of the algorithm
-		current_action = next_action;
-		current_state = next_state; //
-		state_q = next_state; 			// WARNING CHECK AND TEST THIS
-		printf("next state: %d", next_state);	
-	
-		printf("\n\t[DBG REWARD] Past action %d got reward of %.3f", current_action, r); 
-	}
-
-	past_load = Load; 
-
-	if(Random()<= epsilon_greedy_decreasing_qlearn) //TODO: ADD linear decreasing epsilon BASED ON KNOWLEDGE/BELIEF (OF CURRENT STATE? ) 
-	{	// Explore
-		printf("***************** EXPLORE Q **************************** %f\n", SimTime());
-		next_action = Random(3);
-		printf("[NEXTNEXTNEXTACTION] = %d\n", next_action);
-	} 	
-	else
-	{
-		printf("***************** EXPLOIT Q**************************** %f\n", SimTime());
-
-		// Choose the action with the highest Q-value
-		for (int a = 0; a < ACTION_SIZE; a++)
-		{
-			next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action; //argmax of Q_matrix
+	// Update the Q-value for the current state-action pair:			if(ratio_RTT < 0.04) 
+			{reward_RTT = 1;}
+		else if ((0.04 <= ratio_RTT) && (ratio_RTT < 0.08) )
+			{ reward_RTT = -5*ratio_RTT + 1.2 ; }x of Q_matrix
 		}
 		printf("[OPT_ACTION] = %d\n", next_action);
 
@@ -1617,9 +1592,9 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 		else if ((0.6 <= ratio) && (ratio < 0.9)){
 			reward_FL = (4.0/3.0) * ratio - 0.4 ;   //starts at 0.4   ----> DBG: Starts at 0.4, ends at 0.8
-			printf("MEGADEBUG %f ^^^^^^^\n", reward_FL);
+			//printf("MEGADEBUG %f ^^^^^^^\n", reward_FL);
 		}
-		else{reward_FL = 2*ratio - 1; } //ratio greater than 0.9 will get larger rewards closer to one. 
+		else if (ratio>=0.9){reward_FL = 2*ratio - 1; } //ratio greater than 0.9 will get larger rewards closer to one. 
 
 		double ratio_RTT = RTT_interval / generated_video_frames_interval; 
 		
@@ -1631,10 +1606,10 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		else if ((0.08 <= ratio_RTT) && (ratio_RTT < 0.12) )
 			{ reward_RTT = -15*ratio_RTT + 2 ; }
 		else{ //RTT greater than 100ms
-			reward_RTT = -1.111111 - (1.0/3.0) * ratio_RTT; // sigmoid like decrease for values lesser than 300 ms, negative for more 
+			reward_RTT = -1.111111 * ratio_RTT + (1.0/3.0) ; // sigmoid like decrease for values lesser than 300 ms, negative for more 
 		}		
 		#if RW_FL_RTT
-			QoE_metric = (99*(0.6*reward_RTT + 0.4 * reward_FL)+ 1*(Load/100E6))/100;	
+			QoE_metric = (99*(0.6*reward_RTT + 0.4 * reward_FL)+ 1*(Load/100E6))/100.0;	
 		#elif RW_FL
 			QoE_metric = (98*(received_video_frames_interval/generated_video_frames_interval)+2*(Load/100E6))/100;	// original reward function
 		#endif
@@ -1699,7 +1674,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v__FM.push_back(feature_map(Load));
 		csv_.v__QoE.push_back(QoE_metric);
 		csv_.v__p_p_f.push_back(NumberPacketsPerFrame);
-		csv_.v__frame_loss.push_back((1-packet_loss_ratio));
+		csv_.v__frame_loss.push_back((1-ratio));
 		csv_.v__k_mowdg.push_back(last_mowdg);
 		csv_.v__threshold.push_back(last_threshold);
 		csv_.v__RTT.push_back(RTT_metric);
@@ -1717,7 +1692,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v__FM.push_back(feature_map(Load));
 		csv_.v__QoE.push_back(QoE_metric);
 		csv_.v__p_p_f.push_back(NumberPacketsPerFrame);
-		csv_.v__frame_loss.push_back((1-packet_loss_ratio));
+		csv_.v__frame_loss.push_back((1-ratio));
 		csv_.v__k_mowdg.push_back(last_mowdg);
 		csv_.v__threshold.push_back(last_threshold);
 		csv_.v__RTT.push_back(RTT_metric);
@@ -1757,12 +1732,12 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
 		csv_.v__current_action.push_back(ucb_struct.current_action);
-		csv_.v__reward.push_back(past_action_delayed_reward[1])); // arbitrary int "2" to get reward not based on state
+		csv_.v__reward.push_back(past_action_delayed_reward[1]); // arbitrary int "2" to get reward not based on state
 		csv_.v__load.push_back(Load);
 		csv_.v__FM.push_back(feature_map(Load));
 		csv_.v__QoE.push_back(QoE_metric);
 		csv_.v__p_p_f.push_back(NumberPacketsPerFrame);
-		csv_.v__frame_loss.push_back((1-packet_loss_ratio));
+		csv_.v__frame_loss.push_back((1-ratio));
 		csv_.v__k_mowdg.push_back(last_mowdg);
 		csv_.v__threshold.push_back(last_threshold);
 		csv_.v__RTT.push_back(RTT_metric);
@@ -1775,12 +1750,12 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
 		csv_.v__current_action.push_back(current_action);
-		csv_.v__reward.push_back(past_action_delayed_reward[1])); // arbitrary int "2" to get reward not based on state
+		csv_.v__reward.push_back(past_action_delayed_reward[1]); // arbitrary int "2" to get reward not based on state
 		csv_.v__load.push_back(Load);
 		csv_.v__FM.push_back(feature_map(Load));
 		csv_.v__QoE.push_back(QoE_metric);
 		csv_.v__p_p_f.push_back(NumberPacketsPerFrame);
-		csv_.v__frame_loss.push_back((1-packet_loss_ratio));
+		csv_.v__frame_loss.push_back((1-ratio));
 		csv_.v__k_mowdg.push_back(last_mowdg);
 		csv_.v__threshold.push_back(last_threshold);
 		csv_.v__RTT.push_back(RTT_metric);
@@ -1789,7 +1764,21 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 	#elif CTL_SOFTMAX //TODO
 
+		double t___ = SimTime();
+		csv_.v__SimTime.push_back(t___);
+		csv_.v__current_action.push_back(current_action);
+		csv_.v__reward.push_back(past_action_delayed_reward[1]);
+		csv_.v__load.push_back(Load);
+		csv_.v__FM.push_back(feature_map(Load));
+		csv_.v__QoE.push_back(QoE_metric);
+		csv_.v__p_p_f.push_back(NumberPacketsPerFrame);
+		csv_.v__frame_loss.push_back((1-ratio));
+		csv_.v__k_mowdg.push_back(last_mowdg);
+		csv_.v__threshold.push_back(last_threshold);
+		csv_.v__RTT.push_back(RTT_metric);
+		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
 
+		csv_.v_CUM_rw.push_back(CUMulative_reward);
 
 	#endif
 
