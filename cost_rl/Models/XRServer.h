@@ -46,11 +46,12 @@ using namespace std;
 
 //all zeros for vanilla, either way select the one as a 1. 
 #define CTL_GREEDY_MAB 		0
+#define CTL_GREEDY_MABN		1
 #define CTL_THOMPSON 		0
 #define CTL_THOMPSON_BETA	0
 #define CTL_UCB 	 		0
 #define CTL_Q_ONLINE   	 	0
-#define CTL_SOFTMAX         1
+#define CTL_SOFTMAX         0
 #define CTL_SARSA			0 
 
 
@@ -92,6 +93,7 @@ component XRServer : public TypeII
 		int overuse_detector(double mowdg, double threshold); //function to detect if mowdg is within limits of threshold. 
 		
 		void GreedyControl();
+		void GreedyControl_N();
 		void QLearning();
 		void SARSA(); 
 		void ThompsonSampling(); 
@@ -353,7 +355,7 @@ void XRServer :: Start()
 	epsilon_greedy_decreasing_qlearn = 0.25; 
 	passes = 0; 
 
-	#if CTL_GREEDY_MAB == 1
+	#if CTL_GREEDY_MAB == 1 || CTL_GREEDY_MABN
 		printf("Initializing rewards of MAB:\n");
 		epsilon_greedy_decreasing = 0.25; 
 
@@ -363,6 +365,7 @@ void XRServer :: Start()
 			printf("%d: %f \n", r, MAB_rewards_greedy[r]);      
 
 		}
+
 	#elif CTL_Q_ONLINE == 1 
 
 		printf("Initializing rewards of Q-learner:\n");
@@ -491,7 +494,9 @@ void XRServer :: Stop()
     std::string s_seed = stream.str();
 	
 	#if CTL_GREEDY_MAB ==1
-		std::string greedyornot = "MAB-";
+		std::string greedyornot = "MAB";
+	#elif CTL_GREEDY_MABN==1
+		std::string greedyornot = "MABN";
 	#elif CTL_Q_ONLINE == 1
 		int nei; 
 		if (MARKOV_CHAIN_N1){ nei = 1; }
@@ -534,7 +539,7 @@ void XRServer :: Stop()
 		//add all metrics to csv output
 	}
 	file.close();
-	#if CTL_GREEDY_MAB ==1
+	#if CTL_GREEDY_MAB ==1 || CTL_GREEDY_MABN == 1
 		printf("MAB_REWARDS\n");
 		for (int jk = 0;  jk < 10; jk++){
 			printf("%d: %f\n", jk, MAB_rewards_greedy[jk]); 
@@ -815,8 +820,8 @@ void XRServer :: GreedyControl()  //sampling Loads fully randomly
 	
 };
 
-/*
-void XRServer :: GreedyControl()  //sampling only "neighbouring" loads 
+
+void XRServer :: GreedyControl_N()  //sampling only "neighbouring" loads 
 {
 	//1) Update rewards based on collected previous metrics from last 'cycle'
 	if (passes == 1) {
@@ -896,7 +901,7 @@ void XRServer :: GreedyControl()  //sampling only "neighbouring" loads
 	//update ε
 	epsilon_greedy_decreasing = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
 };
-*/
+
 
 void XRServer :: Softmax_Control()  //Using softmax in exploration
 {
@@ -1648,6 +1653,8 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		UpperConfidenceBounds(); 
 	#elif CTL_GREEDY_MAB == 1
 		GreedyControl();
+	#elif CTL_GREEDY_MABN ==1
+		GreedyControl_N();
 	#elif CTL_SOFTMAX == 1
 		Softmax_Control(); 
 	#elif CTL_Q_ONLINE == 1 
@@ -1665,7 +1672,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 //// 3: Next Action EXECUTED, store RESULTS in CSV 
 
-	#if CTL_GREEDY_MAB == 1 //if MAB approach
+	#if CTL_GREEDY_MAB == 1 || CTL_GREEDY_MABN //if egreedy approach
 		double t___ = SimTime();
 		csv_.v__SimTime.push_back(t___);
 		csv_.v__current_action.push_back(current_action);
