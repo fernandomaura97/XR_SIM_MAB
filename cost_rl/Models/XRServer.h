@@ -24,7 +24,7 @@ using namespace std;
 #define ADAPTIVE_HEUR 	0 		//set to 1 for heuristic adaptive control
 
 #define MARKOV_CHAIN_N1		0 // markov model for Q-learning
-#define MARKOV_CHAIN_N2 	
+#define MARKOV_CHAIN_N2 	1
 
 #if MARKOV_CHAIN_N1
 	#define N_ACTIONS_QLEARNING 3
@@ -37,7 +37,7 @@ using namespace std;
 #define INC_CONTROL 	1.01	//how much we increase or decrease our load depending on action chosen, in Q-LEARNING (deprecated currently). 
 #define DEC_CONTROL 	0.99
 
-#define N_STATES 			20 	//for feature map of the "Throughput" state space
+#define N_STATES 			10 	//for feature map of the "Throughput" state space
 #define N_ACTIONS_MAB 		10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 #define N_ACTIONS_THOMPSON 	10 
 #define N_ACTIONS_UCB 		10 
@@ -56,7 +56,7 @@ using namespace std;
 
 
 
-#define TIME_BETWEEN_UPDATES 0.5 //How often the AGENT will choose new ACTION
+//#define TIME_BETWEEN_UPDATES 1 //How often the AGENT will choose new ACTION
 #define TIME_SLIDING_WINDOW  1  //How many packets are temporally taken into account for sliding window. NOW: 1 second
 
 #define TAU_SOFTMAX 10
@@ -67,11 +67,10 @@ using namespace std;
 // Online Q-learning parametres: 
 
 const int ACTION_SIZE= N_ACTIONS_QLEARNING;
-const float ALPHA = 0.2;
-const float GAMMA= 0.9;
+
 //const int STATE_SIZE = 10;
 double QoE_metric; 
-const double alpha_mab = 0.2;
+
 
 static struct QoE_t{
 	double RTT;
@@ -138,7 +137,7 @@ component XRServer : public TypeII
 		int destination_app;
 		double last_frame_generation_time;
 		int rate_control_activated;
-		
+
 		struct input_arg_t {
 			int seed; 
 			double STime;
@@ -146,6 +145,9 @@ component XRServer : public TypeII
 			double XRLoad; 
 			double BGLoad;
 			int BGsources;
+			double alpha ;
+			double gamma; 
+			double T_update; 
 		}st_input_args;
 		//Input params end
 
@@ -248,6 +250,11 @@ component XRServer : public TypeII
 		
 		double av_Load=0;
 		double load_changes = 0;
+
+		double TIME_BETWEEN_UPDATES; 
+		float ALPHA;
+		float GAMMA;
+		double alpha_mab;
 		
 		double MAB_rewards[N_STATES];
 		double MAB_rewards_greedy[N_ACTIONS_MAB];
@@ -345,6 +352,16 @@ void XRServer :: Start()
     printf("fps: %d\n", st_input_args.fps);
     printf("XRLoad: %lf\n", st_input_args.XRLoad);
     printf("BGLoad: %lf\n", st_input_args.BGLoad);
+
+	printf("Gamma: %lf\n", st_input_args.gamma);
+	printf("alpha: %lf\n", st_input_args.alpha);
+	printf("T_update: %lf\n", st_input_args.T_update);
+
+	TIME_BETWEEN_UPDATES = st_input_args.T_update; 
+	ALPHA = st_input_args.alpha;
+	GAMMA= st_input_args.gamma;
+	alpha_mab = st_input_args.alpha;
+
 
 	rx_f_pl = 0;
 	sent_f_pl = 0 ;
@@ -518,12 +535,27 @@ void XRServer :: Stop()
 	#else
 		std::string greedyornot = "OG";
 	#endif
-	std::string filename = greedyornot +"_S" + s_seed +  "_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +"Nbg" +std::to_string((int)st_input_args.BGsources) + ".csv";
+	//std::string filename = greedyornot +"_S" + s_seed +  "_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +"Nbg" +std::to_string((int)st_input_args.BGsources) + ".csv";
+
+
+	char buf[150];
+
+	sprintf(buf, "_a%.2f_g%.2f_Tu%.2f", st_input_args.alpha, st_input_args.gamma, st_input_args.T_update);
+	std::string buf2str(buf);
+
+	std::string filename = greedyornot +"_S" + s_seed +  "_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +"Nbg" +std::to_string((int)st_input_args.BGsources) + buf2str +
+	".csv";
+
+
 
 	//1std::string filename = "Res_T"+std::to_string((int)st_input_args.STime)+"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+std::to_string((int)st_input_args.XRLoad/10E6 )+"_BG"+std::to_string((int)st_input_args.BGLoad/10E6) +".csv";
+	
+	
+	
 	printf("\n\nFILENAME: %s\n",filename.c_str());
 	printf("SEED: %d\n", st_input_args.seed);
-	std::ofstream file("Results/csv/newplots-20_6/" + filename);
+	std::ofstream file("Results/csv/tuning_hyper/" + filename);
+	
 
 	if(!file.is_open()){
 		std::cout<< "failed to open"<< std::endl;
@@ -1257,7 +1289,9 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 	past_load = Load; 
 
 
-	if(Random()<= epsilon_greedy_decreasing_qlearn)     //explorew
+	//if(Random()<= epsilon_greedy_decreasing_qlearn || passes <= 500 )     // TO ENFORCE RANDOM EXPLORATION AT FIRST N ITERATIONS
+
+	if(Random()<= epsilon_greedy_decreasing_qlearn)     // TO ENFORCE RANDOM EXPLORATION AT FIRST N ITERATIONS
 	{	// Explore
 		printf("***************** EXPLORE Q **************************** %.0f  %.3f \n", SimTime(), epsilon_greedy_decreasing_qlearn);
 		

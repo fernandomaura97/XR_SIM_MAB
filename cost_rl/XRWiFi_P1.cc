@@ -44,9 +44,12 @@ struct input_arg_t { 			//struct for passing input args to server:
 			double XRLoad; 
 			double BGLoad;
 			int BGsources;
-			
+			double alpha ;
+			double gamma; 
+			double T_update; 
 		}st_input_args;
 component XRWiFisim : public CostSimEng
+
 {
 	public:
 		void Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, double BGLoad, int LBG, int BG_mode,int x, int RCA, input_arg_t st);
@@ -109,7 +112,10 @@ void XRWiFisim :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, doubl
 		XRs[n].st_input_args.XRLoad = st_input_args.XRLoad;
 		XRs[n].st_input_args.seed = st_input_args.seed;
 		XRs[n].st_input_args.BGsources = st_input_args.BGsources;
-		
+		XRs[n].st_input_args.alpha = st_input_args.alpha;
+		XRs[n].st_input_args.gamma = st_input_args.gamma;
+		XRs[n].st_input_args.T_update = st_input_args.T_update;
+	
 	}
 
 	XRc.SetSize(NXR);
@@ -362,44 +368,6 @@ void XRWiFisim:: Stop()
 	fclose(XRWiFisim1_results);
 	printf("RSSIs: %f %f %f\n",RSSI[0],RSSI[1],RSSI[2]);
 
-
-
-	/* TEST AREA */
-	
-
-
-	//TODO: CSV OUTPUT
-	/*
-	std::ofstream file("fersim/vectors.csv", std::ios_base::app);
-	// std::ofstream file("fersim/vectors.csv");
-
-	if(!file.is_open()){
-		std::cout<< "failed to open"<< std::endl;
-	}
-
-	file << "Load, FPS, Packet Delay(avg) , Packet Delay(99%), Frame Delay (avg), Frame Delay (99%), Frames received[%]"<< std::endl;
-	// for(double i = 0; i < 5; i++) //every vector SHOULD be same size
-	// {
-	file << XRLOAD << "," <<  FPS << "," << XRc[0].csv_fer.mean_packet_delay_ << ","<< XRc[0].csv_fer.packet_delay_99_ << ","<< XRc[0].csv_fer.mean_frame_delay_ << "," << XRc[0].csv_fer.frame_perc_99_ <<"," <<  100*(XRc[0].csv_fer.ratio_frames_) << std::endl; 
-		
-	// }
-	file.close();
- 
-	*/
-	
-	
-	
-	
-	//TEST AREA END
-
-
-
-	/*
-	FILE *XRWiFisim1_results;
-	XRWiFisim1_results = fopen("Results/XRWiFisim1_results.txt","at");
-	fprintf(XRWiFisim1_results,"%f %f %f %f\n",RSSI[0],AP[0].queueing_service_delay/AP[0].successful,XRs[0].avRTT/XRs[0].received_packets,AP[0].blocking_prob/AP[0].arrived);
-	fclose(XRWiFisim1_results);
-	*/
 };
 
 // ---------------------------------------
@@ -421,6 +389,11 @@ int main(int argc, char *argv[])
 	int LBG = atoi(argv[9]);
 	int BG_mode = atoi(argv[10]);
 	int RCA = atoi(argv[11]);
+	double alpha_ = atof(argv[12]);
+	double gamma_ = atof(argv[13]);
+	double T_update = atof(argv[14]);
+
+
 
 	//add parameters to struct to pass it to server, then make custom TRACKABLE csv's for each SEPARATE	sim
 	st_input_args.STime = STime;
@@ -429,6 +402,9 @@ int main(int argc, char *argv[])
 	st_input_args.XRLoad = XRLoad;
 	st_input_args.seed = seed; 
 	st_input_args.BGsources = NBG; 
+	st_input_args.alpha = alpha_;
+	st_input_args.gamma = gamma_; 
+	st_input_args.T_update = T_update; 
 
 
 
