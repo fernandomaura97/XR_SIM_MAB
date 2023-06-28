@@ -23,8 +23,8 @@ using namespace std;
 
 #define ADAPTIVE_HEUR 	0 		//set to 1 for heuristic adaptive control
 
-#define MARKOV_CHAIN_N1		0 // markov model for Q-learning
-#define MARKOV_CHAIN_N2 	1
+#define MARKOV_CHAIN_N1		1 // markov model for Q-learning
+#define MARKOV_CHAIN_N2 	0
 
 #if MARKOV_CHAIN_N1
 	#define N_ACTIONS_QLEARNING 3
@@ -1254,7 +1254,8 @@ void XRServer :: update( int state, int action, double reward, int next_state) {
     //double next_max = *max_element(Q[next_state].begin(), Q[next_state].end());
 	double next_max = *max_element(std::begin(Q_matrix[next_state]),  std::end(Q_matrix[next_state]));
     double new_value = (1 - ALPHA) * old_value + ALPHA * (reward + GAMMA * next_max);
-	//printf("[DBG Q update]  Old value: %.2f, new_value: %.2f, NEXTMAX: %f\n", old_value, new_value, next_max);
+	printf("[DBG Q update]  Q_new = (1 - %f)* %.2f + %.2f * (%.2f + %.2f * %.2f) == %.3f \n", ALPHA, old_value, ALPHA, reward, GAMMA, next_max, new_value);
+
 	//printf("[MORE DBG] State is: %d, Q_values are: \n", state);
 	/*for (int i = 0; i < N_ACTIONS_QLEARNING; i++)
 	{
