@@ -24,7 +24,7 @@ using namespace std;
 #define ADAPTIVE_HEUR 	0 		//set to 1 for heuristic adaptive control
 
 #define MARKOV_CHAIN_N1		0 // markov model for Q-learning
-#define MARKOV_CHAIN_N2 	1
+#define MARKOV_CHAIN_N2 	
 
 #if MARKOV_CHAIN_N1
 	#define N_ACTIONS_QLEARNING 3
@@ -37,7 +37,7 @@ using namespace std;
 #define INC_CONTROL 	1.01	//how much we increase or decrease our load depending on action chosen, in Q-LEARNING (deprecated currently). 
 #define DEC_CONTROL 	0.99
 
-#define N_STATES 			10 	//for feature map of the "Throughput" state space
+#define N_STATES 			20 	//for feature map of the "Throughput" state space
 #define N_ACTIONS_MAB 		10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 #define N_ACTIONS_THOMPSON 	10 
 #define N_ACTIONS_UCB 		10 
@@ -46,17 +46,17 @@ using namespace std;
 
 //all zeros for vanilla, either way select the one as a 1. 
 #define CTL_GREEDY_MAB 		0
-#define CTL_GREEDY_MABN		1
+#define CTL_GREEDY_MABN		0
 #define CTL_THOMPSON 		0
 #define CTL_THOMPSON_BETA	0
 #define CTL_UCB 	 		0
-#define CTL_Q_ONLINE   	 	0
+#define CTL_Q_ONLINE   	 	1
 #define CTL_SOFTMAX         0
 #define CTL_SARSA			0 
 
 
 
-#define TIME_BETWEEN_UPDATES 1 //How often the AGENT will choose new ACTION
+#define TIME_BETWEEN_UPDATES 0.5 //How often the AGENT will choose new ACTION
 #define TIME_SLIDING_WINDOW  1  //How many packets are temporally taken into account for sliding window. NOW: 1 second
 
 #define TAU_SOFTMAX 10
@@ -375,7 +375,7 @@ void XRServer :: Start()
 			printf("S%d\t", r);
 			for (int h = 0; h<N_ACTIONS_QLEARNING; h++)
 			{	
-				Q_matrix[r][h]=100.0;
+				Q_matrix[r][h]=0.0;
 				printf("%.2f ",Q_matrix[r][h]);
 			}
 			printf("\n");
@@ -1257,9 +1257,7 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 	past_load = Load; 
 
 
-//////////////////////////////////////////// TEST BEGIN ///////////////////////////////////
-
-	if(Random()<= epsilon_greedy_decreasing_qlearn) //TODO: ADD linear decreasing epsilon BASED ON KNOWLEDGE/BELIEF (OF CURRENT STATE? ) 
+	if(Random()<= epsilon_greedy_decreasing_qlearn)     //explorew
 	{	// Explore
 		printf("***************** EXPLORE Q **************************** %.0f  %.3f \n", SimTime(), epsilon_greedy_decreasing_qlearn);
 		
@@ -1322,11 +1320,10 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 
 		#if MARKOV_CHAIN_N1
 			if(state_q == 0){
-				next_action = Random(2) + 1; // only 1 or 2 (keep or increase)
+				next_action = MAX( next_action, 1); // only 1 or 2 (keep or increase)
 			}
-			else if (state_q == 19){
-				next_action = Random(2); // only 0, or 1 (decrease, keep) 
-
+			else if (state_q == N_STATES - 1){
+				next_action = MIN( next_action, 1); // only 0, or 1 (decrease, keep) 
 			}
 		#elif MARKOV_CHAIN_N2
 		//just making sure next action doesn't cause to get out of bounds"
@@ -1592,6 +1589,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		*/
 
 		// lin exp 
+		if(ratio>1) {ratio = 1;}
 
 		if(ratio < 0.6){ reward_FL = (2.0/3.0) * ratio;  } 
 
@@ -1786,6 +1784,24 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
 
 		csv_.v_CUM_rw.push_back(CUMulative_reward);
+
+	#else //vanilla case
+
+	double t___ = SimTime();
+	csv_.v__SimTime.push_back(t___);
+	csv_.v__current_action.push_back(current_action);
+	csv_.v__reward.push_back(past_action_delayed_reward[1]);
+	csv_.v__load.push_back(Load);
+	csv_.v__FM.push_back(feature_map(Load));
+	csv_.v__QoE.push_back(QoE_metric);
+	csv_.v__p_p_f.push_back(NumberPacketsPerFrame);
+	csv_.v__frame_loss.push_back((1-ratio));
+	csv_.v__k_mowdg.push_back(last_mowdg);
+	csv_.v__threshold.push_back(last_threshold);
+	csv_.v__RTT.push_back(RTT_metric);
+	csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
+
+	csv_.v_CUM_rw.push_back(CUMulative_reward);
 
 	#endif
 
