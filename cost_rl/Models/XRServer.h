@@ -23,8 +23,8 @@ using namespace std;
 
 #define ADAPTIVE_HEUR 	0 		//set to 1 for heuristic adaptive control
 
-#define MARKOV_CHAIN_N1		0 // markov model for Q-learning
-#define MARKOV_CHAIN_N2 	1
+#define MARKOV_CHAIN_N1		1 // markov model for Q-learning
+#define MARKOV_CHAIN_N2 	0
 
 #if MARKOV_CHAIN_N1
 	#define N_ACTIONS_QLEARNING 3
@@ -37,7 +37,7 @@ using namespace std;
 #define INC_CONTROL 	1.01	//how much we increase or decrease our load depending on action chosen, in Q-LEARNING (deprecated currently). 
 #define DEC_CONTROL 	0.99
 
-#define N_STATES 			50 	//for feature map of the "Throughput" state space
+#define N_STATES 			10 	//for feature map of the "Throughput" state space
 #define N_ACTIONS_MAB 		10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 #define N_ACTIONS_THOMPSON 	10 
 #define N_ACTIONS_UCB 		10 
@@ -392,7 +392,7 @@ void XRServer :: Start()
 			printf("S%d\t", r);
 			for (int h = 0; h<N_ACTIONS_QLEARNING; h++)
 			{	
-				Q_matrix[r][h]=0.0;
+				Q_matrix[r][h]=1.0;
 				printf("%.2f ",Q_matrix[r][h]);
 			}
 			printf("\n");
@@ -492,9 +492,8 @@ void XRServer :: Stop()
 	
 	printf("\n\nFILENAME: %s\n",filename.c_str());
 	printf("SEED: %d\n", st_input_args.seed);
-	std::ofstream file("Results/csv/tuning_hyper/" + filename);
+	std::ofstream file("Results/csv/TUNING_MAX/" + filename);
 	
-
 	if(!file.is_open()){
 		std::cout<< "failed to open"<< std::endl;
 	}
@@ -1509,17 +1508,22 @@ void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS
 	{
 		printf("***************** EXPLOIT Q**************************** %.0f %.3f \n", SimTime(), epsilon_greedy_decreasing_qlearn);
 
+		int next_action_i = 0; // Initialize next_action with the first action
+		for (int a = 1; a < N_ACTIONS_QLEARNING; a++)
+		{
+			if (Q_matrix[state_q][a] > Q_matrix[state_q][next_action])
+			{
+				next_action_i = a; // Update next_action when a higher Q-value is found
+			}
+		}
+		next_action = next_action_i; 
+		/*
 		// Choose the action with the highest Q-value given current state State_q
 		for (int a = 0; a < N_ACTIONS_QLEARNING; a++)
 		{
 			next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action; //argmax of Q_matrix
 		}
-
-		for (int a = 0; a < N_ACTIONS_QLEARNING; a++)
-		{
-			if(Q_matrix[state_q][a] == 0 ) {next_action = Random(N_ACTIONS_QLEARNING);} // looks bad to do two fors, but it's needed in this order
-		}
-		
+		*/
 
 		#if MARKOV_CHAIN_N1
 			if(state_q == 0){
