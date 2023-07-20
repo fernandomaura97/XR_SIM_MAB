@@ -100,7 +100,7 @@ component XRServer : public TypeII
 		void ThompsonSampling_beta(); 
 		void UpperConfidenceBounds(); 
 		void Softmax_Control(); 
-		double HeuristicControl(double current_load, double observedFrameRatio, double observedRTT);
+		void HeuristicControl(double current_load, double observedFrameRatio, double observedRTT);
 
 		void update( int state, int action, double reward, int next_state);
 
@@ -1737,7 +1737,7 @@ void XRServer :: SARSA() //TESTING: WITH DETERMINISTIC TRANSITIONS
 
 
 
-double XRServer :: HeuristicControl(double current_load, double observedFrameRatio, double observedRTT)
+void XRServer :: HeuristicControl(double current_load, double observedFrameRatio, double observedRTT)
 {
 	db_FrameRatio[times_executed]=observedFrameRatio;
 	db_RTT[times_executed]=observedRTT;
@@ -1780,7 +1780,7 @@ double XRServer :: HeuristicControl(double current_load, double observedFrameRat
 	printf("Adaptive Load component : New Load = %f\n",new_load);
 	printf("-------------------------------------------------------------------------------------------\n");
 
-	return(new_load);
+	Load = new_load; 
 
 };
 
