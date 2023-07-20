@@ -23,8 +23,8 @@ using namespace std;
 
 #define ADAPTIVE_HEUR 	0 		//set to 1 for heuristic adaptive control
 
-#define MARKOV_CHAIN_N1		1 // markov model for Q-learning
-#define MARKOV_CHAIN_N2 	0
+#define MARKOV_CHAIN_N1		0 // markov model for Q-learning
+#define MARKOV_CHAIN_N2 	1
 
 #if MARKOV_CHAIN_N1
 	#define N_ACTIONS_QLEARNING 3
@@ -37,7 +37,7 @@ using namespace std;
 #define INC_CONTROL 	1.01	//how much we increase or decrease our load depending on action chosen, in Q-LEARNING (deprecated currently). 
 #define DEC_CONTROL 	0.99
 
-#define N_STATES 			10 	//for feature map of the "Throughput" state space
+#define N_STATES 			40 	//for feature map of the "Throughput" state space
 #define N_ACTIONS_MAB 		10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 #define N_ACTIONS_THOMPSON 	10 
 #define N_ACTIONS_UCB 		10 
@@ -50,9 +50,10 @@ using namespace std;
 #define CTL_THOMPSON 		0
 #define CTL_THOMPSON_BETA	0
 #define CTL_UCB 	 		0
-#define CTL_Q_ONLINE   	 	1
+#define CTL_Q_ONLINE   	 	0
 #define CTL_SOFTMAX         0
 #define CTL_SARSA			0 
+#define CTL_HEURISTIC		1
 
 
 
@@ -99,7 +100,8 @@ component XRServer : public TypeII
 		void ThompsonSampling_beta(); 
 		void UpperConfidenceBounds(); 
 		void Softmax_Control(); 
-		
+		double HeuristicControl(double current_load, double observedFrameRatio, double observedRTT);
+
 		void update( int state, int action, double reward, int next_state);
 
 		int feature_map(double Load);
@@ -227,6 +229,24 @@ component XRServer : public TypeII
 
 		double sequence_frame_counter; //useful for keeping track of frameloss 
 		double sequence_packet_counter; // TODO: Compute packet loss with this
+		
+		#if CTL_HEURISTIC
+		double number_load_changes=0;
+		double avLoad=0;
+		double avFrameRatio=0;
+		long times_executed=0;
+		double db_FrameRatio[10000]={0};
+		double db_RTT[10000]={0};
+
+	 	std::vector<double> ratioFrames_cdf;
+		std::vector<double> RTT_cdf;
+		
+	
+		#endif
+
+
+
+
 		//////////////////////////////////////////////////////////////////////////////
 	
 	private:
@@ -470,6 +490,8 @@ void XRServer :: Stop()
 		std::string greedyornot = "SOFT";
 	#elif CTL_UCB == 1
 		std::string greedyornot = "UCB";
+	#elif CTL_HEURISTIC 
+		std::string greedyornot = "HEUR"; 
 	#else
 		std::string greedyornot = "OG";
 	#endif
@@ -588,6 +610,54 @@ void XRServer :: Stop()
 			}
 		// 
 		outfile.close();
+	
+	#elif CTL_HEURISTIC 
+
+
+	printf("############## Load Adaptive Results ##############\n");
+	printf("Average Load = %f | Freq. Load changes = %f (changes/second) \n",avLoad/times_executed,number_load_changes/SimTime());
+	printf("Average Delivered Video Frames Ratio = %f | Av. RTT = %f\n",avFrameRatio/times_executed,avRTT/times_executed);
+
+	//for(int i=0;i<10;i++) printf("%f | ",db_FrameRatio[i]);
+	//printf("\n");
+
+	
+	if(RTT_cdf.size()>0)
+	{
+	std::sort(RTT_cdf.begin(),RTT_cdf.end()); // sort dels valors en el vector
+	double avg = std::accumulate(RTT_cdf.begin(),RTT_cdf.end(),0.0)/(double)RTT_cdf.size(); // mitjana per si la voleu, cal #include <numeric>
+
+	// els percentils que volgueu, aquí teniu 1,50,95, 99,  99.9999 i 100
+	double perc_1 = RTT_cdf[ceil(0.01*RTT_cdf.size()-1)]; 
+	double perc_50 = RTT_cdf[ceil(0.50*RTT_cdf.size()-1)];
+	double perc_95 = RTT_cdf[ceil(0.95*RTT_cdf.size()-1)];
+	double perc_99 = RTT_cdf[ceil(0.99*RTT_cdf.size()-1)];
+	double perc_999999 = RTT_cdf[ceil(0.999999*RTT_cdf.size()-1)];
+	double perc_100 = RTT_cdf[(RTT_cdf.size()-1)];
+
+	printf("Ovserved RTT values --------------------------------------------------------\n");
+	printf(" 1%%-tile:  median:  avg:  95%%-tile:  99%%-tile: 99.9999%%-tile: max: %f %f %f %f %f %f %f\n",perc_1,perc_50,avg,perc_95,perc_99,perc_999999,perc_100);
+	}
+
+	if(ratioFrames_cdf.size()>0)
+	{
+	std::sort(ratioFrames_cdf.begin(),ratioFrames_cdf.end()); // sort dels valors en el vector
+	double avgr = std::accumulate(ratioFrames_cdf.begin(),ratioFrames_cdf.end(),0.0)/(double)ratioFrames_cdf.size(); // mitjana per si la voleu, cal #include <numeric>
+
+	// els percentils que volgueu, aquí teniu 1,50,95, 99,  99.9999 i 100
+	double perc_1r = ratioFrames_cdf[ceil(0.01*ratioFrames_cdf.size()-1)]; 
+	double perc_50r = ratioFrames_cdf[ceil(0.50*ratioFrames_cdf.size()-1)];
+	double perc_95r = ratioFrames_cdf[ceil(0.95*ratioFrames_cdf.size()-1)];
+	double perc_99r = ratioFrames_cdf[ceil(0.99*ratioFrames_cdf.size()-1)];
+	double perc_999999r = ratioFrames_cdf[ceil(0.999999*ratioFrames_cdf.size()-1)];
+	double perc_100r = ratioFrames_cdf[(ratioFrames_cdf.size()-1)];
+
+	printf("Ratio between Rx / Tx video frames --------------------------------------------------------\n");
+	printf(" 1%%-tile:  median:  avg:  95%%-tile:  99%%-tile: 99.9999%%-tile: max: %f %f %f %f %f %f %f\n",perc_1r,perc_50r,avgr,perc_95r,perc_99r,perc_999999r,perc_100r);
+	}
+
+
+
 
 	#endif
 };
@@ -1171,7 +1241,7 @@ void XRServer::UpperConfidenceBounds()
 
 	for (int i = 0; i < N_ACTIONS_UCB; i++) 
 	{
-		double sample = ucb_struct.action_v[i]  +  0.01  * sqrt(( log(ucb_struct.cntr)) / ucb_struct.n_times_selected[i]);
+		double sample = ucb_struct.action_v[i]  + 0.01 * sqrt(( log(ucb_struct.cntr)) / ucb_struct.n_times_selected[i]);
 		ucb_struct.action_confidence[i] = sample; 
 		printf("[DBG_UCB] Confidence over action %d is %.4f\t nº times: %.0f\n", i, sample, ucb_struct.n_times_selected[i] ); 
 	}
@@ -1667,6 +1737,55 @@ void XRServer :: SARSA() //TESTING: WITH DETERMINISTIC TRANSITIONS
 
 
 
+double XRServer :: HeuristicControl(double current_load, double observedFrameRatio, double observedRTT)
+{
+	db_FrameRatio[times_executed]=observedFrameRatio;
+	db_RTT[times_executed]=observedRTT;
+
+	ratioFrames_cdf.push_back(observedFrameRatio);
+	RTT_cdf.push_back(observedRTT);
+
+
+	times_executed++; // number of times we execute the Load Adaptive Algorithm
+
+	double new_load = current_load;
+
+	// ------------------------------------- Adaptive Load Algorithm --------------------------------
+	
+	if(observedFrameRatio < 0.95) // 95 % of frames should be received
+	{
+		// Reduce Load
+		new_load = MAX(10E6,current_load - 10E6);
+
+	}
+	else
+	{
+		if(observedRTT < 0.1) // only increase load if RTT < 100 ms
+		{
+			// Increase Load
+			new_load = MIN(100E6,current_load + 10E6);			
+		}
+	}
+	
+	// -----------------------------------------------------------------------------------------------
+
+
+	if(new_load != current_load) number_load_changes++;
+
+	avLoad +=new_load;
+	avFrameRatio +=observedFrameRatio;
+	avRTT += observedRTT;
+
+	printf("-------------------------------------------------------------------------------------------\n");	
+	printf("Adaptive Load component : New Load = %f\n",new_load);
+	printf("-------------------------------------------------------------------------------------------\n");
+
+	return(new_load);
+
+};
+
+
+
 void XRServer :: AdaptiveVideoControl(trigger_t & t)
 {
 
@@ -1864,6 +1983,9 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		QLearning(); 
 	#elif CTL_SARSA 
 		SARSA(); 
+	#elif CTL_HEURISTIC
+		HeuristicControl(Load, ratio, ratio_RTT);
+			
 	#endif
 
 	if(abs(Load - past_load)>= 1E6){
@@ -2014,7 +2136,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 	// Heuristic adaptive bitrate control (to try out)
 	#if ADAPTIVE_HEUR==1
-  /*
+  
        if(traces_on_server) 
        printf("%f - XR server %d : Rate Control ------------------- with Losses = %f | RTT = %f\n",SimTime(),id,avRxFrames/generated_video_frames,controlRTT);
 
@@ -2084,7 +2206,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
        if(traces_on_serv) printf("%f - XR server %d : Time to check fps | New Load = %f (%f - %f - %f) | Losses = %f \n",SimTime(),id,new_load,(double) 1/fps,controlRTT,test_average_delay_decision[id],(test_frames_received[id]/generated_video_frames));
 
 
-      */
+
 	#endif
 };
 
@@ -2241,3 +2363,4 @@ double sampleFromBeta(double alpha, double beta) {
 
 
 #endif
+
