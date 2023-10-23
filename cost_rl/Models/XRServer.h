@@ -38,9 +38,9 @@ using namespace std;
 #define DEC_CONTROL 	0.99
 
 #define N_STATES 			40 	//for feature map of the "Throughput" state space
-#define N_ACTIONS_MAB 		10		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
-#define N_ACTIONS_THOMPSON 	10 
-#define N_ACTIONS_UCB 		10 
+#define N_ACTIONS_MAB 		40		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
+#define N_ACTIONS_THOMPSON 	40 
+#define N_ACTIONS_UCB 		40 
 
 /* ##############################           AGENT TYPE             #####################################*/
 
@@ -49,11 +49,11 @@ using namespace std;
 #define CTL_GREEDY_MABN		0
 #define CTL_THOMPSON 		0
 #define CTL_THOMPSON_BETA	0
-#define CTL_UCB 	 		0
+#define CTL_UCB 	 		1
 #define CTL_Q_ONLINE   	 	0
 #define CTL_SOFTMAX         0
 #define CTL_SARSA			0 
-#define CTL_HEURISTIC		1
+#define CTL_HEURISTIC		0
 
 
 
@@ -67,7 +67,7 @@ using namespace std;
 
 // Online Q-learning parametres: 
 
-const int ACTION_SIZE= N_ACTIONS_QLEARNING;
+const int ACTION_SIZE = N_ACTIONS_QLEARNING;
 
 //const int STATE_SIZE = 10;
 double QoE_metric; 
@@ -230,7 +230,6 @@ component XRServer : public TypeII
 		double sequence_frame_counter; //useful for keeping track of frameloss 
 		double sequence_packet_counter; // TODO: Compute packet loss with this
 		
-		#if CTL_HEURISTIC
 		double number_load_changes=0;
 		double avLoad=0;
 		double avFrameRatio=0;
@@ -241,11 +240,6 @@ component XRServer : public TypeII
 	 	std::vector<double> ratioFrames_cdf;
 		std::vector<double> RTT_cdf;
 		
-	
-		#endif
-
-
-
 
 		//////////////////////////////////////////////////////////////////////////////
 	
@@ -514,7 +508,7 @@ void XRServer :: Stop()
 	
 	printf("\n\nFILENAME: %s\n",filename.c_str());
 	printf("SEED: %d\n", st_input_args.seed);
-	std::ofstream file("Results/csv/TUNING_MAX/" + filename);
+	std::ofstream file("Results/Model_optimal_g0.9/" + filename);
 	
 	if(!file.is_open()){
 		std::cout<< "failed to open"<< std::endl;
@@ -1241,7 +1235,7 @@ void XRServer::UpperConfidenceBounds()
 
 	for (int i = 0; i < N_ACTIONS_UCB; i++) 
 	{
-		double sample = ucb_struct.action_v[i]  + 0.01 * sqrt(( log(ucb_struct.cntr)) / ucb_struct.n_times_selected[i]);
+		double sample = ucb_struct.action_v[i]  + 0.1 * sqrt(( log(ucb_struct.cntr)) / ucb_struct.n_times_selected[i]);
 		ucb_struct.action_confidence[i] = sample; 
 		printf("[DBG_UCB] Confidence over action %d is %.4f\t nº times: %.0f\n", i, sample, ucb_struct.n_times_selected[i] ); 
 	}
