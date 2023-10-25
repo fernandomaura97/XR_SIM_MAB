@@ -19,6 +19,16 @@
 #include <cstring> // include the cstring header for memcpy
 #include <bits/stdc++.h>
 
+//#define IGNORE_PRINTF //to ignore output, faster execution!
+
+#ifdef IGNORE_PRINTF
+#define printf(fmt, ...) (0)
+#endif
+
+
+#define OLD_REWARD 1
+//#define NEW_REWARD 1 
+
 using namespace std;
 
 #define ADAPTIVE_HEUR 	0 		//set to 1 for heuristic adaptive control
@@ -38,9 +48,9 @@ using namespace std;
 #define DEC_CONTROL 	0.99
 
 #define N_STATES 			40 	//for feature map of the "Throughput" state space
-#define N_ACTIONS_MAB 		40		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
-#define N_ACTIONS_THOMPSON 	40 
-#define N_ACTIONS_UCB 		40 
+#define N_ACTIONS_MAB 		20		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
+#define N_ACTIONS_THOMPSON 	20 
+#define N_ACTIONS_UCB 		20 
 
 /* ##############################           AGENT TYPE             #####################################*/
 
@@ -49,7 +59,7 @@ using namespace std;
 #define CTL_GREEDY_MABN		0
 #define CTL_THOMPSON 		0
 #define CTL_THOMPSON_BETA	0
-#define CTL_UCB 	 		1
+#define CTL_UCB 	 		0
 #define CTL_Q_ONLINE   	 	0
 #define CTL_SOFTMAX         0
 #define CTL_SARSA			0 
@@ -264,6 +274,7 @@ component XRServer : public TypeII
 		
 		double av_Load=0;
 		double load_changes = 0;
+		bool did_load_change = false; 
 
 		double TIME_BETWEEN_UPDATES; 
 		float ALPHA;
@@ -450,6 +461,10 @@ void XRServer :: Stop()
     stream << std::fixed << std::setprecision(0) << st_input_args.XRLoad/10E6;
     std::string xrl_str = stream.str();
 
+	int xrl = std::stoi(xrl_str);
+	std::string formatted_xrl = xrl < 10 ? "0" + std::to_string(xrl) : std::to_string(xrl);
+
+
     stream.str("");
     stream << std::fixed << std::setprecision(0) << (st_input_args.BGLoad/10E5);
     std::string bgl_str = stream.str();
@@ -497,7 +512,9 @@ void XRServer :: Stop()
 	sprintf(buf, "_a%.2f_g%.2f_Tu%.2f", st_input_args.alpha, st_input_args.gamma, st_input_args.T_update);
 	std::string buf2str(buf);
 
-	std::string filename = greedyornot +"_S" + s_seed +  "_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ xrl_str+"_BG"+ bgl_str +"Nbg" +std::to_string((int)st_input_args.BGsources) + buf2str +
+	
+
+	std::string filename = greedyornot +"_S" + s_seed +  "_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ formatted_xrl +"_BG"+ bgl_str +"Nbg" +std::to_string((int)st_input_args.BGsources) + buf2str +
 	".csv";
 
 
@@ -508,7 +525,7 @@ void XRServer :: Stop()
 	
 	printf("\n\nFILENAME: %s\n",filename.c_str());
 	printf("SEED: %d\n", st_input_args.seed);
-	std::ofstream file("Results/Model_optimal_g0.9/" + filename);
+	std::ofstream file("Results/UCB_beta_0.01/" + filename);
 	
 	if(!file.is_open()){
 		std::cout<< "failed to open"<< std::endl;
@@ -1876,67 +1893,58 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 		
 
-		//FER REWARDS
-		
-		//QoE_metric = 3.01 * exp( -4.473 * ( 1 - QoS_struct.RXframes_ratio )) + 1.065; // metric only taking into account the packet loss ratio
-		//QoE_metric = 3.01 * exp( -4.473 * (0.8 * ( 1 - QoS_struct.RXframes_ratio ) + 0.2 * QoS_struct.RTT)) + 1.065; // metric taking into account the packet loss ratio and minimizing RTT
-		//QoE_metric = 3.01 * exp( -4.473 * (0.8 * (1 - packet_loss_ratio)*10E2 + 0.2*jitter_sum_quadratic)*10E2) + 1.065; // metric with webrtc congestion control added on top of packet loss
-		//printf("IQX based on frameloss_ratio: %.4f\n", QoE_metric ); 
-		
-		//QoE_metric = QoE_metric/4.075 ; // NORMALIZE QOE TO 1
-		
+
+		#if OLD_REWARD
+			double reward_FL;   // a bit of reward shaping here : FrameLoss and RTT shaping
+			double reward_RTT ; 
+
+			
+			if(ratio>1) {ratio = 1;}
+
+			if(ratio < 0.6){ reward_FL = (2.0/3.0) * ratio;  } 
+
+			else if ((0.6 <= ratio) && (ratio < 0.9)){
+				reward_FL = (4.0/3.0) * ratio - 0.4 ;   //starts at 0.4   ----> DBG: Starts at 0.4, ends at 0.8
+				//printf("MEGADEBUG %f ^^^^^^^\n", reward_FL);
+			}
+			else if (ratio>=0.9){reward_FL = 2*ratio - 1; } //ratio greater than 0.9 will get larger rewards closer to one. 
+
+			double ratio_RTT = RTT_interval / generated_video_frames_interval; 
+			
+			if(ratio_RTT < 0.04) 
+				{reward_RTT = 1;}
+			else if ((0.04 <= ratio_RTT) && (ratio_RTT < 0.08) )
+				{ reward_RTT = -5*ratio_RTT + 1.2 ; }
+
+			else if ((0.08 <= ratio_RTT) && (ratio_RTT < 0.12) )
+				{ reward_RTT = -15*ratio_RTT + 2 ; }
+			else{ //RTT greater than 100ms
+				reward_RTT = -1.111111 * ratio_RTT + (1.0/3.0) ; // sigmoid like decrease for values lesser than 300 ms, negative for more 
+			}		
 
 
-		//double QoE_metric2 = 3.01 * exp( -4.473 * (0.33 * packet_loss_ratio + 0.33 * rw_threshold + 0.34 * (1- jitter_sum_quadratic) )) + 1.065; // metric with webrtc congestion control added on top of packet loss + a reward for less jittery outcomes. 
-		
-		//BORIS REWARDS
-		//QoE_metric = ((1/fps)/RTT_metric) *(rw_pl) ;			//metric proposed by boris to leverage different metrics
 
-		
+			#if RW_FL_RTT
+   	 			QoE_metric = (95*(0.7*reward_RTT + 0.3 * reward_FL)+ 5*(Load/100E6))/100.0;	
+			#elif RW_FL
+				QoE_metric = (98*(received_video_frames_interval/generated_video_frames_interval)+2*(Load/100E6))/100;	// original reward function
+			#endif
 
-		double reward_FL;   // a bit of reward shaping here : FrameLoss and RTT shaping
-		double reward_RTT ; 
+			printf("\t\t[DBG_REWARD]QOE normalized: %.3f , Ratio Load/Maxload: %.3f , RW_RTT: %.2f , RW_FL: %.2f \n\n", QoE_metric, Load/MAXLOAD, reward_RTT, reward_FL);
 
-		/*
-		if(ratio < 0.6){ reward_FL = (1 - ratio); } //Bad FL causes negative reward
-		else if ((0.6 <= ratio) && (ratio < 0.9)){
-			reward_FL = ((ratio - 0.6) * 1.666667) ;   //starts at 0, ends at 0.5   ----> DBG: Starts at 0.4, ends at 0.9 
-			printf("MEGADEBUG %f ^^^^^^^\n", reward_FL);
-		}
-		else{reward_FL = ratio; } //ratio greater than 0.9 will get larger rewards close to one. 
-		*/
-
-		// lin exp 
-		if(ratio>1) {ratio = 1;}
-
-		if(ratio < 0.6){ reward_FL = (2.0/3.0) * ratio;  } 
-
-		else if ((0.6 <= ratio) && (ratio < 0.9)){
-			reward_FL = (4.0/3.0) * ratio - 0.4 ;   //starts at 0.4   ----> DBG: Starts at 0.4, ends at 0.8
-			//printf("MEGADEBUG %f ^^^^^^^\n", reward_FL);
-		}
-		else if (ratio>=0.9){reward_FL = 2*ratio - 1; } //ratio greater than 0.9 will get larger rewards closer to one. 
-
-		double ratio_RTT = RTT_interval / generated_video_frames_interval; 
-		
-		if(ratio_RTT < 0.04) 
-			{reward_RTT = 1;}
-		else if ((0.04 <= ratio_RTT) && (ratio_RTT < 0.08) )
-			{ reward_RTT = -5*ratio_RTT + 1.2 ; }
-
-		else if ((0.08 <= ratio_RTT) && (ratio_RTT < 0.12) )
-			{ reward_RTT = -15*ratio_RTT + 2 ; }
-		else{ //RTT greater than 100ms
-			reward_RTT = -1.111111 * ratio_RTT + (1.0/3.0) ; // sigmoid like decrease for values lesser than 300 ms, negative for more 
-		}		
-		#if RW_FL_RTT
-			QoE_metric = (99*(0.6*reward_RTT + 0.4 * reward_FL)+ 1*(Load/100E6))/100.0;	
-		#elif RW_FL
-			QoE_metric = (98*(received_video_frames_interval/generated_video_frames_interval)+2*(Load/100E6))/100;	// original reward function
 		#endif
 
-		printf("\t\t[DBG_REWARD]QOE normalized: %.3f , Ratio Load/Maxload: %.3f , RW_RTT: %.2f , RW_FL: %.2f \n\n", QoE_metric, Load/MAXLOAD, reward_RTT, reward_FL);
-			
+		#if NEW_REWARD
+
+			double lambda_nr = 0.7; 
+			double reward_load = Load/100E6; 
+			double reward_change = 
+
+			//double new_reward = 		//TODO (in TODOLIST!)
+
+		#endif
+
+
 		past_action_delayed_reward[0] = past_action_delayed_reward[1]; //store old reward value, which is used for updates (TODO: MAYBE NOT NEEDED)
 		
 		past_action_delayed_reward[1] = QoE_metric;  //if reward already entails maximizing load!
@@ -1984,7 +1992,9 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 	if(abs(Load - past_load)>= 1E6){
 		load_changes++; //TO COMPUTE load change ratio for each algorithm (prevent excessive switching)
+		did_load_change = true; //for NEW reward fn		
 	}
+	else{did_load_change = false;}
 
 	//printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,past_action_delayed_reward[1],current_action,received_frames_MAB,sent_frames_MAB);
 	//printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
