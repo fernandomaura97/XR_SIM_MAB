@@ -54,7 +54,7 @@ using namespace std;
 
 /* ##############################           AGENT TYPE             #####################################*/
 
-//all zeros for vanilla, either way select the one as a 1. 
+//all zeros for static load, either way select the one as a 1. 
 #define CTL_GREEDY_MAB 		0
 #define CTL_GREEDY_MABN		0
 #define CTL_THOMPSON 		0
@@ -461,10 +461,6 @@ void XRServer :: Stop()
     stream << std::fixed << std::setprecision(0) << st_input_args.XRLoad/10E6;
     std::string xrl_str = stream.str();
 
-	int xrl = std::stoi(xrl_str);
-	std::string formatted_xrl = xrl < 10 ? "0" + std::to_string(xrl) : std::to_string(xrl);
-
-
     stream.str("");
     stream << std::fixed << std::setprecision(0) << (st_input_args.BGLoad/10E5);
     std::string bgl_str = stream.str();
@@ -512,7 +508,9 @@ void XRServer :: Stop()
 	sprintf(buf, "_a%.2f_g%.2f_Tu%.2f", st_input_args.alpha, st_input_args.gamma, st_input_args.T_update);
 	std::string buf2str(buf);
 
-	
+	int xrl = std::stoi(xrl_str);
+	std::string formatted_xrl = xrl < 10 ? "0" + std::to_string(xrl) : std::to_string(xrl);
+
 
 	std::string filename = greedyornot +"_S" + s_seed +  "_T"+ stime +"_FPS"+std::to_string((int)st_input_args.fps) +"_L"+ formatted_xrl +"_BG"+ bgl_str +"Nbg" +std::to_string((int)st_input_args.BGsources) + buf2str +
 	".csv";
@@ -1356,162 +1354,6 @@ void XRServer :: update( int state, int action, double reward, int next_state) {
 };
 
 
-
-/*
-void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS 
-{	
-	if (passes == 1) {
-		printf("First time algorithm has ran: FM of \n\n");
-	}
-	else{
-		//Obtain reward based on QoE_metric performance and update the Q-matrix
-		
-		double r = past_action_delayed_reward[1]; 
-		printf("\n\t[DBG Q-update] s_Q: %d, A: %d, R: %.2f, S_q': %d\n",state_q, next_action, r, next_state ); 
-		update(state_q, next_action, r, next_state);
-
-	// Update the current state for next pass of the algorithm
-		current_action = next_action;
-		current_state = next_state; // current_state was used for previous reward function than current
-		state_q = next_state; 		
-		printf("[DBG REWARD UPDATE] next state: %d", next_state);	
-	
-		printf("\n\t[DBG REWARD Q] Past action %d got reward of %.3f", current_action, r); 
-	}
-
-	past_load = Load; 
-
-
-	//if(Random()<= epsilon_greedy_decreasing_qlearn || passes <= 500 )     // TO ENFORCE RANDOM EXPLORATION AT FIRST N ITERATIONS
-
-	if(Random()<= epsilon_greedy_decreasing_qlearn)     // TO ENFORCE RANDOM EXPLORATION AT FIRST N ITERATIONS
-	{	// Explore
-		printf("***************** EXPLORE Q **************************** %.0f  %.3f \n", SimTime(), epsilon_greedy_decreasing_qlearn);
-		
-		#if MARKOV_CHAIN_N1		
-
-			if(state_q == 0 ){
-				next_action = Random(2) + 1; // if first state, don't decrease
-				printf("/****** STATE 1* na: %d /n", next_action);
-
-			}
-			else if (state_q == (N_STATES - 1)) {
-				next_action = Random(2); //if last state, don't increase ever? 
-				printf("/****** STATE %d* next_a: %d /n",state_q, next_action);
-			}
-			else{next_action = Random(3);}
-
-		#elif MARKOV_CHAIN_N2
-			if(state_q == 1 || state_q == 0 ){  // lower edge of MDP 
-				
-				if (state_q == 1){
-					next_action = Random(4) + 1; // if first state, don't decrease too much
-					printf("[DBG STATE i_1]: ACTION %d \n", next_action);
-				}
-				else if (state_q == 0){ 
-					next_action = Random(3) + 2; 
-					printf("[DBG STATE i_0]: ACTION %d \n", next_action);
-				}
-			}
-			else if (state_q == N_STATES - 1 || state_q == (N_STATES - 2)  ){ // higher edge of MDP 
-				
-				if (state_q == (N_STATES - 1) ) {
-					next_action = Random(3); // no min, max : "keep load"
-					printf("[DBG STATE I_END]: ACTION %d \n", next_action);
-				}
-				else if (state_q == (N_STATES - 2)){
-					next_action = Random(4); // no min,  max: " increase 1"
-					printf("[ DBG STATE I_END - 1]: ACTION %d \n", next_action);
-				} 
-			}
-			else{
-				next_action = Random(N_ACTIONS_QLEARNING);
-				printf("\n");
-			}
-
-	
-		#endif
-
-		printf("[Q_NEXT_ACTION(XPLORE)] = %d\n", next_action);
-	} 	
-	else
-	{
-		printf("***************** EXPLOIT Q**************************** %.0f %.3f \n", SimTime(), epsilon_greedy_decreasing_qlearn);
-
-		// Choose the action with the highest Q-value given current state State_q
-		for (int a = 0; a < N_ACTIONS_QLEARNING; a++)
-		{
-			next_action = Q_matrix[state_q][a] > Q_matrix[state_q][current_action] ? a : current_action; //argmax of Q_matrix
-		}
-		
-
-		#if MARKOV_CHAIN_N1
-			if(state_q == 0){
-				next_action = MAX( next_action, 1); // only 1 or 2 (keep or increase)
-			}
-			else if (state_q == N_STATES - 1){
-				next_action = MIN( next_action, 1); // only 0, or 1 (decrease, keep) 
-			}
-		#elif MARKOV_CHAIN_N2
-		//just making sure next action doesn't cause to get out of bounds"
-			if(state_q == 1 || state_q == 0 ){  // lower edge of MDP 
-				
-				if (state_q == 1){
-					next_action = MAX(1, next_action); 
-					printf("[DBG STATE i_1]: ACTION %d \n", next_action);
-				}
-				else if (state_q == 0){ 
-					next_action = MAX(2, next_action); 
-					printf("[DBG STATE i_0]: ACTION %d \n", next_action);
-				}
-
-			}
-			else if (state_q == N_STATES - 1 || state_q == (N_STATES - 2)  ){ // higher edge of MDP 
-				if (state_q == (N_STATES - 1) ) {
-					next_action = MIN(3, next_action); // no min, max : "keep load"
-					printf("[DBG STATE I_END]: ACTION %d \n", next_action);
-
-				}
-				else if (state_q == (N_STATES - 2)){
-					next_action = MIN(2, next_action); // no min,  max: " increase 1"
-					printf("[ DBG STATE I_END - 1]: ACTION %d \n", next_action);
-
-				} 
-			}
-			else{printf("\n");}
-		#endif
-		printf("[Q_NEXT_ACTION(XPLOIT)] = %d\n", next_action);
-
-	}
-	#if MARKOV_CHAIN_N1
-		Load = MIN(MAX(past_load + (next_action - 1) * MAXLOAD/N_STATES , 10E6), 100E6); 
-	#elif MARKOV_CHAIN_N2
-		Load = MIN(MAX(past_load + (next_action - 2) * MAXLOAD/N_STATES ,  10E6), 100E6);;  
-	#endif
-	
-	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
-	
-	next_state = feature_map(Load); 											//TODO: Try logarithmic state-space
-			
-	//printf("[DBG Q-learn after choice] CURRENT LOAD: %.2f E6; PAST LOAD: %.2f; State_now: %d, Next_state: %d, Q matrix: \n", Load/1E6, past_load, current_state, next_state );
-	
-
-	for (int i = 0; i < N_STATES; i++) {	// Matrix 3 Q_t50
-		if(i == state_q){ printf("*");}
-		printf("(S%d)\t", i);
-
-		for (int j = 0; j < N_ACTIONS_QLEARNING; j++) {
-			
-			printf("%.3f\t", Q_matrix[i][j]);
-		}
-		printf("\n");
-	}
-	epsilon_greedy_decreasing_qlearn = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
-};
-*/
-
-
-
 void XRServer :: QLearning() //TESTING: WITH DETERMINISTIC TRANSITIONS 
 {	
 	if (passes == 1) {
@@ -2231,34 +2073,7 @@ int XRServer::overuse_detector(double mowdg, double threshold)
 	}
 };
 
-/* //ARRAY VERSION
-int* XRServer::feature_map(double Load){
 
-	static int State[21]; 
-	for (int i = 0; i < 21; ++i){ //iterate through state vector
-        
-		if ((Load >= 5E6*(i-1)) && (Load <= (5E6 *i -1))){
-		    printf("load between %f, %f", 5E6*(i-1), (5E6 *i -1));
-			State[i] = 1;
-            }
-	}
-    return State;
-}
-*/
-/*
-int XRServer::feature_map(double Load){
-
-	static int State; 
-	for (int i = 0; i < 21; ++i){ //iterate through whole state vector
-		if ((Load >= 5E6*(i-1)) && (Load <= (5E6 *i -1))){
-		    //printf("load between %f, %f", 5E6*(i-1), (5E6 *i -1));
-			State = i;
-			printf("\t\t\n\nDBG_FEATUREMAP: state is %d\n", State);
-            }
-	}
-    return State;
-};
-*/
 int XRServer::feature_map(double Load){
 
 	static int State; 
@@ -2300,54 +2115,6 @@ double XRServer::reward_f(int state, int next_a){
 	#endif 
 };
 
-/*
-void updateState(int signal) {
-    switch (currentState) {
-        case HOLD:
-            if (signal == underuse_S) {
-                currentState = HOLD;
-            } 
-            else if(signal == normal_S) {
-                currentState = INCR;
-                // remain in current state
-            }
-            else if(signal == overuse_S){
-                currentState = DECR;
-            }
-            else{printf("????????????");}
-            break;
-        case DECR:
-            if (signal == underuse_S) {
-                currentState = HOLD;
-            } 
-            else if(signal == normal_S) {
-                currentState = HOLD;
-                // remain in current state
-            }
-            else if(signal == overuse_S){
-                currentState = DECR;
-            }
-            else{printf("????");}
-            break;
-			
-        case INCR:
-			if (signal == underuse_S) {
-                currentState = HOLD;
-            } 
-            else if(signal == normal_S) {
-                currentState = INCR;
-                // remain in current state
-            }
-            else if(signal == overuse_S){
-                currentState = DECR;
-            }
-            else{
-				printf("?");
-			}
-            break;     
-    }
-};
-*/
 bool compareStructbyNumseq(const sliding_window_t& a, const sliding_window_t& b) {
     return a.num_seq < b.num_seq; // smallest first
 };
