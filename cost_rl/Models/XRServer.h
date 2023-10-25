@@ -19,12 +19,13 @@
 #include <cstring> // include the cstring header for memcpy
 #include <bits/stdc++.h>
 
-//#define IGNORE_PRINTF //to ignore output, faster execution!
+#define IGNORE_PRINTF //to ignore output, faster execution!
 
 #ifdef IGNORE_PRINTF
 #define printf(fmt, ...) (0)
 #endif
 
+#define EPSILON_EGREEDY 0.25
 
 #define OLD_REWARD 1
 //#define NEW_REWARD 1 
@@ -399,9 +400,9 @@ void XRServer :: Start()
 
 	#if CTL_GREEDY_MAB == 1 || CTL_GREEDY_MABN
 		printf("Initializing rewards of MAB:\n");
-		epsilon_greedy_decreasing = 0.25; 
+		epsilon_greedy_decreasing = EPSILON_EGREEDY; 
 
-		for (int r=0;r<N_ACTIONS_MAB;r++)
+		for (int r = 0; r < N_ACTIONS_MAB; r++)
 		{
 			MAB_rewards_greedy[r]=1.0;							
 			printf("%d: %f \n", r, MAB_rewards_greedy[r]);      
@@ -523,7 +524,7 @@ void XRServer :: Stop()
 	
 	printf("\n\nFILENAME: %s\n",filename.c_str());
 	printf("SEED: %d\n", st_input_args.seed);
-	std::ofstream file("Results/UCB_beta_0.01/" + filename);
+	std::ofstream file("Results/aa_Tests_new_reward/" + filename);
 	
 	if(!file.is_open()){
 		std::cout<< "failed to open"<< std::endl;
@@ -888,7 +889,7 @@ void XRServer :: GreedyControl()  //sampling Loads fully randomly
 	{
 		// Explore
 		printf("***************** EXPLORE MAB**************************** eps: %.3f\n", epsilon_greedy_decreasing);
-		next_action_MAB = Random(10); //Choose between 10,20,30,40,50,60,70,80,90 or 100 MBps 
+		next_action_MAB = Random(N_ACTIONS_MAB); //Choose between 10,20,30,40,50,60,70,80,90 or 100 MBps 
 		
 		//If action = 0: increase. 	
 		//if a == 1: KEEP load, 
@@ -916,7 +917,7 @@ void XRServer :: GreedyControl()  //sampling Loads fully randomly
 		next_action_MAB = index_max;
 	}
 
-	Load = (next_action_MAB + 1) * 10E6; 
+	Load = (next_action_MAB + 1) * MAXLOAD/N_ACTIONS_MAB; 
 	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
 
 	printf("%f - Load = %.0fE6 | next_action = %d\n",SimTime(),Load/(1E6),next_action_MAB);
@@ -925,7 +926,7 @@ void XRServer :: GreedyControl()  //sampling Loads fully randomly
 	
 	
 	//update ε
-	epsilon_greedy_decreasing = MAX(0.1, (0.25 - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
+	epsilon_greedy_decreasing = MAX(0.1, (EPSILON_EGREEDY - passes / 20000.0 )) ; //update "epsilon threshold" to decrease exploration linearly after some time, limited at 0.1
 	
 	
 };
