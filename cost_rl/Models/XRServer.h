@@ -19,7 +19,7 @@
 #include <cstring> // include the cstring header for memcpy
 #include <bits/stdc++.h>
 
-#define IGNORE_PRINTF //to ignore output, faster execution!
+//#define IGNORE_PRINTF //to ignore output, faster execution!
 
 #ifdef IGNORE_PRINTF
 #define printf(fmt, ...) (0)
@@ -49,14 +49,14 @@ using namespace std;
 #define DEC_CONTROL 	0.99
 
 #define N_STATES 			40 	//for feature map of the "Throughput" state space
-#define N_ACTIONS_MAB 		20		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
+#define N_ACTIONS_MAB 		40		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 #define N_ACTIONS_THOMPSON 	20 
 #define N_ACTIONS_UCB 		20 
 
 /* ##############################           AGENT TYPE             #####################################*/
 
 //all zeros for static load, either way select the one as a 1. 
-#define CTL_GREEDY_MAB 		0
+#define CTL_GREEDY_MAB 		1
 #define CTL_GREEDY_MABN		0
 #define CTL_THOMPSON 		0
 #define CTL_THOMPSON_BETA	0
