@@ -56,11 +56,11 @@ using namespace std;
 /* ##############################           AGENT TYPE             #####################################*/
 
 //all zeros for static load, either way select the one as a 1. 
-#define CTL_GREEDY_MAB 		0
+#define CTL_GREEDY_MAB 		1
 #define CTL_GREEDY_MABN		0
 #define CTL_THOMPSON 		0
 #define CTL_THOMPSON_BETA	0
-#define CTL_UCB 	 		1
+#define CTL_UCB 	 		0
 #define CTL_Q_ONLINE   	 	0
 #define CTL_SOFTMAX         0
 #define CTL_SARSA			0 
