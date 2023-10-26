@@ -56,11 +56,11 @@ using namespace std;
 /* ##############################           AGENT TYPE             #####################################*/
 
 //all zeros for static load, either way select the one as a 1. 
-#define CTL_GREEDY_MAB 		1
+#define CTL_GREEDY_MAB 		0
 #define CTL_GREEDY_MABN		0
 #define CTL_THOMPSON 		0
 #define CTL_THOMPSON_BETA	0
-#define CTL_UCB 	 		0
+#define CTL_UCB 	 		1
 #define CTL_Q_ONLINE   	 	0
 #define CTL_SOFTMAX         0
 #define CTL_SARSA			0 
@@ -1268,7 +1268,7 @@ void XRServer::UpperConfidenceBounds()
 	ucb_struct.current_action = argmax;
 	ucb_struct.n_times_selected[argmax] ++; 
 
-	Load = (ucb_struct.current_action + 1) * 10E6;
+	Load = (ucb_struct.current_action + 1) * MAXLOAD/N_ACTIONS_UCB;
 
 	printf("UCB: Action taken %d , Load: %.2f MBps,  nº times of action: %.1f\n", argmax, Load/1E6, ucb_struct.n_times_selected[argmax]);
 
