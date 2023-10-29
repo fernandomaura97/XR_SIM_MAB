@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <numeric>
 
-#define Q_NOISE 10E-1 // (can) PLAY WITH THIS PARAMETER, IT'S STATE NOISE (for kalman filter) 
+#define Q_NOISE 10E-5 // (can) PLAY WITH THIS PARAMETER, IT'S STATE NOISE (for kalman filter) 
 
 //#define N_FRAMES_WINDOW 450 //90 FPS --> 5 SECONDS
 #define TIME_SLIDING_WINDOW_CLIENT  1.0  //How many packets are temporally taken into account for sliding window. NOW: 1 second

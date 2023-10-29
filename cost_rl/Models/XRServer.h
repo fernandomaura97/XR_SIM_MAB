@@ -51,12 +51,12 @@ using namespace std;
 #define N_STATES 			40 	//for feature map of the "Throughput" state space
 #define N_ACTIONS_MAB 		40		//For epsilon-greedy MAB approach, where we assume only one state and leverage actions
 #define N_ACTIONS_THOMPSON 	20 
-#define N_ACTIONS_UCB 		20 
+#define N_ACTIONS_UCB 		10 
 
 /* ##############################           AGENT TYPE             #####################################*/
 
 //all zeros for static load, either way select the one as a 1. 
-#define CTL_GREEDY_MAB 		1
+#define CTL_GREEDY_MAB 		0
 #define CTL_GREEDY_MABN		0
 #define CTL_THOMPSON 		0
 #define CTL_THOMPSON_BETA	0
@@ -198,6 +198,7 @@ component XRServer : public TypeII
 			std::vector <double> v_quadr_modg; //measure of quadratic sum of measured owdg over window
 
 			std::vector <double> v_CUM_rw; 
+			std::vector <double> v_pl_fraction;
 		}csv_; 
 		/////////////////////////////////////////////////////////////////////////////////////
 		struct tomp_s_t {
@@ -251,6 +252,7 @@ component XRServer : public TypeII
 	 	std::vector<double> ratioFrames_cdf;
 		std::vector<double> RTT_cdf;
 		
+		double fraction_lost_packets; 
 
 		//////////////////////////////////////////////////////////////////////////////
 	
@@ -370,7 +372,7 @@ void XRServer :: Start()
 	if(rate_control_activated) rate_control.Set(SimTime()+0.5+Exponential(0.1));
 		
 	new_load = Load;
-
+	fraction_lost_packets = 0; 
 	printf("XR Server Start() : Load %f | FPS = %f | Packets = %d\n",Load,fps,NumberPacketsPerFrame);
 
 	printf("seed: %d\n", st_input_args.seed);
@@ -524,19 +526,19 @@ void XRServer :: Stop()
 	
 	printf("\n\nFILENAME: %s\n",filename.c_str());
 	printf("SEED: %d\n", st_input_args.seed);
-	std::ofstream file("Results/aa_Tests_new_reward/" + filename);
+	std::ofstream file("Results/aa_debug/" + filename);
 	
 	if(!file.is_open()){
 		std::cout<< "failed to open"<< std::endl;
 	}
 
-	file << "simtime,current_action,reward,load,FM_state,packets_per_frame,QoE,frame_loss,last_mowdg,RTT,lastthreshold,quadraticsum_mowdg,cum_reward"<< std::endl;
+	file << "simtime,current_action,reward,load,FM_state,packets_per_frame,QoE,frame_loss,last_mowdg,RTT,lastthreshold,quadraticsum_mowdg,cum_reward,pl_ratio"<< std::endl;
 	for(double i = 0; i < csv_.v__SimTime.size(); i++) //every vector SHOULD be same size
 	{
 		file << csv_.v__SimTime[i] << "," << csv_.v__current_action[i] << "," << csv_.v__reward[i] << "," << csv_.v__load[i]<<"," << csv_.v__FM[i]	<< "," << csv_.v__p_p_f[i]<< "," 
 		<< csv_.v__QoE[i]<< "," << csv_.v__frame_loss[i]<<"," << csv_.v__k_mowdg[i]<<"," 
 		<< csv_.v__RTT[i]<<"," << csv_.v__threshold[i]<<"," << csv_.v_quadr_modg[i] << 
-		"," << csv_.v_CUM_rw[i] <<	std::endl; 
+		"," << csv_.v_CUM_rw[i] << "," csv_.v_pl_fraction[i] <<	std::endl; 
 		//add all metrics to csv output
 	}
 	file.close();
@@ -1710,8 +1712,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	*/
 	// Boris Metrics: Computed over empirical average in an interval
 
-		if(received_video_frames_interval>=89){received_video_frames_interval = 90;} //small hack to prevent (too much) variance due to frames being received AFTER measurement in ideal conditions
-
+		if(received_video_frames_interval>=90){received_video_frames_interval = 90;} 
 		double ratio = received_video_frames_interval/generated_video_frames_interval;
 		
 		
@@ -1728,7 +1729,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		
 		printf("---------------------------------> Ref: Generated = %f | Received = %f\n",generated_video_packets_interval_ref,received_video_packets_interval_ref);
 		printf("---------------------------------> Interval: Generated = %f | Received = %f\n",(generated_packets - generated_video_packets_interval_ref),(received_video_packets - received_video_packets_interval_ref));
-		double fraction_lost_packets = (received_video_packets - received_video_packets_interval_ref)/(generated_packets - generated_video_packets_interval_ref); 
+		fraction_lost_packets = (received_video_packets - received_video_packets_interval_ref)/(generated_packets - generated_video_packets_interval_ref); 
 		printf("---------------------------------> Lost Packets (interval) = %f Fraction = %f ||(Totals: Generated = %f | Received % f\n",lost_packets_interval,fraction_lost_packets,generated_packets,received_video_packets);
 		// ---------- Load control algorithm ----------------------
 		
@@ -1860,6 +1861,8 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
 
 		csv_.v_CUM_rw.push_back(CUMulative_reward);
+		csv_.v_pl_fraction.push_back(fraction_lost_packets);
+
 			
 	#elif ( CTL_Q_ONLINE || CTL_SARSA ) //if Q-learning approach apply this control
 	// UPDATE ALL CSV VECTORS
@@ -1877,6 +1880,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v__RTT.push_back(RTT_metric);
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
 		csv_.v_CUM_rw.push_back(CUMulative_reward);
+		csv_.v_pl_fraction.push_back(fraction_lost_packets);
 
 		if(passes == 10/TIME_BETWEEN_UPDATES) //10 seconds
 		{
@@ -1922,6 +1926,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v__RTT.push_back(RTT_metric);
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
 		csv_.v_CUM_rw.push_back(CUMulative_reward);
+		csv_.v_pl_fraction.push_back(fraction_lost_packets);
 
 
 	#elif ( CTL_THOMPSON == 1 || CTL_THOMPSON_BETA == 1) 
@@ -1940,6 +1945,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v__RTT.push_back(RTT_metric);
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
 		csv_.v_CUM_rw.push_back(CUMulative_reward);
+		csv_.v_pl_fraction.push_back(fraction_lost_packets);
 
 	#elif CTL_SOFTMAX //TODO
 
@@ -1958,6 +1964,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
 
 		csv_.v_CUM_rw.push_back(CUMulative_reward);
+		csv_.v_pl_fraction.push_back(fraction_lost_packets);
 
 	#else //vanilla case
 
@@ -1976,6 +1983,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 	csv_.v_quadr_modg.push_back(jitter_sum_quadratic);
 
 	csv_.v_CUM_rw.push_back(CUMulative_reward);
+	csv_.v_pl_fraction.push_back(fraction_lost_packets);
 
 	#endif
 
