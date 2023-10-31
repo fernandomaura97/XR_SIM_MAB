@@ -73,7 +73,8 @@ using namespace std;
 
 #define TAU_SOFTMAX 10
 
-#define RW_FL_RTT	 1 
+#define RW_NEW_PL	 1
+#define RW_FL_RTT	 0
 #define RW_FL 		 0
 
 // Online Q-learning parametres: 
@@ -538,7 +539,7 @@ void XRServer :: Stop()
 		file << csv_.v__SimTime[i] << "," << csv_.v__current_action[i] << "," << csv_.v__reward[i] << "," << csv_.v__load[i]<<"," << csv_.v__FM[i]	<< "," << csv_.v__p_p_f[i]<< "," 
 		<< csv_.v__QoE[i]<< "," << csv_.v__frame_loss[i]<<"," << csv_.v__k_mowdg[i]<<"," 
 		<< csv_.v__RTT[i]<<"," << csv_.v__threshold[i]<<"," << csv_.v_quadr_modg[i] << 
-		"," << csv_.v_CUM_rw[i] << "," csv_.v_pl_fraction[i] <<	std::endl; 
+		"," << csv_.v_CUM_rw[i] << "," << csv_.v_pl_fraction[i] <<	std::endl; 
 		//add all metrics to csv output
 	}
 	file.close();
@@ -1736,12 +1737,12 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 		NumberPacketsPerFrame = ceil((Load/L_data)/fps);
 
 		
-
+		
 
 		#if OLD_REWARD
 			double reward_FL;   // a bit of reward shaping here : FrameLoss and RTT shaping
 			double reward_RTT ; 
-
+			double reward_PL; 
 			
 			if(ratio>1) {ratio = 1;}
 
@@ -1765,11 +1766,23 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 			else{ //RTT greater than 100ms
 				reward_RTT = -1.111111 * ratio_RTT + (1.0/3.0) ; // sigmoid like decrease for values lesser than 300 ms, negative for more 
 			}		
+		
+			if (fraction_lost_packets >= 1) {fraction_lost_packets = 1;}
+			else if (fraction_lost_packets <=0) {fraction_lost_packets = 0;}			
 
+			if ((fraction_lost_packets <=1) & (fraction_lost_packets >= 0.9)){
+				reward_PL = -10 * (1 - fraction_lost_packets) + 1 //don't even ask (linear regression of "prior preference" over the packet loss values)
+																				//source: i searched the literature, 0.98 is bad already
+			}
+			else{reward_PL = 0;}
 
-
+			reward_PL = max(min(reward_PL,1), 0);
 			#if RW_FL_RTT
    	 			QoE_metric = (95*(0.7*reward_RTT + 0.3 * reward_FL)+ 5*(Load/100E6))/100.0;	
+			
+			#elif RW_NEW_PL
+				QoE_metric = (95*(0.5*reward_RTT + 0.5*reward_PL) + 5*(Load/100E6))/100.0;
+			
 			#elif RW_FL
 				QoE_metric = (98*(received_video_frames_interval/generated_video_frames_interval)+2*(Load/100E6))/100;	// original reward function
 			#endif
@@ -1777,17 +1790,6 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 			printf("\t\t[DBG_REWARD]QOE normalized: %.3f , Ratio Load/Maxload: %.3f , RW_RTT: %.2f , RW_FL: %.2f \n\n", QoE_metric, Load/MAXLOAD, reward_RTT, reward_FL);
 
 		#endif
-
-		#if NEW_REWARD
-
-			double lambda_nr = 0.7; 
-			double reward_load = Load/100E6; 
-			double reward_change = 
-
-			//double new_reward = 		//TODO (in TODOLIST!)
-
-		#endif
-
 
 		past_action_delayed_reward[0] = past_action_delayed_reward[1]; //store old reward value, which is used for updates (TODO: MAYBE NOT NEEDED)
 		
@@ -1987,7 +1989,7 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 
 	#endif
 
-	rate_control.Set(SimTime()+(TIME_BETWEEN_UPDATES));  //RATE CONTROL EVERY 0.1 SECONDS (atm)
+	rate_control.Set(SimTime()+(TIME_BETWEEN_UPDATES));  //RATE CONTROL EVERY X
 
 	// Heuristic adaptive bitrate control (to try out)
 	#if ADAPTIVE_HEUR==1
