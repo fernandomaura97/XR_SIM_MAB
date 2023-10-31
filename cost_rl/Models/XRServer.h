@@ -27,8 +27,8 @@
 
 #define EPSILON_EGREEDY 0.25
 
-#define OLD_REWARD 1
-//#define NEW_REWARD 1 
+#define OLD_REWARD 0
+#define NEW_REWARD 1 
 
 using namespace std;
 
@@ -1771,12 +1771,12 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 			else if (fraction_lost_packets <=0) {fraction_lost_packets = 0;}			
 
 			if ((fraction_lost_packets <=1) & (fraction_lost_packets >= 0.9)){
-				reward_PL = -10 * (1 - fraction_lost_packets) + 1 //don't even ask (linear regression of "prior preference" over the packet loss values)
+				reward_PL = - 10 * (1 - fraction_lost_packets) + 1; //don't even ask (linear regression of "prior preference" over the packet loss values)
 																				//source: i searched the literature, 0.98 is bad already
 			}
 			else{reward_PL = 0;}
 
-			reward_PL = max(min(reward_PL,1), 0);
+			reward_PL = MAX(MIN(reward_PL,1), 0);
 			#if RW_FL_RTT
    	 			QoE_metric = (95*(0.7*reward_RTT + 0.3 * reward_FL)+ 5*(Load/100E6))/100.0;	
 			
@@ -1790,6 +1790,44 @@ void XRServer :: AdaptiveVideoControl(trigger_t & t)
 			printf("\t\t[DBG_REWARD]QOE normalized: %.3f , Ratio Load/Maxload: %.3f , RW_RTT: %.2f , RW_FL: %.2f \n\n", QoE_metric, Load/MAXLOAD, reward_RTT, reward_FL);
 
 		#endif
+
+
+		#if NEW_REWARD
+			double reward_FL;   // a bit of reward shaping here : FrameLoss and RTT shaping
+			double reward_RTT ; 
+			double reward_PL; 
+			
+			
+			double ratio_RTT = RTT_interval / generated_video_frames_interval; 
+			
+			if(ratio_RTT < 0.02) 
+				{reward_RTT = 1;}
+			else if ((0.02 <= ratio_RTT) && (ratio_RTT < 0.08) )
+				{ reward_RTT = -16.66 ; }
+
+			else if ((0.08 <= ratio_RTT) && (ratio_RTT < 0.12) )
+				{ reward_RTT = -16.666666*ratio_RTT + 1.3333333333 ; }
+			else{ //RTT greater than 120ms
+				reward_RTT = 0 ;
+			}		
+		
+			if (fraction_lost_packets >= 1) {fraction_lost_packets = 1;}
+			else if (fraction_lost_packets <=0) {fraction_lost_packets = 0;}			
+
+			if ((fraction_lost_packets <=1) & (fraction_lost_packets >= 0.9)){
+				reward_PL = - 10 * (1 - fraction_lost_packets) + 1; //don't even ask (linear regression of "prior preference" over the packet loss values)
+																				//source: i searched the literature, 0.98 is bad already
+			}
+			else{reward_PL = 0;}
+
+			reward_PL = MAX(MIN(reward_PL,1), 0);
+			
+			QoE_metric = (95*(0.5*reward_RTT + 0.5*reward_PL) + 5*(Load/100E6))/100.0;
+			
+			printf("\t\t[DBG_REWARD]QOE normalized: %.3f , Ratio Load/Maxload: %.3f , RW_RTT: %.2f , \n\n", QoE_metric, Load/MAXLOAD, reward_RTT);
+	
+		#endif
+			
 
 		past_action_delayed_reward[0] = past_action_delayed_reward[1]; //store old reward value, which is used for updates (TODO: MAYBE NOT NEEDED)
 		
