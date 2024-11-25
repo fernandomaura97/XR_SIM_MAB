@@ -2389,15 +2389,15 @@ struct input_arg_t {
 			double T_update; 
 		}st_input_args;
 
-#line 318 "XRWiFi_P1.cc"
+#line 319 "XRWiFi_P1.cc"
 ;
 
 
-#line 324 "XRWiFi_P1.cc"
+#line 325 "XRWiFi_P1.cc"
 ;
 
 
-#line 371 "XRWiFi_P1.cc"
+#line 372 "XRWiFi_P1.cc"
 ;
 
 
@@ -3563,7 +3563,7 @@ void compcxx_Station_9 :: in_slot(SLOT_indicator &slot)
 		
 		if(device_has_transmitted == 1)
 		{
-			if(traces_on) printf("%f - STA (%d) : Successful Transmission | AMPDU size = %d\n",SimTime(),id,current_ampdu_size);
+			if(traces_on) printf("%f - STA (%d) : DBG Successful Transmission | AMPDU size = %d\n",SimTime(),id,current_ampdu_size);
 			mode=0; 
 			device_has_transmitted = 0; 
 			av_MPDUsize+=current_ampdu_size;
@@ -3961,7 +3961,7 @@ void compcxx_TrafficGeneratorApp_11 :: new_packet(trigger_t &)
 #line 104 "./Models/TrafficGeneratorApp.h"
 void compcxx_TrafficGeneratorApp_11 :: in(data_packet &packet)
 {
-	if(traces_on) printf("%f - Traffic Generation APP %d - Packet Received from %d \n",SimTime(),id,packet.source);
+	if(traces_on) printf("%f - Traffic Generation APP %d - Packet %d Received from %d \n",SimTime(),id,packet.ID_PACKET_BG_DBG ,packet.source);
 	received_packets++;
 	avDelay += SimTime() - packet.sent_time;
 	
@@ -4231,6 +4231,7 @@ void compcxx_XRWiFisim_13 :: Setup(int NXR, int fps, double LoadXR, int LXR, int
 	
 	int aux_BGDL = 1;
 	int aux_BGUL = 0;	
+	
 	if(BG_mode == 1)
 	{
 		aux_BGDL=0;
@@ -4413,13 +4414,13 @@ void compcxx_XRWiFisim_13 :: Setup(int NXR, int fps, double LoadXR, int LXR, int
 	printf("----- Wi-FiSim Setup completed ----- Los!\n");
 
 }
-#line 320 "XRWiFi_P1.cc"
+#line 321 "XRWiFi_P1.cc"
 void compcxx_XRWiFisim_13:: Start()
 {
 	printf("Start\n");
 
 }
-#line 326 "XRWiFi_P1.cc"
+#line 327 "XRWiFi_P1.cc"
 void compcxx_XRWiFisim_13:: Stop()
 {
 	printf("########################################################################\n");

@@ -103,7 +103,7 @@ void TrafficGeneratorApp :: new_packet(trigger_t &)
 
 void TrafficGeneratorApp :: in(data_packet &packet)
 {
-	if(traces_on) printf("%f - Traffic Generation APP %d - Packet Received from %d \n",SimTime(),id,packet.source);
+	if(traces_on) printf("%f - Traffic Generation APP %d - Packet %d Received from %d \n",SimTime(),id,packet.ID_PACKET_BG_DBG ,packet.source);
 	received_packets++;
 	avDelay += SimTime() - packet.sent_time;
 	//avLreceived += packet.L;

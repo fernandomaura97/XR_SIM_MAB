@@ -134,6 +134,7 @@ void XRWiFisim :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, doubl
 	// Background Traffic
 	int aux_BGDL = 1;
 	int aux_BGUL = 0;	
+	
 	if(BG_mode == 1)
 	{
 		aux_BGDL=0;

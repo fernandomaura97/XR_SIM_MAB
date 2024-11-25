@@ -42,14 +42,14 @@ trap handle_interrupt SIGINT
 #                    T_end    n_xr  fps   R_xr   d_XR  Nbg BG_Rate #L_bg   BG_mode   RCA       (unused MABs: alpha, gamma, T_update)
                                                                         #  ^
                                                                         #  |
-                                                                        #  |- (1 = UL) 
                                                                         #  |- (0 = DL)
+                                                                        #  |- (1 = UL)
                                                                         #  |--(2 = UL + DL)
                                                                         #       
 
 
 
-BG_mode=0
+BG_mode=1
 
 
 for bandwidth_STA in $(seq $start_bandwidth $step_bandwidth $end_bandwidth); do

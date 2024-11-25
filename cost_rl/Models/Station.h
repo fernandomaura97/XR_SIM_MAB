@@ -184,7 +184,7 @@ void Station :: in_slot(SLOT_indicator &slot)
 		//printf("%f - Successful Transmission || Mode = %d | BO = %d\n",SimTime(),mode,backoff_counter);
 		if(device_has_transmitted == 1)
 		{
-			if(traces_on) printf("%f - STA (%d) : Successful Transmission | AMPDU size = %d\n",SimTime(),id,current_ampdu_size);
+			if(traces_on) printf("%f - STA (%d) : DBG Successful Transmission | AMPDU size = %d\n",SimTime(),id,current_ampdu_size);
 			mode=0; // Move to not transmitting
 			device_has_transmitted = 0; 
 			av_MPDUsize+=current_ampdu_size;
