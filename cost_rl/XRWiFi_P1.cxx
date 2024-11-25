@@ -5,6 +5,8 @@
 #include <time.h>
 #include <math.h>
 
+#include <iostream>
+
 
 #line 1 "./COST/cost.h"
 
@@ -1238,7 +1240,12 @@ void CostSimEng::Run()
 }
 
 
-#line 6 "XRWiFi_P1.cc"
+
+
+
+
+
+#line 8 "XRWiFi_P1.cc"
 
 
 #include <deque>
@@ -1270,6 +1277,8 @@ struct data_packet
 	double L; 
 	int AMPDU_size; 
 
+	int ID_PACKET_BG_DBG; 
+
 	
 	double sent_time; 
 	double scheduled_time; 
@@ -1297,34 +1306,37 @@ struct data_packet
 	double video_frame_seq;
 	double frames_received;
 
-	/// fer packet definitions
 
-	double send_time; // Time at which the packet is generated from the source
-	bool rtt; 
+	bool feedback;
+	bool rtt;
+
+	double m_owdg;
+	double threshold_gamma; 
 
 
-	struct Kalman_p_t{
-			double t_prev, T_prev;
-			double t_current, T_current;
-			double OW_Delay;
+	bool sliding_rx_frame_loss; 
+	double frame_numseq; 
+	
+	struct Kalman_t{
+				double OW_Delay;
+				double K_gain;
+				double m_current; 
+				double m_prev; 
+				double residual_z;
+			}Kalman_p; 
 
-			double K_gain;
-			double m_current; 
-			double m_prev; 
-			double residual_z;
-
-			double noise_estimation; 
-			double noise_prev; 
-			double P_current; 
-			double P_prev;
-			std::vector <double> v_OWDG; // "the good measure"
-			std::vector <double> v_jitter; //noisy measured jitter
-			std::vector <double> v_Kalman;	//measured gain
-			std::vector <double> v_simTime; //simtime
-		}Kalman_p; //
-
+	
+	double packets_received;
 }; 
 
+struct sliding_window_t {
+
+			data_packet Packet;
+			double      Timestamp; 
+			double 		RTT; 
+			double 		num_seq;
+			
+		}; 
 
 struct SLOT_indicator
 {
@@ -1343,7 +1355,7 @@ struct info
 
 #endif
 
-#line 10 "XRWiFi_P1.cc"
+#line 12 "XRWiFi_P1.cc"
 
 
 #line 1 "./Models/Network.h"
@@ -1383,6 +1395,8 @@ struct data_packet
 	double L; 
 	int AMPDU_size; 
 
+	int ID_PACKET_BG_DBG; 
+
 	
 	double sent_time; 
 	double scheduled_time; 
@@ -1409,8 +1423,38 @@ struct data_packet
 	double TimeReceivedAtTheClient;
 	double video_frame_seq;
 	double frames_received;
+
+
+	bool feedback;
+	bool rtt;
+
+	double m_owdg;
+	double threshold_gamma; 
+
+
+	bool sliding_rx_frame_loss; 
+	double frame_numseq; 
+	
+	struct Kalman_t{
+				double OW_Delay;
+				double K_gain;
+				double m_current; 
+				double m_prev; 
+				double residual_z;
+			}Kalman_p; 
+
+	
+	double packets_received;
 }; 
 
+struct sliding_window_t {
+
+			data_packet Packet;
+			double      Timestamp; 
+			double 		RTT; 
+			double 		num_seq;
+			
+		}; 
 
 struct SLOT_indicator
 {
@@ -1463,7 +1507,7 @@ struct info
 
 #endif
 
-#line 11 "XRWiFi_P1.cc"
+#line 13 "XRWiFi_P1.cc"
 
 
 #line 1 "./Models/TrafficGeneratorApp.h"
@@ -1501,6 +1545,8 @@ struct data_packet
 	double L; 
 	int AMPDU_size; 
 
+	int ID_PACKET_BG_DBG; 
+
 	
 	double sent_time; 
 	double scheduled_time; 
@@ -1527,8 +1573,38 @@ struct data_packet
 	double TimeReceivedAtTheClient;
 	double video_frame_seq;
 	double frames_received;
+
+
+	bool feedback;
+	bool rtt;
+
+	double m_owdg;
+	double threshold_gamma; 
+
+
+	bool sliding_rx_frame_loss; 
+	double frame_numseq; 
+	
+	struct Kalman_t{
+				double OW_Delay;
+				double K_gain;
+				double m_current; 
+				double m_prev; 
+				double residual_z;
+			}Kalman_p; 
+
+	
+	double packets_received;
 }; 
 
+struct sliding_window_t {
+
+			data_packet Packet;
+			double      Timestamp; 
+			double 		RTT; 
+			double 		num_seq;
+			
+		}; 
 
 struct SLOT_indicator
 {
@@ -1551,27 +1627,31 @@ struct info
 
 
 
-#line 54 "./Models/TrafficGeneratorApp.h"
+#define PREFIX_PACKETS_BG_ID 100000
+
+
+
+#line 58 "./Models/TrafficGeneratorApp.h"
 ;
 
 
-#line 64 "./Models/TrafficGeneratorApp.h"
+#line 68 "./Models/TrafficGeneratorApp.h"
 ;
 	
 
-#line 74 "./Models/TrafficGeneratorApp.h"
+#line 78 "./Models/TrafficGeneratorApp.h"
 ;
 
 
 
-#line 95 "./Models/TrafficGeneratorApp.h"
+#line 102 "./Models/TrafficGeneratorApp.h"
 ;
 
 
-#line 106 "./Models/TrafficGeneratorApp.h"
+#line 115 "./Models/TrafficGeneratorApp.h"
 #endif
 
-#line 12 "XRWiFi_P1.cc"
+#line 14 "XRWiFi_P1.cc"
 
 
 #line 1 "./Models/AccessPoint.h"
@@ -1609,6 +1689,8 @@ struct data_packet
 	double L; 
 	int AMPDU_size; 
 
+	int ID_PACKET_BG_DBG; 
+
 	
 	double sent_time; 
 	double scheduled_time; 
@@ -1635,8 +1717,38 @@ struct data_packet
 	double TimeReceivedAtTheClient;
 	double video_frame_seq;
 	double frames_received;
+
+
+	bool feedback;
+	bool rtt;
+
+	double m_owdg;
+	double threshold_gamma; 
+
+
+	bool sliding_rx_frame_loss; 
+	double frame_numseq; 
+	
+	struct Kalman_t{
+				double OW_Delay;
+				double K_gain;
+				double m_current; 
+				double m_prev; 
+				double residual_z;
+			}Kalman_p; 
+
+	
+	double packets_received;
 }; 
 
+struct sliding_window_t {
+
+			data_packet Packet;
+			double      Timestamp; 
+			double 		RTT; 
+			double 		num_seq;
+			
+		}; 
 
 struct SLOT_indicator
 {
@@ -1692,6 +1804,8 @@ struct data_packet
 	double L; 
 	int AMPDU_size; 
 
+	int ID_PACKET_BG_DBG; 
+
 	
 	double sent_time; 
 	double scheduled_time; 
@@ -1718,8 +1832,38 @@ struct data_packet
 	double TimeReceivedAtTheClient;
 	double video_frame_seq;
 	double frames_received;
+
+
+	bool feedback;
+	bool rtt;
+
+	double m_owdg;
+	double threshold_gamma; 
+
+
+	bool sliding_rx_frame_loss; 
+	double frame_numseq; 
+	
+	struct Kalman_t{
+				double OW_Delay;
+				double K_gain;
+				double m_current; 
+				double m_prev; 
+				double residual_z;
+			}Kalman_p; 
+
+	
+	double packets_received;
 }; 
 
+struct sliding_window_t {
+
+			data_packet Packet;
+			double      Timestamp; 
+			double 		RTT; 
+			double 		num_seq;
+			
+		}; 
 
 struct SLOT_indicator
 {
@@ -1854,22 +1998,22 @@ double PathLoss(double d)
 
 
 
-#line 333 "./Models/AccessPoint.h"
+#line 332 "./Models/AccessPoint.h"
 ;
 
 
 
-#line 346 "./Models/AccessPoint.h"
+#line 345 "./Models/AccessPoint.h"
 ;
 
 
-#line 459 "./Models/AccessPoint.h"
+#line 458 "./Models/AccessPoint.h"
 ;
 
 
 #endif
 
-#line 13 "XRWiFi_P1.cc"
+#line 15 "XRWiFi_P1.cc"
 
 
 #line 1 "./Models/Station.h"
@@ -1907,6 +2051,8 @@ struct data_packet
 	double L; 
 	int AMPDU_size; 
 
+	int ID_PACKET_BG_DBG; 
+
 	
 	double sent_time; 
 	double scheduled_time; 
@@ -1933,8 +2079,38 @@ struct data_packet
 	double TimeReceivedAtTheClient;
 	double video_frame_seq;
 	double frames_received;
+
+
+	bool feedback;
+	bool rtt;
+
+	double m_owdg;
+	double threshold_gamma; 
+
+
+	bool sliding_rx_frame_loss; 
+	double frame_numseq; 
+	
+	struct Kalman_t{
+				double OW_Delay;
+				double K_gain;
+				double m_current; 
+				double m_prev; 
+				double residual_z;
+			}Kalman_p; 
+
+	
+	double packets_received;
 }; 
 
+struct sliding_window_t {
+
+			data_packet Packet;
+			double      Timestamp; 
+			double 		RTT; 
+			double 		num_seq;
+			
+		}; 
 
 struct SLOT_indicator
 {
@@ -2025,22 +2201,22 @@ double PathLoss(double d)
 
 
 
-#line 339 "./Models/Station.h"
+#line 342 "./Models/Station.h"
 ;
 
 
 
-#line 354 "./Models/Station.h"
+#line 357 "./Models/Station.h"
 ;
 
 
-#line 470 "./Models/Station.h"
+#line 473 "./Models/Station.h"
 ;
 
 
 #endif
 
-#line 14 "XRWiFi_P1.cc"
+#line 16 "XRWiFi_P1.cc"
 
 
 #line 1 "./Models/CSMACAChannel1.h"
@@ -2078,6 +2254,8 @@ struct data_packet
 	double L; 
 	int AMPDU_size; 
 
+	int ID_PACKET_BG_DBG; 
+
 	
 	double sent_time; 
 	double scheduled_time; 
@@ -2104,8 +2282,38 @@ struct data_packet
 	double TimeReceivedAtTheClient;
 	double video_frame_seq;
 	double frames_received;
+
+
+	bool feedback;
+	bool rtt;
+
+	double m_owdg;
+	double threshold_gamma; 
+
+
+	bool sliding_rx_frame_loss; 
+	double frame_numseq; 
+	
+	struct Kalman_t{
+				double OW_Delay;
+				double K_gain;
+				double m_current; 
+				double m_prev; 
+				double residual_z;
+			}Kalman_p; 
+
+	
+	double packets_received;
 }; 
 
+struct sliding_window_t {
+
+			data_packet Packet;
+			double      Timestamp; 
+			double 		RTT; 
+			double 		num_seq;
+			
+		}; 
 
 struct SLOT_indicator
 {
@@ -2145,236 +2353,9 @@ struct info
 #line 127 "./Models/CSMACAChannel1.h"
 #endif
 
-#line 15 "XRWiFi_P1.cc"
-
-
-#line 1 "./Models/XRServer.h"
-
-
-
-
-#ifndef _XRServer_
-#define _XRServer_
-		
-
-#line 1 "./Models/definitions.h"
-#ifndef _DEFINITIONS_
-#define _DEFINITIONS_
-
-
-#define MAX(x, y) (((x) > (y)) ? (x) : (y))
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
-
-
-
-
-#define SLOT 9E-6 // microseconds
-
-#define Legacy_PHY_duration 20E-6
-#define PHY_duration 100E-6
-#define DIFS 31E-6
-#define SIFS 16E-6
-
-
-struct data_packet
-{
-	double L_data; 
-	double L_header; 
-	double L; 
-	int AMPDU_size; 
-
-	
-	double sent_time; 
-	double scheduled_time; 
-	double queueing_service_delay;
-
-	double num_seq;	
-	int destination; 
-	int source; 
-
-	int source_app;
-	int destination_app;
-	
-	
-	double T; 
-	double T_c; 
-
-	
-	int first_video_frame_packet;
-	int last_video_frame_packet;
-	int num_packet_in_the_frame;
-	double frame_generation_time;
-	int NumPacketsPerFrame;
-	double TimeSentAtTheServer;
-	double TimeReceivedAtTheClient;
-	double video_frame_seq;
-	double frames_received;
-}; 
-
-
-struct SLOT_indicator
-{
-	int status;
-};
-
-struct info
-{
-	int x;
-	int y;
-	int z;
-	int ap_id;
-	int station_id;
-};
-
-
-#endif
-
-#line 8 "./Models/XRServer.h"
-
-
-
-#line 80 "./Models/XRServer.h"
-;
-
-
-#line 106 "./Models/XRServer.h"
-;
-	
-
-#line 116 "./Models/XRServer.h"
-;
-
-
-#line 214 "./Models/XRServer.h"
-;
-
-
-#line 241 "./Models/XRServer.h"
-;
-
-
-#line 375 "./Models/XRServer.h"
-;
-
-
-#endif
-
-#line 16 "XRWiFi_P1.cc"
-
-
-#line 1 "./Models/XRClient.h"
-
-
-
-
-#ifndef _XRClient_
-#define _XRClient_
-		
-
-#line 1 "./Models/definitions.h"
-#ifndef _DEFINITIONS_
-#define _DEFINITIONS_
-
-
-#define MAX(x, y) (((x) > (y)) ? (x) : (y))
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
-
-
-
-
-#define SLOT 9E-6 // microseconds
-
-#define Legacy_PHY_duration 20E-6
-#define PHY_duration 100E-6
-#define DIFS 31E-6
-#define SIFS 16E-6
-
-
-struct data_packet
-{
-	double L_data; 
-	double L_header; 
-	double L; 
-	int AMPDU_size; 
-
-	
-	double sent_time; 
-	double scheduled_time; 
-	double queueing_service_delay;
-
-	double num_seq;	
-	int destination; 
-	int source; 
-
-	int source_app;
-	int destination_app;
-	
-	
-	double T; 
-	double T_c; 
-
-	
-	int first_video_frame_packet;
-	int last_video_frame_packet;
-	int num_packet_in_the_frame;
-	double frame_generation_time;
-	int NumPacketsPerFrame;
-	double TimeSentAtTheServer;
-	double TimeReceivedAtTheClient;
-	double video_frame_seq;
-	double frames_received;
-}; 
-
-
-struct SLOT_indicator
-{
-	int status;
-};
-
-struct info
-{
-	int x;
-	int y;
-	int z;
-	int ap_id;
-	int station_id;
-};
-
-
-#endif
-
-#line 8 "./Models/XRClient.h"
-
-#include <algorithm>
-#include <numeric>
-
-
-
-
-#line 72 "./Models/XRClient.h"
-;
-
-
-#line 83 "./Models/XRClient.h"
-;
-	
-
-#line 129 "./Models/XRClient.h"
-; 
-
-
-
-#line 166 "./Models/XRClient.h"
-;
-
-
-#line 248 "./Models/XRClient.h"
-;
-
-
-#endif
-
 #line 17 "XRWiFi_P1.cc"
+
+
 
 
 
@@ -2387,7 +2368,7 @@ double x_[100];
 double y_[100];
 double z_[100];
 
-int traces_on = 0;
+int traces_on = 1;
 
 double RSSI[100]; 
 
@@ -2396,17 +2377,27 @@ double RSSI[100];
 double test_average_delay_decision[10] = {0};
 double test_frames_received[10] = {0};
 
+struct input_arg_t { 			
+			int seed; 
+			double STime;
+			int fps; 
+			double XRLoad; 
+			double BGLoad;
+			int BGsources;
+			double alpha ;
+			double gamma; 
+			double T_update; 
+		}st_input_args;
 
-
-#line 293 "XRWiFi_P1.cc"
+#line 318 "XRWiFi_P1.cc"
 ;
 
 
-#line 299 "XRWiFi_P1.cc"
+#line 324 "XRWiFi_P1.cc"
 ;
 
 
-#line 353 "XRWiFi_P1.cc"
+#line 371 "XRWiFi_P1.cc"
 ;
 
 
@@ -2433,7 +2424,7 @@ class compcxx_FIFO_5 : public compcxx_component, public TypeII
 
 
 #line 13 "./Models/AccessPoint.h"
-class compcxx_AccessPoint_12 : public compcxx_component, public TypeII
+class compcxx_AccessPoint_8 : public compcxx_component, public TypeII
 {
 	public:
 		void Setup();
@@ -2502,7 +2493,7 @@ class compcxx_AccessPoint_12 : public compcxx_component, public TypeII
 	
 };
 
-class compcxx_Network_18;/*template <class T> */
+class compcxx_Network_12;/*template <class T> */
 #line 267 "./COST/cost.h"
 class compcxx_Timer_2 : public compcxx_component, public TimerBase
 {
@@ -2523,9 +2514,9 @@ class compcxx_Timer_2 : public compcxx_component, public TimerBase
  private:
   CostSimEng* m_simeng;
   event_t m_event;
-public:compcxx_Network_18* p_compcxx_parent;};
+public:compcxx_Network_12* p_compcxx_parent;};
 
-class compcxx_Network_18;/*template <class T> */
+class compcxx_Network_12;/*template <class T> */
 #line 267 "./COST/cost.h"
 class compcxx_Timer_3 : public compcxx_component, public TimerBase
 {
@@ -2546,11 +2537,11 @@ class compcxx_Timer_3 : public compcxx_component, public TimerBase
  private:
   CostSimEng* m_simeng;
   event_t m_event;
-public:compcxx_Network_18* p_compcxx_parent;};
+public:compcxx_Network_12* p_compcxx_parent;};
 
 
 #line 12 "./Models/Network.h"
-class compcxx_Network_18 : public compcxx_component, public TypeII
+class compcxx_Network_12 : public compcxx_component, public TypeII
 {
 	public:
 		void Setup();
@@ -2571,7 +2562,7 @@ class compcxx_Network_18 : public compcxx_component, public TypeII
 		compcxx_Timer_3 /*<trigger_t> */transmission_time_UL;
 		/*inport */inline void end_packet_transmission_UL(trigger_t& t); 
 
-		compcxx_Network_18 () { 
+		compcxx_Network_12 () { 
 			transmission_time_UL.p_compcxx_parent=this /*connect transmission_time_UL.to_component,*/;
 			transmission_time_DL.p_compcxx_parent=this /*connect transmission_time_DL.to_component,*/; }				 
 
@@ -2590,7 +2581,7 @@ class compcxx_Network_18 : public compcxx_component, public TypeII
 
 
 #line 13 "./Models/Station.h"
-class compcxx_Station_13 : public compcxx_component, public TypeII
+class compcxx_Station_9 : public compcxx_component, public TypeII
 {
 	public:
 		void Setup();
@@ -2667,7 +2658,7 @@ class compcxx_Station_13 : public compcxx_component, public TypeII
 		double queue_occupation;	
 };
 
-class compcxx_TrafficGeneratorApp_17;/*template <class T> */
+class compcxx_TrafficGeneratorApp_11;/*template <class T> */
 #line 267 "./COST/cost.h"
 class compcxx_Timer_4 : public compcxx_component, public TimerBase
 {
@@ -2688,11 +2679,11 @@ class compcxx_Timer_4 : public compcxx_component, public TimerBase
  private:
   CostSimEng* m_simeng;
   event_t m_event;
-public:compcxx_TrafficGeneratorApp_17* p_compcxx_parent;};
+public:compcxx_TrafficGeneratorApp_11* p_compcxx_parent;};
 
 
-#line 10 "./Models/TrafficGeneratorApp.h"
-class compcxx_TrafficGeneratorApp_17 : public compcxx_component, public TypeII
+#line 14 "./Models/TrafficGeneratorApp.h"
+class compcxx_TrafficGeneratorApp_11 : public compcxx_component, public TypeII
 {
 	
 	public: 
@@ -2708,7 +2699,7 @@ class compcxx_TrafficGeneratorApp_17 : public compcxx_component, public TypeII
 		compcxx_Timer_4 /*<trigger_t> */inter_packet_timer;
 		/*inport */inline void new_packet(trigger_t& t); 
 
-		compcxx_TrafficGeneratorApp_17 () { inter_packet_timer.p_compcxx_parent=this /*connect inter_packet_timer.to_component,*/; }
+		compcxx_TrafficGeneratorApp_11 () { inter_packet_timer.p_compcxx_parent=this /*connect inter_packet_timer.to_component,*/; }
 
 
 	public: 
@@ -2733,225 +2724,7 @@ class compcxx_TrafficGeneratorApp_17 : public compcxx_component, public TypeII
 
 };
 
-class compcxx_XRClient_16;/*template <class T> */
-#line 267 "./COST/cost.h"
-class compcxx_Timer_11 : public compcxx_component, public TimerBase
-{
- public:
-  struct event_t : public CostEvent { trigger_t data; };
-  
-
-  compcxx_Timer_11() { m_simeng = CostSimEng::Instance(); m_event.active= false; }
-  inline void Set(trigger_t const &, double );
-  inline void Set(double );
-  inline double GetTime() { return m_event.time; }
-  inline bool Active() { return m_event.active; }
-  inline trigger_t & GetData() { return m_event.data; }
-  inline void SetData(trigger_t const &d) { m_event.data = d; }
-  void Cancel();
-  /*outport void to_component(trigger_t &)*/;
-  void activate(CostEvent*);
- private:
-  CostSimEng* m_simeng;
-  event_t m_event;
-public:compcxx_XRClient_16* p_compcxx_parent;};
-
-
-#line 14 "./Models/XRClient.h"
-class compcxx_XRClient_16 : public compcxx_component, public TypeII
-{
-	
-	public: 
-		void Setup();
-		void Start();
-		void Stop();
-
-	public: 
-		class my_XRClient_out_f_t:public compcxx_functor<XRClient_out_f_t>{ public:void  operator() (data_packet &packet) { for (unsigned int compcxx_i=1;compcxx_i<c.size();compcxx_i++)(c[compcxx_i]->*f[compcxx_i])(packet); return (c[0]->*f[0])(packet);};};my_XRClient_out_f_t out_f;/*outport void out(data_packet &packet)*/;
-		/*inport */void in(data_packet &packet);	
-
-		
-		compcxx_Timer_11 /*<trigger_t> */inter_packet_timer;
-
-		/*inport */inline void new_packet(trigger_t& t); 
-
-		compcxx_XRClient_16 () { inter_packet_timer.p_compcxx_parent=this /*connect inter_packet_timer.to_component,*/; }
-
-
-	public: 
-		int L_data;
-		int id; 
-		int destination;
-		double Load; 
-		int node_attached;
-		int source_app;
-		int destination_app;
-		int fps;
-
-	 	std::vector<double> packet_times;
-		std::vector<double> frame_times;
- 		
-
-
-	private:
-		double tau; 
-
-	public:
-		double received_packets=0;
-		double generated_packets=0;
-		double avDelay=0;
-		double avRxPacketSize=0;
-		double probFrameLost = 0;
-		double received_frames = 0;
-		int received_packets_in_current_frame = 0;
-		double packets_rx_video_frames[10000]={0};
-		double VideoFramesReceived=0;
-		double VideoFramesFullReceived=0;
-
-		double mean_VFD = 0;
-		double p99th_VFD = 0;
-
-};
-
-class compcxx_XRServer_15;/*template <class T> */
-#line 267 "./COST/cost.h"
-class compcxx_Timer_9 : public compcxx_component, public TimerBase
-{
- public:
-  struct event_t : public CostEvent { trigger_t data; };
-  
-
-  compcxx_Timer_9() { m_simeng = CostSimEng::Instance(); m_event.active= false; }
-  inline void Set(trigger_t const &, double );
-  inline void Set(double );
-  inline double GetTime() { return m_event.time; }
-  inline bool Active() { return m_event.active; }
-  inline trigger_t & GetData() { return m_event.data; }
-  inline void SetData(trigger_t const &d) { m_event.data = d; }
-  void Cancel();
-  /*outport void to_component(trigger_t &)*/;
-  void activate(CostEvent*);
- private:
-  CostSimEng* m_simeng;
-  event_t m_event;
-public:compcxx_XRServer_15* p_compcxx_parent;};
-
-class compcxx_XRServer_15;/*template <class T> */
-#line 267 "./COST/cost.h"
-class compcxx_Timer_8 : public compcxx_component, public TimerBase
-{
- public:
-  struct event_t : public CostEvent { trigger_t data; };
-  
-
-  compcxx_Timer_8() { m_simeng = CostSimEng::Instance(); m_event.active= false; }
-  inline void Set(trigger_t const &, double );
-  inline void Set(double );
-  inline double GetTime() { return m_event.time; }
-  inline bool Active() { return m_event.active; }
-  inline trigger_t & GetData() { return m_event.data; }
-  inline void SetData(trigger_t const &d) { m_event.data = d; }
-  void Cancel();
-  /*outport void to_component(trigger_t &)*/;
-  void activate(CostEvent*);
- private:
-  CostSimEng* m_simeng;
-  event_t m_event;
-public:compcxx_XRServer_15* p_compcxx_parent;};
-
-class compcxx_XRServer_15;/*template <class T> */
-#line 267 "./COST/cost.h"
-class compcxx_Timer_10 : public compcxx_component, public TimerBase
-{
- public:
-  struct event_t : public CostEvent { trigger_t data; };
-  
-
-  compcxx_Timer_10() { m_simeng = CostSimEng::Instance(); m_event.active= false; }
-  inline void Set(trigger_t const &, double );
-  inline void Set(double );
-  inline double GetTime() { return m_event.time; }
-  inline bool Active() { return m_event.active; }
-  inline trigger_t & GetData() { return m_event.data; }
-  inline void SetData(trigger_t const &d) { m_event.data = d; }
-  void Cancel();
-  /*outport void to_component(trigger_t &)*/;
-  void activate(CostEvent*);
- private:
-  CostSimEng* m_simeng;
-  event_t m_event;
-public:compcxx_XRServer_15* p_compcxx_parent;};
-
-
-#line 10 "./Models/XRServer.h"
-class compcxx_XRServer_15 : public compcxx_component, public TypeII
-{
-	
-	public: 
-		void Setup();
-		void Start();
-		void Stop();
-
-	public: 
-		class my_XRServer_out_f_t:public compcxx_functor<XRServer_out_f_t>{ public:void  operator() (data_packet &packet) { for (unsigned int compcxx_i=1;compcxx_i<c.size();compcxx_i++)(c[compcxx_i]->*f[compcxx_i])(packet); return (c[0]->*f[0])(packet);};};my_XRServer_out_f_t out_f;/*outport void out(data_packet &packet)*/;
-		/*inport */void in(data_packet &packet);	
-
-		
-		compcxx_Timer_8 /*<trigger_t> */inter_video_frame;
-		compcxx_Timer_9 /*<trigger_t> */inter_packet_timer;
-		compcxx_Timer_10 /*<trigger_t> */rate_control;
-
-		/*inport */inline void new_video_frame(trigger_t& t); 
-		/*inport */inline void new_packet(trigger_t& t); 
-		/*inport */inline void AdaptiveVideoControl(trigger_t& t); 
-
-		compcxx_XRServer_15 () { 
-			inter_video_frame.p_compcxx_parent=this /*connect inter_video_frame.to_component,*/; 
-			inter_packet_timer.p_compcxx_parent=this /*connect inter_packet_timer.to_component,*/;
-			rate_control.p_compcxx_parent=this /*connect rate_control.to_component,*/;}
-
-
-	public: 
-		int id; 
-		int L_data;
-		int destination;
-		double Load; 
-		double fps;
-		int node_attached;
-		int source_app;
-		int destination_app;
-		double last_frame_generation_time;
-		int rate_control_activated;
-
-	private:
-		double tau; 
-		double inter_frame_time;
-		int NumberPacketsPerFrame, auxNumberPacketsPerFrame;
-		int tx_packets_per_frame;
-		double video_frame_sequence=-1;
-
-
-	public:
-		double generated_packets=0;
-		double received_packets=0;
-		double generated_video_frames = 0;
-		double avRTT = 0;
-		double avRxFrames = 0;
-		double p_control = 0;
-		double new_load = 0;
-		double controlRTT = 0;
-		double rx_packet_controlRTT=0;
-		double av_Load=0;
-		double load_changes = 0;
-		double MAB_rewards[10];
-		int current_action = 0;
-		double sent_frames_MAB = 0;
-		double received_frames_MAB = 0;
-		double RTT_MAB = 0;
-
-};
-
-class compcxx_CSMACAChannel1_14;/*template <class T> */
+class compcxx_CSMACAChannel1_10;/*template <class T> */
 #line 267 "./COST/cost.h"
 class compcxx_Timer_7 : public compcxx_component, public TimerBase
 {
@@ -2972,9 +2745,9 @@ class compcxx_Timer_7 : public compcxx_component, public TimerBase
  private:
   CostSimEng* m_simeng;
   event_t m_event;
-public:compcxx_CSMACAChannel1_14* p_compcxx_parent;};
+public:compcxx_CSMACAChannel1_10* p_compcxx_parent;};
 
-class compcxx_CSMACAChannel1_14;/*template <class T> */
+class compcxx_CSMACAChannel1_10;/*template <class T> */
 #line 267 "./COST/cost.h"
 class compcxx_Timer_6 : public compcxx_component, public TimerBase
 {
@@ -2995,11 +2768,11 @@ class compcxx_Timer_6 : public compcxx_component, public TimerBase
  private:
   CostSimEng* m_simeng;
   event_t m_event;
-public:compcxx_CSMACAChannel1_14* p_compcxx_parent;};
+public:compcxx_CSMACAChannel1_10* p_compcxx_parent;};
 
 
 #line 12 "./Models/CSMACAChannel1.h"
-class compcxx_CSMACAChannel1_14 : public compcxx_component, public TypeII
+class compcxx_CSMACAChannel1_10 : public compcxx_component, public TypeII
 {
 	public:
 		void Setup();
@@ -3029,29 +2802,30 @@ class compcxx_CSMACAChannel1_14 : public compcxx_component, public TypeII
 		/*inport */inline void new_slot(trigger_t& t1);
 		/*inport */inline void reception_time(trigger_t& t2);
 
-		compcxx_CSMACAChannel1_14 () { 
+		compcxx_CSMACAChannel1_10 () { 
 			slot_time.p_compcxx_parent=this /*connect slot_time.to_component,*/; 
 			rx_time.p_compcxx_parent=this /*connect rx_time.to_component,*/; }
 	
 };
 
 
-#line 39 "XRWiFi_P1.cc"
-class compcxx_XRWiFisim_19 : public compcxx_component, public CostSimEng
+#line 51 "XRWiFi_P1.cc"
+class compcxx_XRWiFisim_13 : public compcxx_component, public CostSimEng
+
 {
 	public:
-		void Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, double BGLoad, int LBG, int BG_mode,int x, int RCA);
+		void Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, double BGLoad, int LBG, int BG_mode,int x, int RCA, input_arg_t st);
 		void Start();		
 		void Stop();
 	
 	public:
-		compcxx_array<compcxx_AccessPoint_12  >AP;
-		compcxx_array<compcxx_Station_13  >STA;
-		compcxx_CSMACAChannel1_14 channel1;
-		compcxx_array<compcxx_XRServer_15  >XRs;
-		compcxx_array<compcxx_XRClient_16  >XRc;
-		compcxx_array<compcxx_TrafficGeneratorApp_17  >TGApp;
-		compcxx_Network_18 Net;
+		compcxx_array<compcxx_AccessPoint_8  >AP;
+		compcxx_array<compcxx_Station_9  >STA;
+		compcxx_CSMACAChannel1_10 channel1;
+		
+		
+		compcxx_array<compcxx_TrafficGeneratorApp_11  >TGApp;
+		compcxx_Network_12 Net;
 
 		
 		int distance_ = 0;
@@ -3062,6 +2836,8 @@ class compcxx_XRWiFisim_19 : public compcxx_component, public CostSimEng
 		double BGLoad_ = 0;
 		int RCA_ = 0;
 		int BG_mode_ = -1;
+
+		
 };
 
 
@@ -3106,13 +2882,13 @@ void compcxx_FIFO_5 :: DeletePacketIn(int i)
 	m_queue.erase(m_queue.begin()+i);
 }
 #line 82 "./Models/AccessPoint.h"
-void compcxx_AccessPoint_12 :: Setup()
+void compcxx_AccessPoint_8 :: Setup()
 {
 	printf("Access Point Setup()\n");
 
 }
 #line 88 "./Models/AccessPoint.h"
-void compcxx_AccessPoint_12 :: Start()
+void compcxx_AccessPoint_8 :: Start()
 {
 	printf("Access Point Start()\n");
 
@@ -3141,7 +2917,7 @@ void compcxx_AccessPoint_12 :: Start()
 
 }
 #line 117 "./Models/AccessPoint.h"
-void compcxx_AccessPoint_12 :: Stop()
+void compcxx_AccessPoint_8 :: Stop()
 {
 
 
@@ -3160,10 +2936,10 @@ void compcxx_AccessPoint_12 :: Stop()
 
 }
 #line 137 "./Models/AccessPoint.h"
-void compcxx_AccessPoint_12 :: in_from_network(data_packet &packet)
+void compcxx_AccessPoint_8 :: in_from_network(data_packet &packet)
 {
 
-	if(traces_on) printf("%f - AP : New packet arrives from the network directed to STA %d | AP Tx Buffer = %d | Packet in Frame = %d\n",SimTime(),packet.destination,MAC_queue.QueueSize(),packet.num_packet_in_the_frame);
+	if(traces_on) printf("%f \t\t AP : New packet %d arrives from the network directed to STA %d | AP Tx Buffer = %d\n",SimTime(),packet.ID_PACKET_BG_DBG ,packet.destination,MAC_queue.QueueSize());
 
 	arrived++;
 	int QueueSize = MAC_queue.QueueSize();
@@ -3186,7 +2962,7 @@ void compcxx_AccessPoint_12 :: in_from_network(data_packet &packet)
 
 }
 #line 164 "./Models/AccessPoint.h"
-void compcxx_AccessPoint_12 :: in_slot(SLOT_indicator &slot)
+void compcxx_AccessPoint_8 :: in_slot(SLOT_indicator &slot)
 {
 
 	slots++;
@@ -3222,10 +2998,8 @@ void compcxx_AccessPoint_12 :: in_slot(SLOT_indicator &slot)
 					MAC_queue.DeletePacketIn(packet_queue_index);
 					queueing_service_delay_aux += (SimTime()-frame_test.queueing_service_delay-SLOT);
 					
-					
-						
-						out_to_wireless[frame_test.destination](frame_test); 
-					
+					printf("%f \t\t\t AP transmits packet %d (from %d) to STA %d \n",SimTime(),frame_test.ID_PACKET_BG_DBG ,frame_test.source ,frame_test.destination);
+					out_to_wireless[frame_test.destination](frame_test); 
 				}
 				else
 				{
@@ -3241,6 +3015,7 @@ void compcxx_AccessPoint_12 :: in_slot(SLOT_indicator &slot)
 			attempts=0;
 			service_time += (SimTime()-aux_service_time-SLOT);
 			successful++;
+			mode = 0;
 
 		}
 
@@ -3356,22 +3131,22 @@ void compcxx_AccessPoint_12 :: in_slot(SLOT_indicator &slot)
 	}
 
 }
-#line 336 "./Models/AccessPoint.h"
-void compcxx_AccessPoint_12 :: in_from_wireless(data_packet &packet)
+#line 335 "./Models/AccessPoint.h"
+void compcxx_AccessPoint_8 :: in_from_wireless(data_packet &packet)
 {
 	
 	(out_to_network_f(packet));	
 }
 
 
-#line 342 "./Models/AccessPoint.h"
-int compcxx_AccessPoint_12 :: BinaryExponentialBackoff(int attempt)
+#line 341 "./Models/AccessPoint.h"
+int compcxx_AccessPoint_8 :: BinaryExponentialBackoff(int attempt)
 {
 	int CW = Random(MIN(pow(2,attempt),pow(2,max_BEB_stages))*(CWmin+1));
 	return CW;	
 }
-#line 348 "./Models/AccessPoint.h"
-void compcxx_AccessPoint_12 :: FrameTransmissionDelay(double TotalBitsToBeTransmitted, int N_MPDUs, int station_id)
+#line 347 "./Models/AccessPoint.h"
+void compcxx_AccessPoint_8 :: FrameTransmissionDelay(double TotalBitsToBeTransmitted, int N_MPDUs, int station_id)
 {	
 
 	
@@ -3602,23 +3377,23 @@ void compcxx_AccessPoint_12 :: FrameTransmissionDelay(double TotalBitsToBeTransm
 #line 31 "./Models/Network.h"
 
 #line 50 "./Models/Network.h"
-void compcxx_Network_18 :: Setup()
+void compcxx_Network_12 :: Setup()
 {
 	printf("Network Setup()\n");
 
 }
 #line 56 "./Models/Network.h"
-void compcxx_Network_18 :: Start()
+void compcxx_Network_12 :: Start()
 {
 	printf("Network Start()\n");
 }
 #line 61 "./Models/Network.h"
-void compcxx_Network_18 :: Stop()
+void compcxx_Network_12 :: Stop()
 {
 	printf("Network Stop()\n");
 }
 #line 66 "./Models/Network.h"
-void compcxx_Network_18 :: in_from_apps(data_packet &packet)
+void compcxx_Network_12 :: in_from_apps(data_packet &packet)
 {
 	
 	
@@ -3640,7 +3415,7 @@ void compcxx_Network_18 :: in_from_apps(data_packet &packet)
 	
 }
 #line 88 "./Models/Network.h"
-void compcxx_Network_18 :: end_packet_transmission_DL(trigger_t &)
+void compcxx_Network_12 :: end_packet_transmission_DL(trigger_t &)
 {
 	
 	data_packet tx_packet = TxBuffer_DL.front();
@@ -3654,7 +3429,7 @@ void compcxx_Network_18 :: end_packet_transmission_DL(trigger_t &)
 
 }
 #line 102 "./Models/Network.h"
-void compcxx_Network_18 :: in_from_APs(data_packet &packet)
+void compcxx_Network_12 :: in_from_APs(data_packet &packet)
 {
 	
 	
@@ -3677,7 +3452,7 @@ void compcxx_Network_18 :: in_from_APs(data_packet &packet)
 	
 }
 #line 125 "./Models/Network.h"
-void compcxx_Network_18 :: end_packet_transmission_UL(trigger_t &)
+void compcxx_Network_12 :: end_packet_transmission_UL(trigger_t &)
 {
 	
 		
@@ -3693,13 +3468,13 @@ void compcxx_Network_18 :: end_packet_transmission_UL(trigger_t &)
 
 }
 #line 90 "./Models/Station.h"
-void compcxx_Station_13 :: Setup()
+void compcxx_Station_9 :: Setup()
 {
 	printf("Station Setup()\n");
 
 }
 #line 96 "./Models/Station.h"
-void compcxx_Station_13 :: Start()
+void compcxx_Station_9 :: Start()
 {
 	printf("Station Start()\n");
 
@@ -3727,7 +3502,7 @@ void compcxx_Station_13 :: Start()
 
 }
 #line 124 "./Models/Station.h"
-void compcxx_Station_13 :: Stop()
+void compcxx_Station_9 :: Stop()
 {
 
 
@@ -3744,7 +3519,7 @@ void compcxx_Station_13 :: Stop()
 
 }
 #line 142 "./Models/Station.h"
-void compcxx_Station_13 :: in_from_app(data_packet &packet)
+void compcxx_Station_9 :: in_from_app(data_packet &packet)
 {
 	
 
@@ -3769,7 +3544,7 @@ void compcxx_Station_13 :: in_from_app(data_packet &packet)
 
 }
 #line 168 "./Models/Station.h"
-void compcxx_Station_13 :: in_slot(SLOT_indicator &slot)
+void compcxx_Station_9 :: in_slot(SLOT_indicator &slot)
 {
 
 	
@@ -3804,7 +3579,8 @@ void compcxx_Station_13 :: in_slot(SLOT_indicator &slot)
 				
 				if(Random()>pe)
 				{	
-					MAC_queue.pop_front();			
+					
+					MAC_queue.erase(MAC_queue.begin()+packet_queue_index);	
 					queueing_service_delay_aux += (SimTime()-frame_test.queueing_service_delay-SLOT);
 					
 					
@@ -3818,12 +3594,14 @@ void compcxx_Station_13 :: in_slot(SLOT_indicator &slot)
 
 			}
 
+			
 			queueing_service_delay_aux = queueing_service_delay_aux / current_ampdu_size;
 			queueing_service_delay += queueing_service_delay_aux;
 			current_ampdu_size=0; 
 			attempts=0;
 			service_time += (SimTime()-aux_service_time-SLOT);
 			successful++;
+			mode = 0;
 
 		}
 
@@ -3941,8 +3719,8 @@ void compcxx_Station_13 :: in_slot(SLOT_indicator &slot)
 	}
 
 }
-#line 342 "./Models/Station.h"
-void compcxx_Station_13 :: in_from_wireless(data_packet &packet)
+#line 345 "./Models/Station.h"
+void compcxx_Station_9 :: in_from_wireless(data_packet &packet)
 {
 	
 	if(packet.destination == id) (out_to_app_f(packet));	
@@ -3950,15 +3728,15 @@ void compcxx_Station_13 :: in_from_wireless(data_packet &packet)
 
 
 
-#line 349 "./Models/Station.h"
-int compcxx_Station_13 :: BinaryExponentialBackoff(int attempt)
+#line 352 "./Models/Station.h"
+int compcxx_Station_9 :: BinaryExponentialBackoff(int attempt)
 {
 	int CW = Random(MIN(pow(2,attempt),pow(2,max_BEB_stages))*(CWmin+1));
 	
 	return CW;	
 }
-#line 356 "./Models/Station.h"
-double compcxx_Station_13 :: FrameTransmissionDelay(double TotalBitsToBeTransmitted, int N_MPDUs, int station_id)
+#line 359 "./Models/Station.h"
+double compcxx_Station_9 :: FrameTransmissionDelay(double TotalBitsToBeTransmitted, int N_MPDUs, int station_id)
 {	
 
 	
@@ -4130,15 +3908,15 @@ double compcxx_Station_13 :: FrameTransmissionDelay(double TotalBitsToBeTransmit
 
 
 
-#line 24 "./Models/TrafficGeneratorApp.h"
+#line 28 "./Models/TrafficGeneratorApp.h"
 
-#line 51 "./Models/TrafficGeneratorApp.h"
-void compcxx_TrafficGeneratorApp_17 :: Setup()
+#line 55 "./Models/TrafficGeneratorApp.h"
+void compcxx_TrafficGeneratorApp_11 :: Setup()
 {
 	printf("Traffic Generation APP Setup()\n");
 }
-#line 56 "./Models/TrafficGeneratorApp.h"
-void compcxx_TrafficGeneratorApp_17 :: Start()
+#line 60 "./Models/TrafficGeneratorApp.h"
+void compcxx_TrafficGeneratorApp_11 :: Start()
 {
 	printf("Traffic Generation APP Source Start()\n");
 
@@ -4147,765 +3925,52 @@ void compcxx_TrafficGeneratorApp_17 :: Start()
 	inter_packet_timer.Set(SimTime()+Exponential(tau));
 
 }
-#line 66 "./Models/TrafficGeneratorApp.h"
-void compcxx_TrafficGeneratorApp_17 :: Stop()
+#line 70 "./Models/TrafficGeneratorApp.h"
+void compcxx_TrafficGeneratorApp_11 :: Stop()
 {
 	printf("------------------------ TGAPP %d Results ------------------------\n",id);
 	printf("GTAPP %d: Number of Generated Packets = %f | Number of Received Packets = %f\n",id,generated_packets,received_packets);
-	printf("GTAPP %d: Load = %f \n",id,generated_packets*L_data);
+	printf("GTAPP %d: Load = %f \n",id,generated_packets*L_data/SimTime());
 	printf("GTAPP %d: Received Traffic = %f \n",id,avLreceived/SimTime());
 	printf("Av. Packet Delay = %f\n",avDelay/received_packets);
 
 }
-#line 77 "./Models/TrafficGeneratorApp.h"
-void compcxx_TrafficGeneratorApp_17 :: new_packet(trigger_t &)
+#line 81 "./Models/TrafficGeneratorApp.h"
+void compcxx_TrafficGeneratorApp_11 :: new_packet(trigger_t &)
 {
-	if(traces_on==1) printf("%.9f - Traffic Generation APP %d - New Generated Packet to node %d and app %d\n",SimTime(),id,destination,destination_app);
 	data_packet new_gen_packet;
 	new_gen_packet.L_data = L_data;
-	new_gen_packet.L_data = 100;
+	
 	new_gen_packet.L = 100 + L_data;
 	new_gen_packet.source = node_attached;
 	new_gen_packet.destination = destination;
 	new_gen_packet.source_app = source_app;
 	new_gen_packet.destination_app = destination_app;	
 	new_gen_packet.sent_time = SimTime();
-	
+
+	new_gen_packet.ID_PACKET_BG_DBG = generated_packets + PREFIX_PACKETS_BG_ID*node_attached; 
+
+	if(traces_on==1) printf("%.9f - Traffic Generation APP %d - New Generated Packet %d to node %d and app %d\n",SimTime(),id,new_gen_packet.ID_PACKET_BG_DBG ,destination,destination_app);
+
 	generated_packets++;
 	(out_f(new_gen_packet));
 
 	if(mode==0) inter_packet_timer.Set(SimTime()+Exponential(tau));	
 	else inter_packet_timer.Set(SimTime()+tau);
 }
-#line 97 "./Models/TrafficGeneratorApp.h"
-void compcxx_TrafficGeneratorApp_17 :: in(data_packet &packet)
+#line 104 "./Models/TrafficGeneratorApp.h"
+void compcxx_TrafficGeneratorApp_11 :: in(data_packet &packet)
 {
 	if(traces_on) printf("%f - Traffic Generation APP %d - Packet Received from %d \n",SimTime(),id,packet.source);
 	received_packets++;
 	avDelay += SimTime() - packet.sent_time;
-	avLreceived += packet.L;
+	
+	avLreceived += packet.L_data;
+
 }
 
 
 
-#line 288 "./COST/cost.h"
-
-#line 288 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_11/*<trigger_t >*/::Set(trigger_t const & data, double time)
-{
-  if(m_event.active)
-    m_simeng->CancelEvent(&m_event);
-  m_event.time = time;
-  m_event.data = data;
-  m_event.object = this;
-  m_event.active=true;
-  m_simeng->ScheduleEvent(&m_event);
-}
-
-
-#line 300 "./COST/cost.h"
-
-#line 300 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_11/*<trigger_t >*/::Set(double time)
-{
-  if(m_event.active)
-    m_simeng->CancelEvent(&m_event);
-  m_event.time = time;
-  m_event.object = this;
-  m_event.active=true;
-  m_simeng->ScheduleEvent(&m_event);
-}
-
-
-#line 311 "./COST/cost.h"
-
-#line 311 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_11/*<trigger_t >*/::Cancel()
-{
-  if(m_event.active)
-    m_simeng->CancelEvent(&m_event);
-  m_event.active = false;
-}
-
-
-#line 319 "./COST/cost.h"
-
-#line 319 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_11/*<trigger_t >*/::activate(CostEvent*e)
-{
-  assert(e==&m_event);
-  m_event.active=false;
-  (p_compcxx_parent->new_packet(m_event.data));
-}
-
-
-
-
-#line 29 "./Models/XRClient.h"
-
-#line 69 "./Models/XRClient.h"
-void compcxx_XRClient_16 :: Setup()
-{
-	printf("XR Client Setup()\n");
-}
-#line 74 "./Models/XRClient.h"
-void compcxx_XRClient_16 :: Start()
-{
-	
-	printf("%f - XR Client Starts() Load = %f | L= %d\n",SimTime(),Load,L_data);
-
-	tau = (double) 1/(2*fps);
-	printf("%f\n",tau);
-	inter_packet_timer.Set(SimTime()+Exponential(tau));
-
-}
-#line 85 "./Models/XRClient.h"
-void compcxx_XRClient_16 :: Stop()
-{
-	printf("-------------- XR Client %d Results --------------\n",id);
-	
-	printf("Video Thoughput = %f\n",avRxPacketSize/SimTime());	
-	
-	
-	printf("Number of Video Frames Full Received %f from Total = %f | Fraction = %f\n",VideoFramesFullReceived,VideoFramesReceived,VideoFramesFullReceived/VideoFramesReceived);
-
-	std::sort(packet_times.begin(),packet_times.end()); 
-	double avg = std::accumulate(packet_times.begin(),packet_times.end(),0.0)/(double)packet_times.size(); 
-
-	
-	double perc_1 = packet_times[ceil(0.01*packet_times.size()-1)]; 
-	double perc_50 = packet_times[ceil(0.50*packet_times.size()-1)];
-	double perc_95 = packet_times[ceil(0.95*packet_times.size()-1)];
-	double perc_99 = packet_times[ceil(0.99*packet_times.size()-1)];
-	double perc_999999 = packet_times[ceil(0.999999*packet_times.size()-1)];
-	double perc_100 = packet_times[(packet_times.size()-1)];
-
-	printf("Video Packets --------------------------------------------------------\n");
-	printf(" 1%%-tile:  median:  avg:  95%%-tile:  99%%-tile: 99.9999%%-tile: max: %f %f %f %f %f %f %f\n",perc_1,perc_50,avg,perc_95,perc_99,perc_999999,perc_100);
-	
-	if(VideoFramesFullReceived > 0)
-	{
-	
-	std::sort(frame_times.begin(),frame_times.end()); 
-	double frame_avg = std::accumulate(frame_times.begin(),frame_times.end(),0.0)/(double)frame_times.size(); 
-
-	
-	double frame_perc_1 = frame_times[ceil(0.01*frame_times.size()-1)]; 
-	double frame_perc_50 = frame_times[ceil(0.50*frame_times.size()-1)];
-	double frame_perc_95 = frame_times[ceil(0.95*frame_times.size()-1)];
-	double frame_perc_99 = frame_times[ceil(0.99*frame_times.size()-1)];
-	double frame_perc_999999 = frame_times[ceil(0.999999*frame_times.size()-1)];
-	double frame_perc_100 = frame_times[(frame_times.size()-1)];
-
-	printf("Video Frames --------------------------------------------------------\n");
-	printf(" 1%%-tile:  median:  avg:  95%%-tile:  99%%-tile: 99.9999%%-tile: max: %f %f %f %f %f %f %f\n",frame_perc_1,frame_perc_50,frame_avg,frame_perc_95,frame_perc_99,frame_perc_999999,frame_perc_100);
-
-	mean_VFD = frame_avg;
-	p99th_VFD = frame_perc_99;
-
-	}
-}
-#line 132 "./Models/XRClient.h"
-void compcxx_XRClient_16 :: new_packet(trigger_t &)
-{
-	if(traces_on) printf("%f - XRClient %d : Uplink Packet generated (tau = %f)\n",SimTime(),id,tau);
-
-	generated_packets++; 
-
-	
-
-
-
-
-
-
-
-
-
-
-
-	data_packet XR_packet;
-	XR_packet.L = 20*8 + L_data; 
-	XR_packet.source = node_attached;
-	XR_packet.destination = destination;
-	XR_packet.source_app = source_app;
-	XR_packet.destination_app = destination_app;
-	XR_packet.sent_time = SimTime();
-	XR_packet.last_video_frame_packet=0;
-	
-	XR_packet.TimeSentAtTheServer = 0; 
-	XR_packet.TimeReceivedAtTheClient = SimTime();
-
-	(out_f(XR_packet));
-
-	inter_packet_timer.Set(SimTime()+tau);	
-
-}
-#line 168 "./Models/XRClient.h"
-void compcxx_XRClient_16 :: in(data_packet &packet)
-{
-	if(traces_on) printf("%f - XRClient %d. Downlink Data Received %d (last packet video frame? %d) From video frame %f <-----------\n",SimTime(),id,packet.num_packet_in_the_frame,packet.last_video_frame_packet,packet.video_frame_seq);
-	received_packets++;
-	avDelay += SimTime()-packet.sent_time;
-	packet_times.push_back(SimTime()-packet.sent_time);
-	avRxPacketSize +=packet.L_data;
-
-	
-	
-
-
-	if(packet.video_frame_seq < 10000)
-	{
-		if(packets_rx_video_frames[(int) packet.video_frame_seq] == 0) VideoFramesReceived++;
-		
-		packets_rx_video_frames[(int) packet.video_frame_seq]++;
-		if(packets_rx_video_frames[(int) packet.video_frame_seq] == packet.NumPacketsPerFrame)
-		{
-			VideoFramesFullReceived++;
-			frame_times.push_back(SimTime()-packet.frame_generation_time);
-			if(traces_on) printf("%f - XRClient %d. Video Frame Received  %f (Packets = %f | Packets In Frame = %d).\n",SimTime(),id,packet.video_frame_seq,packets_rx_video_frames[(int) packet.video_frame_seq],packet.NumPacketsPerFrame);
-			if(traces_on) printf("Number of Video Frames Full Received %f from Total = %f | Fraction = %f\n",VideoFramesFullReceived,VideoFramesReceived,VideoFramesFullReceived/VideoFramesReceived);
-	
-			test_frames_received[id]++;
-			
-			test_average_delay_decision[id] = (test_average_delay_decision[id] + (SimTime()-packet.frame_generation_time))/2;
-
-		}
-	}
-
-
-	
-	
-
-	
-	
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	
-
-	
-	if(packet.last_video_frame_packet==1)
-	
-	{
-		if(traces_on) printf("%f - XR client %d . UL packet for RTT\n",SimTime(),id);
-		data_packet XR_packet = packet;
-		XR_packet.L = 20*8 + L_data;
-		XR_packet.source = node_attached;
-		XR_packet.destination = destination;
-		XR_packet.source_app = source_app;
-		XR_packet.destination_app = destination_app;
-		XR_packet.sent_time = SimTime();
-		
-		XR_packet.TimeSentAtTheServer = packet.sent_time;
-		XR_packet.TimeReceivedAtTheClient = SimTime();
-		XR_packet.frames_received = VideoFramesFullReceived;
-		
-		(out_f(XR_packet));	
-	}
-
-	
-}
-#line 288 "./COST/cost.h"
-
-#line 288 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_9/*<trigger_t >*/::Set(trigger_t const & data, double time)
-{
-  if(m_event.active)
-    m_simeng->CancelEvent(&m_event);
-  m_event.time = time;
-  m_event.data = data;
-  m_event.object = this;
-  m_event.active=true;
-  m_simeng->ScheduleEvent(&m_event);
-}
-
-
-#line 300 "./COST/cost.h"
-
-#line 300 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_9/*<trigger_t >*/::Set(double time)
-{
-  if(m_event.active)
-    m_simeng->CancelEvent(&m_event);
-  m_event.time = time;
-  m_event.object = this;
-  m_event.active=true;
-  m_simeng->ScheduleEvent(&m_event);
-}
-
-
-#line 311 "./COST/cost.h"
-
-#line 311 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_9/*<trigger_t >*/::Cancel()
-{
-  if(m_event.active)
-    m_simeng->CancelEvent(&m_event);
-  m_event.active = false;
-}
-
-
-#line 319 "./COST/cost.h"
-
-#line 319 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_9/*<trigger_t >*/::activate(CostEvent*e)
-{
-  assert(e==&m_event);
-  m_event.active=false;
-  (p_compcxx_parent->new_packet(m_event.data));
-}
-
-
-
-
-#line 288 "./COST/cost.h"
-
-#line 288 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_8/*<trigger_t >*/::Set(trigger_t const & data, double time)
-{
-  if(m_event.active)
-    m_simeng->CancelEvent(&m_event);
-  m_event.time = time;
-  m_event.data = data;
-  m_event.object = this;
-  m_event.active=true;
-  m_simeng->ScheduleEvent(&m_event);
-}
-
-
-#line 300 "./COST/cost.h"
-
-#line 300 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_8/*<trigger_t >*/::Set(double time)
-{
-  if(m_event.active)
-    m_simeng->CancelEvent(&m_event);
-  m_event.time = time;
-  m_event.object = this;
-  m_event.active=true;
-  m_simeng->ScheduleEvent(&m_event);
-}
-
-
-#line 311 "./COST/cost.h"
-
-#line 311 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_8/*<trigger_t >*/::Cancel()
-{
-  if(m_event.active)
-    m_simeng->CancelEvent(&m_event);
-  m_event.active = false;
-}
-
-
-#line 319 "./COST/cost.h"
-
-#line 319 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_8/*<trigger_t >*/::activate(CostEvent*e)
-{
-  assert(e==&m_event);
-  m_event.active=false;
-  (p_compcxx_parent->new_video_frame(m_event.data));
-}
-
-
-
-
-#line 288 "./COST/cost.h"
-
-#line 288 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_10/*<trigger_t >*/::Set(trigger_t const & data, double time)
-{
-  if(m_event.active)
-    m_simeng->CancelEvent(&m_event);
-  m_event.time = time;
-  m_event.data = data;
-  m_event.object = this;
-  m_event.active=true;
-  m_simeng->ScheduleEvent(&m_event);
-}
-
-
-#line 300 "./COST/cost.h"
-
-#line 300 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_10/*<trigger_t >*/::Set(double time)
-{
-  if(m_event.active)
-    m_simeng->CancelEvent(&m_event);
-  m_event.time = time;
-  m_event.object = this;
-  m_event.active=true;
-  m_simeng->ScheduleEvent(&m_event);
-}
-
-
-#line 311 "./COST/cost.h"
-
-#line 311 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_10/*<trigger_t >*/::Cancel()
-{
-  if(m_event.active)
-    m_simeng->CancelEvent(&m_event);
-  m_event.active = false;
-}
-
-
-#line 319 "./COST/cost.h"
-
-#line 319 "./COST/cost.h"
-/*template <class T>
-*/void compcxx_Timer_10/*<trigger_t >*/::activate(CostEvent*e)
-{
-  assert(e==&m_event);
-  m_event.active=false;
-  (p_compcxx_parent->AdaptiveVideoControl(m_event.data));
-}
-
-
-
-
-#line 27 "./Models/XRServer.h"
-
-#line 28 "./Models/XRServer.h"
-
-#line 29 "./Models/XRServer.h"
-
-#line 77 "./Models/XRServer.h"
-void compcxx_XRServer_15 :: Setup()
-{
-	printf("XR Server Setup()\n");
-}
-#line 82 "./Models/XRServer.h"
-void compcxx_XRServer_15 :: Start()
-{
-	
-
-	NumberPacketsPerFrame = ceil((Load/L_data)/fps);
-
-	tau = (double) L_data/Load;
-	inter_frame_time = (double) 1 / fps;
-	printf("%f\n",tau);
-	inter_video_frame.Set(SimTime()+Exponential(150E-3));	
-	if(rate_control_activated) rate_control.Set(SimTime()+0.5+Exponential(0.1));
-		
-	new_load = Load;
-
-	printf("XR Server Start() : Load %f | FPS = %f | Packets = %d\n",Load,fps,NumberPacketsPerFrame);
-	
-
-	for (int r=0;r<10;r++)
-	{
-		MAB_rewards[r]=0.0;
-		printf("%f ",MAB_rewards[r]);
-	}
-
-
-}
-#line 108 "./Models/XRServer.h"
-void compcxx_XRServer_15 :: Stop()
-{
-	printf("------------------ XR Server %d ------------------\n",id);
-	printf("Generated Packets = %f | Received Packets = %f\n",generated_packets,received_packets);
-	printf("Average RTT (last packet video frame) = %f \n",avRTT/rx_packet_controlRTT);
-	printf("Average Load = %f\n",av_Load/generated_video_frames);
-	printf("Number of Changes = %f | Rate of changes = %f\n",load_changes,load_changes/SimTime());
-
-}
-#line 118 "./Models/XRServer.h"
-void compcxx_XRServer_15 :: new_video_frame(trigger_t &)
-{
-	if(traces_on) printf("%f - XR Server %d : New video frame --------------------------------------\n",SimTime(),id);
-	video_frame_sequence++;
-	last_frame_generation_time = SimTime();
-	tx_packets_per_frame = NumberPacketsPerFrame;
-	auxNumberPacketsPerFrame = NumberPacketsPerFrame;
-	inter_packet_timer.Set(SimTime()+10E-6);
-	generated_video_frames++;	
-	sent_frames_MAB++;
-
-	av_Load += Load;
-
-	
-
-
-
-
-
-
-
-
-
-
-
-	
-
-
-	inter_video_frame.Set(SimTime()+inter_frame_time); 
-
-	
-
-
-
-
-
-
-
-
-	
-	
-	
-	
-}
-
-
-
-
-#line 165 "./Models/XRServer.h"
-void compcxx_XRServer_15 :: new_packet(trigger_t &)
-{
-	
-	generated_packets++;
-	data_packet XR_packet;
-	XR_packet.L_data = L_data;
-	XR_packet.L_header = 20*8; 
-	XR_packet.L = 20*8 + L_data;
-
-	XR_packet.source = node_attached;
-	XR_packet.destination = destination;
-	XR_packet.source_app = source_app;
-	XR_packet.destination_app = destination_app;
-	XR_packet.sent_time = SimTime();
-	XR_packet.frame_generation_time = last_frame_generation_time;
-
-	if(tx_packets_per_frame == auxNumberPacketsPerFrame) 
-	{
-		XR_packet.first_video_frame_packet = 1;
-	}
-	else 
-	{
-		XR_packet.first_video_frame_packet = 0;
-	}
-	if(tx_packets_per_frame==1) 
-	{
-		XR_packet.last_video_frame_packet = 1;
-	}
-	else 
-	{
-		XR_packet.last_video_frame_packet = 0;
-	}
-	XR_packet.num_packet_in_the_frame = auxNumberPacketsPerFrame - tx_packets_per_frame + 1; 
-	XR_packet.NumPacketsPerFrame = auxNumberPacketsPerFrame;
-	XR_packet.video_frame_seq = video_frame_sequence;
-
-	(out_f(XR_packet));
-
-	tx_packets_per_frame--;
-
-	
-	
-	
-	
-
-
-	
-	if(tx_packets_per_frame > 0) inter_packet_timer.Set(SimTime()+10E-6);
-
-}
-#line 216 "./Models/XRServer.h"
-void compcxx_XRServer_15 :: in(data_packet &packet)
-{
-	
-	if(traces_on) printf("%f - XR server %d : Uplink Packet received\n",SimTime(),id);
-	
-	if(packet.last_video_frame_packet == 1)
-	{
-		double RTT = SimTime() - packet.TimeSentAtTheServer;
-		avRTT += RTT;
-		
-		if(traces_on) printf("%f - XR server %d : Uplink Packet received: RTT = %f\n",SimTime(),id,RTT);
-
-		controlRTT = (controlRTT + RTT)/2;
-		rx_packet_controlRTT++;
-
-		RTT_MAB = (RTT_MAB + RTT)/2;
-
-		avRxFrames = (avRxFrames + packet.frames_received)/2;
-
-		received_frames_MAB++;
-
-
-	}
-	received_packets++;
-
-}
-#line 243 "./Models/XRServer.h"
-void compcxx_XRServer_15 :: AdaptiveVideoControl(trigger_t &)
-{
-
-
-
-	
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	
-
-	
-
-	
-	
-	
-	
-	MAB_rewards[current_action]=(MIN(1,received_frames_MAB/sent_frames_MAB)*Load);
-
-	printf("%f - XRserver %d - Reward update %f for current action %d | Received %f and Sent %f\n",SimTime(),id,MAB_rewards[current_action],current_action,received_frames_MAB,sent_frames_MAB);
-	
-	sent_frames_MAB = 0;
-	received_frames_MAB = 0;
-	RTT_MAB = 0;
-
-
-	
-	int next_action = -1;
-	if(Random()<=0.25)
-	{
-		
-		printf("***************** EXPLORE ****************************\n");
-		next_action = Random(10);
-		
-	}
-	else
-	{
-		printf("***************** EXPLOIT ****************************\n");
-
-		
-		int index_max = 0;
-		double max_reward = MAB_rewards[0];
-		for (int r=0;r<10;r++)
-		{
-			printf("%d %f\n",r,MAB_rewards[r]);
-			if(max_reward < MAB_rewards[r])
-			{
-				index_max = r;
-				max_reward = MAB_rewards[r];
-			}
-		}
-		printf("The action with max reward is %d\n",index_max);
-		next_action = index_max;
-		
-	}
-
-	Load = 10E6*(next_action+1);
-
-	printf("%f - Load = %f | next_action = %d\n",SimTime(),Load,next_action);
-	current_action = next_action;
-
-	rate_control.Set(SimTime()+(0.1));
-	
-}
 #line 288 "./COST/cost.h"
 
 #line 288 "./COST/cost.h"
@@ -5025,12 +4090,12 @@ void compcxx_XRServer_15 :: AdaptiveVideoControl(trigger_t &)
 #line 40 "./Models/CSMACAChannel1.h"
 
 #line 48 "./Models/CSMACAChannel1.h"
-void compcxx_CSMACAChannel1_14 :: Setup()
+void compcxx_CSMACAChannel1_10 :: Setup()
 {
 	printf("CSMACAChannel1 Setup()\n");
 }
 #line 53 "./Models/CSMACAChannel1.h"
-void compcxx_CSMACAChannel1_14 :: Start()
+void compcxx_CSMACAChannel1_10 :: Start()
 {
 	printf("CSMACAChannel1 Start()\n");
 
@@ -5040,13 +4105,13 @@ void compcxx_CSMACAChannel1_14 :: Start()
 	slot_time.Set(SimTime());	
 }
 #line 63 "./Models/CSMACAChannel1.h"
-void compcxx_CSMACAChannel1_14 :: Stop()
+void compcxx_CSMACAChannel1_10 :: Stop()
 {
 	printf("CSMACAChannel1 Stop()\n");
 
 }
 #line 69 "./Models/CSMACAChannel1.h"
-void compcxx_CSMACAChannel1_14 :: new_slot(trigger_t &)
+void compcxx_CSMACAChannel1_10 :: new_slot(trigger_t &)
 {
 	SLOT_indicator slot;
 
@@ -5065,7 +4130,7 @@ void compcxx_CSMACAChannel1_14 :: new_slot(trigger_t &)
 
 
 #line 86 "./Models/CSMACAChannel1.h"
-void compcxx_CSMACAChannel1_14 :: reception_time(trigger_t &)
+void compcxx_CSMACAChannel1_10 :: reception_time(trigger_t &)
 {
 	
 	if(sim_transmissions==0) slot_time.Set(SimTime()+SLOT);
@@ -5076,7 +4141,7 @@ void compcxx_CSMACAChannel1_14 :: reception_time(trigger_t &)
 
 
 #line 95 "./Models/CSMACAChannel1.h"
-void compcxx_CSMACAChannel1_14 :: in_frame(data_packet &packet)
+void compcxx_CSMACAChannel1_10 :: in_frame(data_packet &packet)
 {
 	
 	if(packet.AMPDU_size > current_transmissions) current_transmissions = packet.AMPDU_size;
@@ -5109,8 +4174,8 @@ void compcxx_CSMACAChannel1_14 :: in_frame(data_packet &packet)
 
 
 
-#line 66 "XRWiFi_P1.cc"
-void compcxx_XRWiFisim_19 :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, double BGLoad, int LBG, int BG_mode,int x, int RCA)
+#line 81 "XRWiFi_P1.cc"
+void compcxx_XRWiFisim_13 :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, double BGLoad, int LBG, int BG_mode,int x, int RCA, input_arg_t st )
 {
 
 	distance_ = x;
@@ -5126,32 +4191,42 @@ void compcxx_XRWiFisim_19 :: Setup(int NXR, int fps, double LoadXR, int LXR, int
  
 
 	
-	XRs.SetSize(NXR);
-	for(int n=0;n<NXR;n++)
-	{
-		XRs[n].id = n;
-		XRs[n].node_attached = 0;
-		XRs[n].Load = LoadXR;
-		XRs[n].L_data = 1450*8;
-		XRs[n].destination = n; 
-		XRs[n].fps = fps;
-		XRs[n].source_app = n;
-		XRs[n].destination_app = n;
-		XRs[n].rate_control_activated = RCA;
-	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 
-	XRc.SetSize(NXR);
-	for(int n=0;n<NXR;n++)
-	{
-		XRc[n].id = n; 
-		XRc[n].node_attached = n;	
-		XRc[n].Load = 0.5E6; 
-		XRc[n].L_data = 220*8;
-		XRc[n].destination = 0; 
-		XRc[n].source_app = n;
-		XRc[n].destination_app = n;
-		XRc[n].fps = fps;
-	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 
 	
 	int aux_BGDL = 1;
@@ -5223,29 +4298,29 @@ void compcxx_XRWiFisim_19 :: Setup(int NXR, int fps, double LoadXR, int LXR, int
 	STA.SetSize(NumberStations);
 
 	
-	for(int n=0;n<NXR;n++)
-	{
-		STA[n].id = n;
-		STA[n].x=x;
-		STA[n].y=0;
-		STA[n].z=2;
-		STA[n].NumberStations=1; 
-		STA[n].Pt = 20; 
-		STA[n].qmin = 1;
-		STA[n].QL = 150;
-		STA[n].MAX_AMPDU = 64;
-		STA[n].CWmin = 15;
-		STA[n].max_BEB_stages = 6;
-		STA[n].pe=0.1; 
-		STA[n].channel_width = 80; 
-		STA[n].SU_spatial_streams = 2;
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 
-		STA[n].out_to_wireless.SetSize(1); 
-		x_[n]=STA[n].x;
-		y_[n]=STA[n].y;
-		z_[n]=STA[n].z;
-		index++;
-	}
+	
+	
+	
+	
+	
+	
 
 	
 	for(int n=NXR;n<NumberStations;n++)
@@ -5282,75 +4357,75 @@ void compcxx_XRWiFisim_19 :: Setup(int NXR, int fps, double LoadXR, int LXR, int
 
 	
 
-	for(int n=0;n<NXR;n++)
-	{
-		XRs[n].out_f.Connect(Net,(compcxx_component::XRServer_out_f_t)&compcxx_Network_18::in_from_apps) /*connect XRs[n].out,Net.in_from_apps*/;
-		Net.out_to_apps[n].Connect(XRs[n],(compcxx_component::Network_out_to_apps_f_t)&compcxx_XRServer_15::in) /*connect Net.out_to_apps[n],XRs[n].in*/;
-	}
+	
+	
+	
+	
+	
 
 
 	for(int n=0;n<NBG;n++)
 	{
-		TGApp[n].out_f.Connect(Net,(compcxx_component::TrafficGeneratorApp_out_f_t)&compcxx_Network_18::in_from_apps) /*connect TGApp[n].out,Net.in_from_apps*/;
-		Net.out_to_apps[NXR+n].Connect(TGApp[n],(compcxx_component::Network_out_to_apps_f_t)&compcxx_TrafficGeneratorApp_17::in) /*connect Net.out_to_apps[NXR+n],TGApp[n].in*/;
+		TGApp[n].out_f.Connect(Net,(compcxx_component::TrafficGeneratorApp_out_f_t)&compcxx_Network_12::in_from_apps) /*connect TGApp[n].out,Net.in_from_apps*/;
+		Net.out_to_apps[NXR+n].Connect(TGApp[n],(compcxx_component::Network_out_to_apps_f_t)&compcxx_TrafficGeneratorApp_11::in) /*connect Net.out_to_apps[NXR+n],TGApp[n].in*/;
 	}
 
 
 	
 
-	Net.out_to_APs[0].Connect(AP[0],(compcxx_component::Network_out_to_APs_f_t)&compcxx_AccessPoint_12::in_from_network) /*connect Net.out_to_APs[0],AP[0].in_from_network*/;	
-	AP[0].out_to_network_f.Connect(Net,(compcxx_component::AccessPoint_out_to_network_f_t)&compcxx_Network_18::in_from_APs) /*connect AP[0].out_to_network,Net.in_from_APs*/;
+	Net.out_to_APs[0].Connect(AP[0],(compcxx_component::Network_out_to_APs_f_t)&compcxx_AccessPoint_8::in_from_network) /*connect Net.out_to_APs[0],AP[0].in_from_network*/;	
+	AP[0].out_to_network_f.Connect(Net,(compcxx_component::AccessPoint_out_to_network_f_t)&compcxx_Network_12::in_from_APs) /*connect AP[0].out_to_network,Net.in_from_APs*/;
 
 	
 
 	for(int n=0;n<NumberStations;n++)
 	{
-		AP[0].out_to_wireless[n].Connect(STA[n],(compcxx_component::AccessPoint_out_to_wireless_f_t)&compcxx_Station_13::in_from_wireless) /*connect AP[0].out_to_wireless[n],STA[n].in_from_wireless*/;
-		STA[n].out_to_wireless[0].Connect(AP[0],(compcxx_component::Station_out_to_wireless_f_t)&compcxx_AccessPoint_12::in_from_wireless) /*connect STA[n].out_to_wireless[0],AP[0].in_from_wireless*/;	
+		AP[0].out_to_wireless[n].Connect(STA[n],(compcxx_component::AccessPoint_out_to_wireless_f_t)&compcxx_Station_9::in_from_wireless) /*connect AP[0].out_to_wireless[n],STA[n].in_from_wireless*/;
+		STA[n].out_to_wireless[0].Connect(AP[0],(compcxx_component::Station_out_to_wireless_f_t)&compcxx_AccessPoint_8::in_from_wireless) /*connect STA[n].out_to_wireless[0],AP[0].in_from_wireless*/;	
 	}
 
 
 	
 
-	for(int n=0;n<NXR;n++)	
-	{
-		STA[n].out_to_app_f.Connect(XRc[n],(compcxx_component::Station_out_to_app_f_t)&compcxx_XRClient_16::in) /*connect STA[n].out_to_app,XRc[n].in*/;
-		XRc[n].out_f.Connect(STA[n],(compcxx_component::XRClient_out_f_t)&compcxx_Station_13::in_from_app) /*connect XRc[n].out,STA[n].in_from_app*/;
-	}
+	
+	
+	
+	
+	
 
 	for(int n=0;n<NBG;n++)	
 	{		
-		STA[NXR+n].out_to_app_f.Connect(TGApp[NBG+n],(compcxx_component::Station_out_to_app_f_t)&compcxx_TrafficGeneratorApp_17::in) /*connect STA[NXR+n].out_to_app,TGApp[NBG+n].in*/;
-		TGApp[NBG+n].out_f.Connect(STA[NXR+n],(compcxx_component::TrafficGeneratorApp_out_f_t)&compcxx_Station_13::in_from_app) /*connect TGApp[NBG+n].out,STA[NXR+n].in_from_app*/;
+		STA[NXR+n].out_to_app_f.Connect(TGApp[NBG+n],(compcxx_component::Station_out_to_app_f_t)&compcxx_TrafficGeneratorApp_11::in) /*connect STA[NXR+n].out_to_app,TGApp[NBG+n].in*/;
+		TGApp[NBG+n].out_f.Connect(STA[NXR+n],(compcxx_component::TrafficGeneratorApp_out_f_t)&compcxx_Station_9::in_from_app) /*connect TGApp[NBG+n].out,STA[NXR+n].in_from_app*/;
 	}
 
 	
 
-	AP[0].out_packet_f.Connect(channel1,(compcxx_component::AccessPoint_out_packet_f_t)&compcxx_CSMACAChannel1_14::in_frame) /*connect AP[0].out_packet,channel1.in_frame*/;
-	channel1.out_slot[0].Connect(AP[0],(compcxx_component::CSMACAChannel1_out_slot_f_t)&compcxx_AccessPoint_12::in_slot) /*connect channel1.out_slot[0],AP[0].in_slot*/;
+	AP[0].out_packet_f.Connect(channel1,(compcxx_component::AccessPoint_out_packet_f_t)&compcxx_CSMACAChannel1_10::in_frame) /*connect AP[0].out_packet,channel1.in_frame*/;
+	channel1.out_slot[0].Connect(AP[0],(compcxx_component::CSMACAChannel1_out_slot_f_t)&compcxx_AccessPoint_8::in_slot) /*connect channel1.out_slot[0],AP[0].in_slot*/;
 
 	for(int n=0;n<NumberStations;n++)
 	{	
-		STA[n].out_packet_f.Connect(channel1,(compcxx_component::Station_out_packet_f_t)&compcxx_CSMACAChannel1_14::in_frame) /*connect STA[n].out_packet,channel1.in_frame*/;
-		channel1.out_slot[n+1].Connect(STA[n],(compcxx_component::CSMACAChannel1_out_slot_f_t)&compcxx_Station_13::in_slot) /*connect channel1.out_slot[n+1],STA[n].in_slot*/;
+		STA[n].out_packet_f.Connect(channel1,(compcxx_component::Station_out_packet_f_t)&compcxx_CSMACAChannel1_10::in_frame) /*connect STA[n].out_packet,channel1.in_frame*/;
+		channel1.out_slot[n+1].Connect(STA[n],(compcxx_component::CSMACAChannel1_out_slot_f_t)&compcxx_Station_9::in_slot) /*connect channel1.out_slot[n+1],STA[n].in_slot*/;
 	}
 
 	printf("----- Wi-FiSim Setup completed ----- Los!\n");
 
 }
-#line 295 "XRWiFi_P1.cc"
-void compcxx_XRWiFisim_19:: Start()
+#line 320 "XRWiFi_P1.cc"
+void compcxx_XRWiFisim_13:: Start()
 {
 	printf("Start\n");
 
 }
-#line 301 "XRWiFi_P1.cc"
-void compcxx_XRWiFisim_19:: Stop()
+#line 326 "XRWiFi_P1.cc"
+void compcxx_XRWiFisim_13:: Stop()
 {
 	printf("########################################################################\n");
 	printf("------------------------ XRWi-Fisim Results ----------------------------\n");
 	printf("AP: RSSI = %f | Packet AP Delay = %f\n",RSSI[0],AP[0].queueing_service_delay/AP[0].successful);
-	printf("RTT = %f | Blocking Prob AP = %f\n",XRs[0].avRTT/XRs[0].received_packets,AP[0].blocking_prob/AP[0].arrived);
+	
 	printf("########################################################################\n");
 
 	
@@ -5365,7 +4440,7 @@ void compcxx_XRWiFisim_19:: Stop()
 
 	printf("-------------- Results only for stream '0' --------------\n");
 	printf("Input parameters: NXR = %d | distance = %d | LoadXR = %f | NBG = %d | LoadBG = %f | BGmode = %d\n",NXR_,distance_,LoadXR_,NBG_,BGLoad_,BG_mode_);
-	printf("Video Frame Delay: Average = %f | 99th = %f | S = %f | Thoughput = %f\n",XRc[0].mean_VFD,XRc[0].p99th_VFD,XRc[0].VideoFramesFullReceived/XRc[0].VideoFramesReceived,XRc[0].avRxPacketSize/SimTime());
+	
 	printf("Av A-MPDU size = %f | Tx prob = %f | Coll prob = %f | Buffer size = %f | RSSI = %f \n",AP[0].avAMPDU_size/AP[0].successful,AP[0].transmission_attempts/AP[0].slots,AP[0].collisions/AP[0].transmission_attempts,AP[0].queue_occupation/AP[0].arrived,RSSI[0]);
 
 	int s_NXR = NXR_;
@@ -5373,10 +4448,10 @@ void compcxx_XRWiFisim_19:: Stop()
 	double s_LoadXR = LoadXR_;
 	int s_NBG = NBG_;
 	double s_LoadBG = BGLoad_;
-	double s_avVFDelay = XRc[0].mean_VFD;
-	double s_99VFDelay = XRc[0].p99th_VFD;
-	double s_Fraction = XRc[0].VideoFramesFullReceived/XRc[0].VideoFramesReceived;
-	double s_Throughput = XRc[0].avRxPacketSize/SimTime();
+	
+	
+	
+	
 	double s_avMPDU = AP[0].avAMPDU_size/AP[0].successful;
 	double s_txprob = AP[0].transmission_attempts/AP[0].slots;
 	double s_collprob = AP[0].collisions/AP[0].transmission_attempts;
@@ -5384,18 +4459,11 @@ void compcxx_XRWiFisim_19:: Stop()
 	double s_RSSI = RSSI[0];
 	int s_Control = RCA_;
 
-	FILE *XRWiFisim1_results;
-	XRWiFisim1_results = fopen("Results/PaperXRWiFiSim1.txt","at");
-	fprintf(XRWiFisim1_results,"%d %d %f %d %d %f %f %f %f %f %f %f %f %f %f %d\n",s_NXR,s_dist,s_LoadXR,s_NBG,BG_mode_,s_LoadBG,s_avVFDelay,s_99VFDelay,s_Fraction,s_Throughput,s_avMPDU,s_txprob,s_collprob,s_BufferSize,s_RSSI,s_Control);
-	fclose(XRWiFisim1_results);
- 
-	printf("RSSIs: %f %f %f\n",RSSI[0],RSSI[1],RSSI[2]);
-
 	
-
-
-
-
+	
+	
+	
+	printf("RSSIs: %f %f %f\n",RSSI[0],RSSI[1],RSSI[2]);
 
 }int main(int argc, char *argv[])
 {
@@ -5413,20 +4481,37 @@ void compcxx_XRWiFisim_19:: Stop()
 	double BGLoad = atof(argv[8]);
 	int LBG = atoi(argv[9]);
 	int BG_mode = atoi(argv[10]);
-
 	int RCA = atoi(argv[11]);
+	double alpha_ = atof(argv[12]);
+	double gamma_ = atof(argv[13]);
+	double T_update = atof(argv[14]);
+
+
+
+	
+	st_input_args.STime = STime;
+	st_input_args.fps = fps;
+	st_input_args.BGLoad = BGLoad; 
+	st_input_args.XRLoad = XRLoad;
+	st_input_args.seed = seed; 
+	st_input_args.BGsources = NBG; 
+	st_input_args.alpha = alpha_;
+	st_input_args.gamma = gamma_; 
+	st_input_args.T_update = T_update; 
+
+
 
 	printf("---- XRWiFisim1 ----\n");
 	printf("Seed = %d | SimTime = %f | Rate Control Activated = %d\n",seed,STime,RCA);
 	printf("Input Parameters: XR sources: NXR = %d | fps = %d | XRLoad = %f | Distance = %d\n",NXR,fps,XRLoad,distanceXR);
 	printf("Input Parameters: BG sources: NBG = %d | BGLoad = %f | LBG = %d | BG traffic mode = %d\n",NBG,BGLoad,LBG,BG_mode);
 
-
-	compcxx_XRWiFisim_19 az;
-
+	compcxx_XRWiFisim_13 az;
  	az.Seed=seed;
 	az.StopTime(STime);
-	az.Setup(NXR,fps,XRLoad,10000,NBG,BGLoad,LBG,BG_mode,distanceXR,RCA);
+
+	NXR = 0; 
+	az.Setup(NXR,fps,XRLoad,10000,NBG,BGLoad,LBG,BG_mode,distanceXR,RCA, st_input_args);
 
 	printf("Run\n");
 

@@ -20,7 +20,5 @@ typedef void  (compcxx_component::*Station_out_to_wireless_f_t)(data_packet &pac
 typedef void  (compcxx_component::*Station_out_to_app_f_t)(data_packet &packet);
 typedef void  (compcxx_component::*Station_out_packet_f_t)(data_packet &frame);
 typedef void  (compcxx_component::*TrafficGeneratorApp_out_f_t)(data_packet &packet);
-typedef void  (compcxx_component::*XRClient_out_f_t)(data_packet &packet);
-typedef void  (compcxx_component::*XRServer_out_f_t)(data_packet &packet);
 typedef void  (compcxx_component::*CSMACAChannel1_out_slot_f_t)(SLOT_indicator &slot);
 };

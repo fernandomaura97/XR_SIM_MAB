@@ -137,7 +137,7 @@ void AccessPoint :: Stop()
 void AccessPoint :: in_from_network(data_packet &packet)
 {
 
-	if(traces_on) printf("%f - AP : New packet arrives from the network directed to STA %d | AP Tx Buffer = %d | Packet in Frame = %d\n",SimTime(),packet.destination,MAC_queue.QueueSize(),packet.num_packet_in_the_frame);
+	if(traces_on) printf("%f \t\t AP : New packet %d arrives from the network directed to STA %d | AP Tx Buffer = %d\n",SimTime(),packet.ID_PACKET_BG_DBG ,packet.destination,MAC_queue.QueueSize());
 
 	arrived++;
 	int QueueSize = MAC_queue.QueueSize();
@@ -197,10 +197,8 @@ void AccessPoint :: in_slot(SLOT_indicator &slot)
 					MAC_queue.DeletePacketIn(packet_queue_index);
 					queueing_service_delay_aux += (SimTime()-frame_test.queueing_service_delay-SLOT);
 					//for(int n=0;n<NumberStations;n++) 
-					//{	
-						//printf("%f - AP tranmits packet to STA %d (Video packet = %d)\n",SimTime(),frame_test.destination,frame_test.num_packet_in_the_frame);
-						out_to_wireless[frame_test.destination](frame_test); // We send each packet to all stations (no broadcast)		
-					//}
+					printf("%f \t\t\t AP transmits packet %d (from %d) to STA %d \n",SimTime(),frame_test.ID_PACKET_BG_DBG ,frame_test.source ,frame_test.destination);
+					out_to_wireless[frame_test.destination](frame_test); // We send each packet to all stations (no broadcast)		
 				}
 				else
 				{

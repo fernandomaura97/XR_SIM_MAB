@@ -7,6 +7,10 @@
 		
 #include "definitions.h"
 
+
+#define PREFIX_PACKETS_BG_ID 100000
+
+
 component TrafficGeneratorApp : public TypeII
 {
 	
@@ -76,7 +80,6 @@ void TrafficGeneratorApp :: Stop()
 
 void TrafficGeneratorApp :: new_packet(trigger_t &)
 {
-	if(traces_on==1) printf("%.9f - Traffic Generation APP %d - New Generated Packet to node %d and app %d\n",SimTime(),id,destination,destination_app);
 	data_packet new_gen_packet;
 	new_gen_packet.L_data = L_data;
 	//new_gen_packet.L_data = 100;
@@ -86,7 +89,11 @@ void TrafficGeneratorApp :: new_packet(trigger_t &)
 	new_gen_packet.source_app = source_app;
 	new_gen_packet.destination_app = destination_app;	
 	new_gen_packet.sent_time = SimTime();
-	
+
+	new_gen_packet.ID_PACKET_BG_DBG = generated_packets + PREFIX_PACKETS_BG_ID*node_attached; 
+
+	if(traces_on==1) printf("%.9f - Traffic Generation APP %d - New Generated Packet %d to node %d and app %d\n",SimTime(),id,new_gen_packet.ID_PACKET_BG_DBG ,destination,destination_app);
+
 	generated_packets++;
 	out(new_gen_packet);
 

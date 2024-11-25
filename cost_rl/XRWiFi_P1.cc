@@ -15,8 +15,8 @@
 #include "./Models/AccessPoint.h"
 #include "./Models/Station.h"
 #include "./Models/CSMACAChannel1.h"
-#include "./Models/XRServer.h"
-#include "./Models/XRClient.h"
+// #include "./Models/XRServer.h"
+// #include "./Models/XRClient.h"
 
 //int test_global[100];
 
@@ -28,7 +28,7 @@ double x_[100];
 double y_[100];
 double z_[100];
 
-int traces_on = 0;
+int traces_on = 1;
 
 double RSSI[100]; // Received Power at the destination
 
@@ -60,8 +60,8 @@ component XRWiFisim : public CostSimEng
 		AccessPoint [] AP;
 		Station [] STA;
 		CSMACAChannel1 channel1;
-		XRServer [] XRs;
-		XRClient [] XRc;
+		// XRServer [] XRs;
+		// XRClient [] XRc;
 		TrafficGeneratorApp [] TGApp;
 		Network Net;
 
@@ -93,43 +93,43 @@ void XRWiFisim :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, doubl
 	printf("---- XR Wi-Fi sim : Setup ----\n");
  
 
-	// XR traffic sources
-	XRs.SetSize(NXR);
-	for(int n=0;n<NXR;n++)
-	{
-		XRs[n].id = n;
-		XRs[n].node_attached = 0;
-		XRs[n].Load = LoadXR;
-		XRs[n].L_data = 1450*8;
-		XRs[n].destination = n; // STA 1
-		XRs[n].fps = fps;
-		XRs[n].source_app = n;
-		XRs[n].destination_app = n;
-		XRs[n].rate_control_activated = RCA;
-		XRs[n].st_input_args.STime = st_input_args.STime;
-		XRs[n].st_input_args.fps = st_input_args.fps; 
-		XRs[n].st_input_args.BGLoad = st_input_args.BGLoad; 
-		XRs[n].st_input_args.XRLoad = st_input_args.XRLoad;
-		XRs[n].st_input_args.seed = st_input_args.seed;
-		XRs[n].st_input_args.BGsources = st_input_args.BGsources;
-		XRs[n].st_input_args.alpha = st_input_args.alpha;
-		XRs[n].st_input_args.gamma = st_input_args.gamma;
-		XRs[n].st_input_args.T_update = st_input_args.T_update;
+	// // XR traffic sources
+	// XRs.SetSize(NXR);
+	// for(int n=0;n<NXR;n++)
+	// {
+	// 	XRs[n].id = n;
+	// 	XRs[n].node_attached = 0;
+	// 	XRs[n].Load = LoadXR;
+	// 	XRs[n].L_data = 1450*8;
+	// 	XRs[n].destination = n; // STA 1
+	// 	XRs[n].fps = fps;
+	// 	XRs[n].source_app = n;
+	// 	XRs[n].destination_app = n;
+	// 	XRs[n].rate_control_activated = RCA;
+	// 	XRs[n].st_input_args.STime = st_input_args.STime;
+	// 	XRs[n].st_input_args.fps = st_input_args.fps; 
+	// 	XRs[n].st_input_args.BGLoad = st_input_args.BGLoad; 
+	// 	XRs[n].st_input_args.XRLoad = st_input_args.XRLoad;
+	// 	XRs[n].st_input_args.seed = st_input_args.seed;
+	// 	XRs[n].st_input_args.BGsources = st_input_args.BGsources;
+	// 	XRs[n].st_input_args.alpha = st_input_args.alpha;
+	// 	XRs[n].st_input_args.gamma = st_input_args.gamma;
+	// 	XRs[n].st_input_args.T_update = st_input_args.T_update;
 	
-	}
+	// }
 
-	XRc.SetSize(NXR);
-	for(int n=0;n<NXR;n++)
-	{
-		XRc[n].id = n; 
-		XRc[n].node_attached = n;	
-		XRc[n].Load = 0.5E6; // not used
-		XRc[n].L_data = 220*8;
-		XRc[n].destination = 0; // the AP
-		XRc[n].source_app = n;
-		XRc[n].destination_app = n;
-		XRc[n].fps = fps;
-	}
+	// XRc.SetSize(NXR);
+	// for(int n=0;n<NXR;n++)
+	// {
+	// 	XRc[n].id = n; 
+	// 	XRc[n].node_attached = n;	
+	// 	XRc[n].Load = 0.5E6; // not used
+	// 	XRc[n].L_data = 220*8;
+	// 	XRc[n].destination = 0; // the AP
+	// 	XRc[n].source_app = n;
+	// 	XRc[n].destination_app = n;
+	// 	XRc[n].fps = fps;
+	// }
 
 	// Background Traffic
 	int aux_BGDL = 1;
@@ -153,7 +153,7 @@ void XRWiFisim :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, doubl
 		TGApp[n].L_data=LBG;
 		TGApp[n].id = NXR+n; 
 		TGApp[n].node_attached = 0;
-		TGApp[n].destination = NXR+n; // Station 2
+		TGApp[n].destination = NXR+n; // Each of the stations in DL 
 		TGApp[n].mode = 0;
 		TGApp[n].source_app = NXR+n;
 		TGApp[n].destination_app = 0;
@@ -163,7 +163,7 @@ void XRWiFisim :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, doubl
 	{
 		TGApp[NBG+n].Load=aux_BGUL*BGLoad;
 		TGApp[NBG+n].L_data=LBG;
-		TGApp[NBG+n].id = NXR+n; // Attached to STA 2
+		TGApp[NBG+n].id = NXR+n; // Attached to each STA
 		TGApp[NBG+n].node_attached = NXR+n;
 		TGApp[NBG+n].destination = 0; // the AP
 		TGApp[NBG+n].mode = 0;
@@ -201,29 +201,29 @@ void XRWiFisim :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, doubl
 	STA.SetSize(NumberStations);
 
 	// XR source
-	for(int n=0;n<NXR;n++)
-	{
-		STA[n].id = n;
-		STA[n].x=x;
-		STA[n].y=0;
-		STA[n].z=2;
-		STA[n].NumberStations=1; // To improve
-		STA[n].Pt = 20; //dBm
-		STA[n].qmin = 1;
-		STA[n].QL = 150;
-		STA[n].MAX_AMPDU = 64;
-		STA[n].CWmin = 15;
-		STA[n].max_BEB_stages = 6;
-		STA[n].pe=0.1; 
-		STA[n].channel_width = 80; // MHz
-		STA[n].SU_spatial_streams = 2;
+	// for(int n=0;n<NXR;n++)
+	// {
+	// 	STA[n].id = n;
+	// 	STA[n].x=x;
+	// 	STA[n].y=0;
+	// 	STA[n].z=2;
+	// 	STA[n].NumberStations=1; // To improve
+	// 	STA[n].Pt = 20; //dBm
+	// 	STA[n].qmin = 1;
+	// 	STA[n].QL = 150;
+	// 	STA[n].MAX_AMPDU = 64;
+	// 	STA[n].CWmin = 15;
+	// 	STA[n].max_BEB_stages = 6;
+	// 	STA[n].pe=0.1; 
+	// 	STA[n].channel_width = 80; // MHz
+	// 	STA[n].SU_spatial_streams = 2;
 
-		STA[n].out_to_wireless.SetSize(1); 
-		x_[n]=STA[n].x;
-		y_[n]=STA[n].y;
-		z_[n]=STA[n].z;
-		index++;
-	}
+	// 	STA[n].out_to_wireless.SetSize(1); 
+	// 	x_[n]=STA[n].x;
+	// 	y_[n]=STA[n].y;
+	// 	z_[n]=STA[n].z;
+	// 	index++;
+	// }
 
 	// Background STAs
 	for(int n=NXR;n<NumberStations;n++)
@@ -260,11 +260,11 @@ void XRWiFisim :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, doubl
 
 	// APPs to Network
 
-	for(int n=0;n<NXR;n++)
-	{
-		connect XRs[n].out,Net.in_from_apps;
-		connect Net.out_to_apps[n],XRs[n].in;
-	}
+	// for(int n=0;n<NXR;n++)
+	// {
+	// 	connect XRs[n].out,Net.in_from_apps;
+	// 	connect Net.out_to_apps[n],XRs[n].in;
+	// }
 
 
 	for(int n=0;n<NBG;n++)
@@ -290,11 +290,11 @@ void XRWiFisim :: Setup(int NXR, int fps, double LoadXR, int LXR, int NBG, doubl
 
 	// Connections STAs to APPs
 
-	for(int n=0;n<NXR;n++)	
-	{
-		connect STA[n].out_to_app,XRc[n].in;
-		connect XRc[n].out,STA[n].in_from_app;
-	}
+	// for(int n=0;n<NXR;n++)	
+	// {
+	// 	connect STA[n].out_to_app,XRc[n].in;
+	// 	connect XRc[n].out,STA[n].in_from_app;
+	// }
 
 	for(int n=0;n<NBG;n++)	
 	{		
@@ -328,7 +328,7 @@ void XRWiFisim:: Stop()
 	printf("########################################################################\n");
 	printf("------------------------ XRWi-Fisim Results ----------------------------\n");
 	printf("AP: RSSI = %f | Packet AP Delay = %f\n",RSSI[0],AP[0].queueing_service_delay/AP[0].successful);
-	printf("RTT = %f | Blocking Prob AP = %f\n",XRs[0].avRTT/XRs[0].received_packets,AP[0].blocking_prob/AP[0].arrived);
+	// printf("RTT = %f | Blocking Prob AP = %f\n",XRs[0].avRTT/XRs[0].received_packets,AP[0].blocking_prob/AP[0].arrived);
 	printf("########################################################################\n");
 
 	// Video Frame Delay (mean, 99th)
@@ -343,7 +343,7 @@ void XRWiFisim:: Stop()
 
 	printf("-------------- Results only for stream '0' --------------\n");
 	printf("Input parameters: NXR = %d | distance = %d | LoadXR = %f | NBG = %d | LoadBG = %f | BGmode = %d\n",NXR_,distance_,LoadXR_,NBG_,BGLoad_,BG_mode_);
-	printf("Video Frame Delay: Average = %f | 99th = %f | S = %f | Thoughput = %f\n",XRc[0].mean_VFD,XRc[0].p99th_VFD,XRc[0].VideoFramesFullReceived/XRc[0].VideoFramesReceived,XRc[0].avRxPacketSize/SimTime());
+	// printf("Video Frame Delay: Average = %f | 99th = %f | S = %f | Thoughput = %f\n",XRc[0].mean_VFD,XRc[0].p99th_VFD,XRc[0].VideoFramesFullReceived/XRc[0].VideoFramesReceived,XRc[0].avRxPacketSize/SimTime());
 	printf("Av A-MPDU size = %f | Tx prob = %f | Coll prob = %f | Buffer size = %f | RSSI = %f \n",AP[0].avAMPDU_size/AP[0].successful,AP[0].transmission_attempts/AP[0].slots,AP[0].collisions/AP[0].transmission_attempts,AP[0].queue_occupation/AP[0].arrived,RSSI[0]);
 
 	int s_NXR = NXR_;
@@ -351,10 +351,10 @@ void XRWiFisim:: Stop()
 	double s_LoadXR = LoadXR_;
 	int s_NBG = NBG_;
 	double s_LoadBG = BGLoad_;
-	double s_avVFDelay = XRc[0].mean_VFD;
-	double s_99VFDelay = XRc[0].p99th_VFD;
-	double s_Fraction = XRc[0].VideoFramesFullReceived/XRc[0].VideoFramesReceived;
-	double s_Throughput = XRc[0].avRxPacketSize/SimTime();
+	// double s_avVFDelay = XRc[0].mean_VFD;
+	// double s_99VFDelay = XRc[0].p99th_VFD;
+	// double s_Fraction = XRc[0].VideoFramesFullReceived/XRc[0].VideoFramesReceived;
+	// double s_Throughput = XRc[0].avRxPacketSize/SimTime();
 	double s_avMPDU = AP[0].avAMPDU_size/AP[0].successful;
 	double s_txprob = AP[0].transmission_attempts/AP[0].slots;
 	double s_collprob = AP[0].collisions/AP[0].transmission_attempts;
@@ -362,10 +362,10 @@ void XRWiFisim:: Stop()
 	double s_RSSI = RSSI[0];
 	int s_Control = RCA_;
 
-	FILE *XRWiFisim1_results;
-	XRWiFisim1_results = fopen("Results/PaperXRWiFiSim1.txt","at");
-	fprintf(XRWiFisim1_results,"%d %d %f %d %d %f %f %f %f %f %f %f %f %f %f %d\n",s_NXR,s_dist,s_LoadXR,s_NBG,BG_mode_,s_LoadBG,s_avVFDelay,s_99VFDelay,s_Fraction,s_Throughput,s_avMPDU,s_txprob,s_collprob,s_BufferSize,s_RSSI,s_Control);
-	fclose(XRWiFisim1_results);
+	// FILE *XRWiFisim1_results;
+	// XRWiFisim1_results = fopen("Results/PaperXRWiFiSim1.txt","at");
+	// fprintf(XRWiFisim1_results,"%d %d %f %d %d %f %f %f %f %f %f %f %f %f %f %d\n",s_NXR,s_dist,s_LoadXR,s_NBG,BG_mode_,s_LoadBG,s_avVFDelay,s_99VFDelay,s_Fraction,s_Throughput,s_avMPDU,s_txprob,s_collprob,s_BufferSize,s_RSSI,s_Control);
+	// fclose(XRWiFisim1_results);
 	printf("RSSIs: %f %f %f\n",RSSI[0],RSSI[1],RSSI[2]);
 
 };
@@ -416,6 +416,8 @@ int main(int argc, char *argv[])
 	XRWiFisim az;
  	az.Seed=seed;
 	az.StopTime(STime);
+
+	NXR = 0; 
 	az.Setup(NXR,fps,XRLoad,10000,NBG,BGLoad,LBG,BG_mode,distanceXR,RCA, st_input_args);
 
 	printf("Run\n");

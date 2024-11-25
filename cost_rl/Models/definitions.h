@@ -23,6 +23,8 @@ struct data_packet
 	double L; // Total length
 	int AMPDU_size; // Number of aggregated packets
 
+	int ID_PACKET_BG_DBG; 
+
 	// Statistics
 	double sent_time; // Time at which the packet is generated from the source
 	double scheduled_time; // Time at which the packet is selected for transmission	
