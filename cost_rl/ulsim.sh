@@ -49,7 +49,7 @@ trap handle_interrupt SIGINT
 
 
 
-BG_mode=1
+BG_mode=0
 
 
 for bandwidth_STA in $(seq $start_bandwidth $step_bandwidth $end_bandwidth); do

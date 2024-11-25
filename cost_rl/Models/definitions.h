@@ -16,6 +16,43 @@
 #define SIFS 16E-6
 
 
+#define DEBUG_PRINTS 1 // to set up fancy output packet per packet
+
+	#define RESET   "\033[0m"
+	#define BLUE    "\033[34m"    // Blue
+	#define CYAN    "\033[36m"    // Cyan (between blue and green)
+	#define LIGHT_MAGENTA "\033[95m" // Light Magenta (purple hue, mix of red and blue)
+	#define MAGENTA "\033[35m"    // Magenta (closer to red)
+	#define RED     "\033[31m"    // Red
+	#define YELLOW 	"\033[33m]"
+	// Light colors
+	#define LIGHT_RED    "\033[91m"     // Light Red
+	#define LIGHT_GREEN  "\033[92m"     // Light Green
+	#define LIGHT_YELLOW "\033[93m"     // Light Yellow
+	#define LIGHT_BLUE   "\033[94m"     // Light Blue
+	#define LIGHT_MAGENTA "\033[95m"    // Light Magenta (purple hue)
+	#define LIGHT_CYAN   "\033[96m"     // Light Cyan
+	#define LIGHT_WHITE  "\033[97m"     // Light White (bright white)
+	// Background colors
+	#define BG_BLACK     "\033[40m"     // Black background
+	#define BG_RED       "\033[41m"     // Red background
+	#define BG_GREEN     "\033[42m"     // Green background
+	#define BG_YELLOW    "\033[43m"     // Yellow background
+	#define BG_BLUE      "\033[44m"     // Blue background
+	#define BG_MAGENTA   "\033[45m"     // Magenta background
+	#define BG_CYAN      "\033[46m"     // Cyan background
+	#define BG_WHITE     "\033[47m"     // White background
+
+	#if DEBUG_PRINTS
+		#define PRINTF_COLOR(color, format, ...) printf(color format RESET, ##__VA_ARGS__)
+	#else
+		#define PRINTF_COLOR(color, format, ...) (void)0 // do nothing
+#endif
+
+
+
+
+
 struct data_packet
 {
 	double L_data; // Packet (data) length
@@ -30,6 +67,9 @@ struct data_packet
 	double scheduled_time; // Time at which the packet is selected for transmission	
 	double queueing_service_delay;
 
+	double in_queue_time; 
+
+
 	double num_seq;	
 	int destination; // id of the destination station
 	int source; // id of the traffic source
@@ -40,6 +80,7 @@ struct data_packet
 	// To be used by the channel
 	double T; // Transmission time, include DIFS, SIFS, etc.
 	double T_c; //
+	double T_q; 
 
 	// For the XR server and client communication
 	int first_video_frame_packet;
@@ -97,6 +138,32 @@ struct info
 	int ap_id;
 	int station_id;
 };
+
+struct AMPDU_packet_t {
+    std::vector<data_packet> mpdu_packets; // Container for MPDU packets
+    int total_length; // Total length of aggregated packets
+	int dest_ID; // ID for the source STA 
+	int size;
+
+	// Method to print AMPDU_packet values
+    void print() const {
+		#if DEBUG_PRINTS
+			PRINTF_COLOR(BG_GREEN, "[AMPDU INFO] \t\tSize: %d, STA_ID: %d, Total Length: %d\n", 
+				size, dest_ID, total_length);
+			for (const auto& packet : mpdu_packets) {
+				PRINTF_COLOR(BG_GREEN, "\t\t\t\t\t\t\t- Packet ID: %d\n", packet.ID_PACKET_BG_DBG);
+			}
+		#endif
+	}
+	 // Method to reinitialize all values
+    void reset() {
+			mpdu_packets.clear();        // Clear the vector of MPDU packets
+			total_length = 0;            // Reset total length
+			size = 0;                    // Reset size
+			dest_ID = -1;                 // Reset STA_ID (assuming -1 is an uninitialized value)
+		
+	}
+}; 
 
 
 #endif

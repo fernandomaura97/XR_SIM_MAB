@@ -8,6 +8,11 @@
 #include "definitions.h"
 #include "FIFO.h"
 #include "PHY_model.h"
+#include <fstream>
+#include <vector>
+#include <iomanip>
+#include <iostream>
+
 
 
 component AccessPoint : public TypeII
@@ -18,6 +23,7 @@ component AccessPoint : public TypeII
 		void Stop();		
 		int BinaryExponentialBackoff(int attempt);	
 		void FrameTransmissionDelay(double TotalBitsToBeTransmitted,int NMPDUs, int station_id);
+		void update_stats_AMPDU(data_packet &ampdu_packet, int queue_size); 
 
 	public: // Connections
 		inport void in_from_network(data_packet &packet); 
@@ -40,6 +46,8 @@ component AccessPoint : public TypeII
 		double Pt;
 		double BitsSymbol[20];
 		double CodingRate[20];
+		
+		const double MAX_T_AGG = 4.85E-3; // 4.85 ms limit for AMPDU
 
 
 		FIFO MAC_queue;
@@ -53,6 +61,9 @@ component AccessPoint : public TypeII
 		int current_ampdu_size; // Number of packets aggregated in current transmission
 		int current_destination;
 		int NumberStations;
+
+		AMPDU_packet_t aux_ampdu; 
+
 
 	private:
 		int mode; // 0: idle; 1: in transmission
@@ -76,6 +87,17 @@ component AccessPoint : public TypeII
 		double avAMPDU_size; // Average number of Packets Transmitted per avAMPDU_size?
 		double successful; // Number of successful transmissions
 		double queue_occupation;
+
+		struct csv_sink_t {
+			std::vector <double> timestamp;
+            std::vector <double> L_ampdu; 
+            std::vector <int>    destination; 
+            std::vector <int>    source; 
+            std::vector <double> T_s; 
+            std::vector <double> T_q;  
+			std::vector <double> queue_size;
+			std::vector <double> throughput;  
+        }sinkcsv; 
 	
 };
 
@@ -110,14 +132,14 @@ void AccessPoint :: Start()
 	avAMPDU_size=0;
 	queue_occupation=0;
 
+	aux_ampdu.reset(); 
+
 
 
 };
 
 void AccessPoint :: Stop()
 {
-
-
 	if(id==0)
 	{
 		printf("---------------- Results AP----------------\n");
@@ -131,6 +153,38 @@ void AccessPoint :: Stop()
 
 	}
 
+	//////// Write to CSV: 
+	std::ostringstream filename;
+	filename << "T" << std::fixed << std::setprecision(0) << StopTime() << "CSV_AMPDU.csv"; 
+	// std::string filename = "CSV_AMPDU_.csv"
+	
+	std::string filename_final = "Results/" + filename.str(); 
+
+	std::ofstream file(filename_final);
+
+	if(!file.is_open()){
+        std::cout << "Failed to open file" << std::endl;
+        return;
+    }
+
+	// Write CSV header
+		file << "timestamp,L_AMPDU,destination,source,T_s,T_q,queue_size,throughput" << std::endl;
+
+		// Write data to CSV
+		for(size_t i = 0; i < sinkcsv.timestamp.size(); i++)
+		{
+			file << sinkcsv.timestamp[i] 	<< ","
+				<< sinkcsv.L_ampdu[i] 		<< ","
+				<< sinkcsv.destination[i]	<< ","
+				<< sinkcsv.source[i] 		<< ","
+				<< sinkcsv.T_s[i] 			<< ","
+				<< sinkcsv.T_q[i]  			<< ","
+				<< sinkcsv.queue_size[i] 	<< ","
+				<< sinkcsv.throughput[i]   << std::endl; 
+		}
+
+		file.close();
+		printf("Global CSV file has been created successfully.\n");
 };
 
 
@@ -151,10 +205,15 @@ void AccessPoint :: in_from_network(data_packet &packet)
 	if(QueueSize < QL)
 	{
 		packet.queueing_service_delay = SimTime();
+
+		packet.in_queue_time = SimTime(); 
+
 		MAC_queue.PutPacket(packet);
 	}
 	else
-	{
+	{	
+		PRINTF_COLOR(LIGHT_MAGENTA, "%.6f [AP IN]     Packet %d dropped!\n", SimTime(), packet.ID_PACKET_BG_DBG); 
+
 		blocking_prob++;
 	}
 
@@ -183,30 +242,51 @@ void AccessPoint :: in_slot(SLOT_indicator &slot)
 			device_has_transmitted = 0; 
 			avAMPDU_size+=current_ampdu_size; // Statistics, to improve
 			// We remove from the buffer the batch of successful received packets
-			data_packet frame_test;
+			// data_packet frame_test;
+		
 			double queueing_service_delay_aux=0; // to calculate the queueing service delay of each packet
 			int packet_queue_index = 0;
-			for(int q=0;q<current_ampdu_size;q++)
-			{
-				//frame_test = MAC_queue.GetFirstPacket();
-				frame_test = MAC_queue.GetPacketAt(packet_queue_index);				
-				if(Random()>pe)
-				{				
-					// To implement here channel errors (not collisions)
-					//MAC_queue.DelFirstPacket();			
-					MAC_queue.DeletePacketIn(packet_queue_index);
-					queueing_service_delay_aux += (SimTime()-frame_test.queueing_service_delay-SLOT);
-					//for(int n=0;n<NumberStations;n++) 
-					printf("%f \t\t\t AP transmits packet %d (from %d) to STA %d \n",SimTime(),frame_test.ID_PACKET_BG_DBG ,frame_test.source ,frame_test.destination);
-					out_to_wireless[frame_test.destination](frame_test); // We send each packet to all stations (no broadcast)		
-				}
-				else
-				{
-					packet_queue_index++;
-					//printf("%f - AP - Packet to STA %d with errors (Video packet = %d)\n",SimTime(),frame_test.destination,frame_test.num_packet_in_the_frame);
-				}
+			double mpdu_counter = 0; 
 
+			for (auto& packet_iter : aux_ampdu.mpdu_packets)	
+			{	
+				mpdu_counter += 1; 
+				if (Random() > pe){
+					queueing_service_delay_aux += (SimTime() - packet_iter.queueing_service_delay - SLOT); 
+					update_stats_AMPDU(packet_iter, MAC_queue.QueueSize() - mpdu_counter); // although in this case the queue
+					PRINTF_COLOR(RED , "%.6f [AP OUT W]      Packet %d from STA %d (%.0f/%d)\n",SimTime(), packet_iter.ID_PACKET_BG_DBG ,packet_iter.destination, mpdu_counter, current_ampdu_size);
+
+					out_to_wireless[packet_iter.destination](packet_iter); 
+				}
+				else{
+					printf("%.6f - AP - Packet to STA %d with errors (packet ID = %d, PER = %.2f)\n",SimTime(),packet_iter.destination,packet_iter.ID_PACKET_BG_DBG, pe );
+				}
 			}
+
+
+			// for(int q=0;q<current_ampdu_size;q++)
+			// {
+			// 	//frame_test = MAC_queue.GetFirstPacket();
+			// 	frame_test = MAC_queue.GetPacketAt(packet_queue_index);				
+			// 	if(Random()>pe)
+			// 	{				
+			// 		// To implement here channel errors (not collisions)
+			// 		//MAC_queue.DelFirstPacket();			
+			// 		MAC_queue.DeletePacketIn(packet_queue_index);
+			// 		queueing_service_delay_aux += (SimTime()-frame_test.queueing_service_delay-SLOT);
+
+			// 		update_stats_AMPDU(packet_iter, MAC_queue.QueueSize() - mpdu_counter); // although in this case the queue
+
+			// 		printf("%f \t\t\t AP transmits packet %d (from %d) to STA %d \n",SimTime(),frame_test.ID_PACKET_BG_DBG ,frame_test.source ,frame_test.destination);
+			// 		out_to_wireless[frame_test.destination](frame_test); // We send each packet to all stations (no broadcast)		
+			// 	}
+			// 	else
+			// 	{
+			// 		packet_queue_index++;
+			// 		//printf("%f - AP - Packet to STA %d with errors (Video packet = %d)\n",SimTime(),frame_test.destination,frame_test.num_packet_in_the_frame);
+			// 	}
+
+			// }
 
 			queueing_service_delay_aux = queueing_service_delay_aux / current_ampdu_size;
 			queueing_service_delay += queueing_service_delay_aux;
@@ -262,7 +342,9 @@ void AccessPoint :: in_slot(SLOT_indicator &slot)
 	{
 		//printf("%f - AP : Mode = 1 and backoff counter = %d\n",SimTime(),backoff_counter);		
 		if(backoff_counter==0)
-		{
+		{	
+
+			aux_ampdu.reset(); 
 			// Time to sent a frame
 			current_ampdu_size = MIN(MAC_queue.QueueSize(),MAX_AMPDU);
 
@@ -270,9 +352,7 @@ void AccessPoint :: in_slot(SLOT_indicator &slot)
 
 			// 1. Pick the first packet in the buffer. Identify the STA.
 			data_packet first_packet_in_buffer = MAC_queue.GetFirstPacket();
-			// Random Packet in the buffer
-			//data_packet first_packet_in_buffer = MAC_queue.GetPacketAt(Random(BufferSize)); 
-
+	
 			current_destination = first_packet_in_buffer.destination; 
 			
 			// 2. Select up to MAX_AMPDU packets to that STA.
@@ -284,19 +364,57 @@ void AccessPoint :: in_slot(SLOT_indicator &slot)
 			// q = 3; c=1; [1|0|0] [1|1|0|0]; --> c=2  	
 
 			double TotalBitsToBeTransmitted = 0;
-			for(int q=0;q<BufferSize;q++)
+			double queue_delay_per_packet = 0; 
+			PRINTF_COLOR(YELLOW, "DEBUG for\n"); 
+			for(int q=0; q< MAC_queue.QueueSize(); q++) // iterate through whole queue
 			{
 				data_packet packet_to_check = MAC_queue.GetPacketAt(q); 
+
 				if(current_destination == packet_to_check.destination && current_ampdu_size_per_station < MAX_AMPDU)
 				{				
+					queue_delay_per_packet += (SimTime() - (packet_to_check.in_queue_time)); 
+					packet_to_check.T_q = SimTime() - packet_to_check.in_queue_time; 
+
+					FrameTransmissionDelay(TotalBitsToBeTransmitted,current_ampdu_size_per_station,current_destination);
+
+					if(T >= MAX_T_AGG){ // making sure that adding an extra packet will not exceed hard limit
+						break; 
+					}
+					
 					MAC_queue.DeletePacketIn(q);
-					MAC_queue.PutPacketIn(packet_to_check,current_ampdu_size_per_station);		
-					//printf("************** Removed from %d, and added to %d\n",q,current_ampdu_size_per_station);					
+					q -= 1; 
+					
+					aux_ampdu.mpdu_packets.push_back(packet_to_check); 
+					aux_ampdu.total_length += packet_to_check.L ; 
+					aux_ampdu.size += 1; 
+
+					// MAC_queue.PutPacketIn(packet_to_check,current_ampdu_size_per_station);		
 					TotalBitsToBeTransmitted+=packet_to_check.L;
 					current_ampdu_size_per_station++;
+					PRINTF_COLOR(BG_YELLOW, "%.5f\n", T); 
 				}
 			}
+
+			for (auto& packet : aux_ampdu.mpdu_packets) {
+				packet.scheduled_time = SimTime() + T;  // unused for now
+			}
 			int current_ampdu_size_sta = MIN(current_ampdu_size_per_station,MAX_AMPDU);	
+
+
+			// for(int q=0;q<BufferSize;q++)
+			// {
+			// 	data_packet packet_to_check = MAC_queue.GetPacketAt(q); 
+			// 	if(current_destination == packet_to_check.destination && current_ampdu_size_per_station < MAX_AMPDU)
+			// 	{				
+			// 		MAC_queue.DeletePacketIn(q);
+			// 		MAC_queue.PutPacketIn(packet_to_check,current_ampdu_size_per_station);		
+			// 		//printf("************** Removed from %d, and added to %d\n",q,current_ampdu_size_per_station);					
+			// 		TotalBitsToBeTransmitted+=packet_to_check.L;
+			// 		current_ampdu_size_per_station++;
+			// 	}
+			// }
+			// int current_ampdu_size_sta = MIN(current_ampdu_size_per_station,MAX_AMPDU);	
+
 
 
 			/*
@@ -310,17 +428,26 @@ void AccessPoint :: in_slot(SLOT_indicator &slot)
 			//double T_duration = FrameTransmissionDelay(TotalBitsToBeTransmitted,current_ampdu_size_sta,current_destination);
 			FrameTransmissionDelay(TotalBitsToBeTransmitted,current_ampdu_size_sta,current_destination);
 			data_packet frame;
+			
 			frame.AMPDU_size = current_ampdu_size_sta;
 			frame.source=id;
 			frame.T = T;
 			frame.T_c = T_c;
+			frame.T_q = queue_delay_per_packet; 
 
+			for (auto& packet : aux_ampdu.mpdu_packets) {
+				packet.T = frame.T;
+			}
 			//printf("%f - AP %d Transmits | Destination %d | AMPDU =  %d | Duration = %f | TotalBits = %f\n",SimTime(),id,current_destination,current_ampdu_size_sta,T,TotalBitsToBeTransmitted);
 
-			out_packet(frame); // To the channel!!!
+			PRINTF_COLOR(BG_CYAN ,"%.6f [AP_TXOP%d]    AMPDU_size = %d | Destination %d | T_s = %.3f ms | TotalBits = %.0f\n",SimTime(), attempts, current_ampdu_size_sta, current_destination, T * 1000, TotalBitsToBeTransmitted);
+			aux_ampdu.print(); 
+
 			attempts++; 
 			device_has_transmitted=1;
 			transmission_attempts++; // stat
+			out_packet(frame); // To the channel!!!
+
 		}
 		else
 		{
@@ -456,6 +583,28 @@ void AccessPoint :: FrameTransmissionDelay(double TotalBitsToBeTransmitted, int 
 
 	//return T;
 };
+
+
+
+void AccessPoint::update_stats_AMPDU(data_packet &ampdu_packet, int queue_size){
+
+    double AMPDU_L = ampdu_packet.L; 
+	double now = SimTime(); 
+    double T_s = ampdu_packet.T; 
+    double T_q = ampdu_packet.T_q; 
+	double throughput = AMPDU_L / (T_s + T_q); 
+
+	PRINTF_COLOR(BG_RED, "%.6f [DBG STATS]    Packet %d from src %d to dest %d | T_s = %.3f ms, T_q = %.3f ms | L_packet = %.0f\n", SimTime(), ampdu_packet.ID_PACKET_BG_DBG, ampdu_packet.source, ampdu_packet.destination, T_s * 1000, T_q * 1000, AMPDU_L ); 
+
+	sinkcsv.timestamp.push_back(now); 
+    sinkcsv.L_ampdu.push_back(AMPDU_L);
+    sinkcsv.T_s.push_back(T_s);
+    sinkcsv.T_q.push_back(T_q);
+    sinkcsv.destination.push_back(ampdu_packet.destination);
+    sinkcsv.source.push_back(ampdu_packet.source);
+	sinkcsv.queue_size.push_back(queue_size); 
+	sinkcsv.throughput.push_back(throughput);
+} 
 
 
 #endif
