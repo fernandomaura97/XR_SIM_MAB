@@ -184,7 +184,7 @@ void Station :: in_slot(SLOT_indicator &slot)
 		//printf("%f - Successful Transmission || Mode = %d | BO = %d\n",SimTime(),mode,backoff_counter);
 		if(device_has_transmitted == 1)
 		{
-			if(traces_on) printf("%f - STA (%d) : DBG Successful Transmission | AMPDU size = %d\n",SimTime(),id,current_ampdu_size);
+			if(traces_on) printf("%f - STA (%d) : DBG Successful Transmission | AMPDU size = %d, out_to_w: %d \n",SimTime(),id,current_ampdu_size);
 			mode=0; // Move to not transmitting
 			device_has_transmitted = 0; 
 			av_MPDUsize+=current_ampdu_size;
@@ -203,7 +203,7 @@ void Station :: in_slot(SLOT_indicator &slot)
 					//MAC_queue.pop_front();		
 					MAC_queue.erase(MAC_queue.begin()+packet_queue_index);	
 					queueing_service_delay_aux += (SimTime()-frame_test.queueing_service_delay-SLOT);
-					//printf("%f - STA - Packet to AP %d without errors\n",SimTime(),frame_test.destination);
+					printf("%f - STA - Packet %d to AP %d without errors\n",SimTime(),frame_test.ID_PACKET_BG_DBG ,frame_test.destination);
 					//for(int n=0;n<NumberStations;n++) out_to_wireless[n](frame_test); // We send each packet to the corresponding destination		
 					out_to_wireless[frame_test.destination](frame_test);
 				}
@@ -229,7 +229,7 @@ void Station :: in_slot(SLOT_indicator &slot)
 	}
 	if(slot.status > 1) // Collision
 	{
-		//printf("%f - Collision || Mode = %d | BO = %d\n",SimTime(),mode,backoff_counter);
+		printf("%f - Collision || Mode = %d | BO = %d\n",SimTime(),mode,backoff_counter);
 		if(device_has_transmitted == 1)
 		{
 			if(traces_on) printf("%f - STA (%d) : Collision | Attempts = %d !!!\n",SimTime(),id,attempts);
@@ -238,7 +238,7 @@ void Station :: in_slot(SLOT_indicator &slot)
 			backoff_counter = BinaryExponentialBackoff(attempts);
 			EB+=backoff_counter; // To calculate the average backoff value
 			// mode is kept to 1
-			//printf("%f- STA %d re-starts transmission mode with BO=%d \n",SimTime(),id,backoff_counter);
+			printf("%f- STA %d re-starts transmission mode with BO=%d \n",SimTime(),id,backoff_counter);
 			collisions++; // stat
 			
 		}

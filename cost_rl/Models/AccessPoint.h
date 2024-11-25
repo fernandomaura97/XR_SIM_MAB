@@ -461,6 +461,8 @@ void AccessPoint :: in_slot(SLOT_indicator &slot)
 
 void AccessPoint :: in_from_wireless(data_packet &packet)
 {
+
+	PRINTF_COLOR(MAGENTA, "[AP UL] PACKET %d RECEIVED from STA%d\n", packet.ID_PACKET_BG_DBG, packet.source); 
 	// Here we should have an interface....
 	out_to_network(packet);	
 }

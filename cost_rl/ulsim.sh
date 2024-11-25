@@ -9,12 +9,12 @@ L_bg=12E3
 d_STA=1
 d_BG=10
 
-NBG=2
+NBG=1
 NXR=1
 
 # Define bandwidth parameters
-start_bandwidth=25E6
-end_bandwidth=25E6
+start_bandwidth=50E6
+end_bandwidth=50E6
 step_bandwidth=2.5E6
 
 
@@ -47,18 +47,12 @@ trap handle_interrupt SIGINT
                                                                         #  |--(2 = UL + DL)
                                                                         #       
 
-
-
-BG_mode=0
+BG_mode=1
 
 
 for bandwidth_STA in $(seq $start_bandwidth $step_bandwidth $end_bandwidth); do
   ./XRWiFi_P1 $seed $simtime $NXR 90 $bandwidth_STA 1 $NBG $bandwidth_STA 12000 $BG_mode 0 0.3 0.9 1 | tee out_log.ans
 done
-
-
-
-
 
 # Check if input arguments are provided
 if [ $# -gt 0 ]; then
