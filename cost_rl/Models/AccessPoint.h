@@ -23,7 +23,7 @@ component AccessPoint : public TypeII
 		void Stop();		
 		int BinaryExponentialBackoff(int attempt);	
 		void FrameTransmissionDelay(double TotalBitsToBeTransmitted,int NMPDUs, int station_id);
-		void update_stats_AMPDU(data_packet &ampdu_packet, int queue_size); 
+		void update_stats_AMPDU(data_packet &ampdu_packet, int queue_size, bool is_uplink); 
 
 	public: // Connections
 		inport void in_from_network(data_packet &packet); 
@@ -97,6 +97,7 @@ component AccessPoint : public TypeII
             std::vector <double> T_q;  
 			std::vector <double> queue_size;
 			std::vector <double> throughput;  
+			std::vector <int> 	 is_ul; 
         }sinkcsv; 
 	
 };
@@ -168,7 +169,7 @@ void AccessPoint :: Stop()
     }
 
 	// Write CSV header
-		file << "timestamp,L_AMPDU,destination,source,T_s,T_q,queue_size,throughput" << std::endl;
+		file << "timestamp,L_AMPDU,destination,source,T_s,T_q,queue_size,throughput,is_uplink" << std::endl;
 
 		// Write data to CSV
 		for(size_t i = 0; i < sinkcsv.timestamp.size(); i++)
@@ -180,7 +181,8 @@ void AccessPoint :: Stop()
 				<< sinkcsv.T_s[i] 			<< ","
 				<< sinkcsv.T_q[i]  			<< ","
 				<< sinkcsv.queue_size[i] 	<< ","
-				<< sinkcsv.throughput[i]   << std::endl; 
+				<< sinkcsv.throughput[i] 	<< ","
+				<< sinkcsv.is_ul[i]   << std::endl; 
 		}
 
 		file.close();
@@ -253,7 +255,7 @@ void AccessPoint :: in_slot(SLOT_indicator &slot)
 				mpdu_counter += 1; 
 				if (Random() > pe){
 					queueing_service_delay_aux += (SimTime() - packet_iter.queueing_service_delay - SLOT); 
-					update_stats_AMPDU(packet_iter, MAC_queue.QueueSize() - mpdu_counter); // although in this case the queue
+					update_stats_AMPDU(packet_iter, MAC_queue.QueueSize() - mpdu_counter, false); 
 					PRINTF_COLOR(RED , "%.6f [AP OUT W]      Packet %d from STA %d (%.0f/%d)\n",SimTime(), packet_iter.ID_PACKET_BG_DBG ,packet_iter.destination, mpdu_counter, current_ampdu_size);
 
 					out_to_wireless[packet_iter.destination](packet_iter); 
@@ -463,6 +465,14 @@ void AccessPoint :: in_from_wireless(data_packet &packet)
 {
 
 	PRINTF_COLOR(MAGENTA, "[AP UL] PACKET %d RECEIVED from STA%d\n", packet.ID_PACKET_BG_DBG, packet.source); 
+
+
+
+	if (packet.is_from_sta_in_ul == true) {
+
+		int qsize_ul = packet.queue_size_in_ul; 
+		update_stats_AMPDU(packet, qsize_ul, packet.is_from_sta_in_ul); // although in this case the queue
+	}
 	// Here we should have an interface....
 	out_to_network(packet);	
 }
@@ -588,7 +598,7 @@ void AccessPoint :: FrameTransmissionDelay(double TotalBitsToBeTransmitted, int 
 
 
 
-void AccessPoint::update_stats_AMPDU(data_packet &ampdu_packet, int queue_size){
+void AccessPoint::update_stats_AMPDU(data_packet &ampdu_packet, int queue_size, bool is_uplink){
 
     double AMPDU_L = ampdu_packet.L; 
 	double now = SimTime(); 
@@ -606,6 +616,7 @@ void AccessPoint::update_stats_AMPDU(data_packet &ampdu_packet, int queue_size){
     sinkcsv.source.push_back(ampdu_packet.source);
 	sinkcsv.queue_size.push_back(queue_size); 
 	sinkcsv.throughput.push_back(throughput);
+	sinkcsv.is_ul.push_back(is_uplink); 
 } 
 
 

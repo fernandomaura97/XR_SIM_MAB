@@ -49,7 +49,6 @@ component TrafficGeneratorApp : public TypeII
 		double received_packets = 0;
 		double avDelay = 0;
 		double avLreceived = 0;
-
 };
 
 void TrafficGeneratorApp :: Setup()

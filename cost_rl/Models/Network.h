@@ -131,11 +131,9 @@ void Network :: end_packet_transmission_UL(trigger_t &)
 	TxBuffer_UL.pop_front();
 	if(TxBuffer_UL.size()>0)
 	{
-		// Start Transmission
+		//Start Transmission
 		transmission_time_UL.Set(SimTime()+(tx_packet.L/Rate));
 	}
-
-
 };
 
 

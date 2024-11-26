@@ -67,6 +67,10 @@ struct data_packet
 	double scheduled_time; // Time at which the packet is selected for transmission	
 	double queueing_service_delay;
 
+	bool is_from_sta_in_ul;
+	int queue_size_in_ul; 
+
+
 	double in_queue_time; 
 
 
