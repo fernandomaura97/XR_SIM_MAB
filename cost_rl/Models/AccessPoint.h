@@ -247,7 +247,7 @@ void AccessPoint :: in_slot(SLOT_indicator &slot)
 			// data_packet frame_test;
 		
 			double queueing_service_delay_aux=0; // to calculate the queueing service delay of each packet
-			int packet_queue_index = 0;
+			// int packet_queue_index = 0;
 			double mpdu_counter = 0; 
 
 			for (auto& packet_iter : aux_ampdu.mpdu_packets)	
@@ -350,7 +350,7 @@ void AccessPoint :: in_slot(SLOT_indicator &slot)
 			// Time to sent a frame
 			current_ampdu_size = MIN(MAC_queue.QueueSize(),MAX_AMPDU);
 
-			int BufferSize = MAC_queue.QueueSize();			
+			// int BufferSize = MAC_queue.QueueSize();			
 
 			// 1. Pick the first packet in the buffer. Identify the STA.
 			data_packet first_packet_in_buffer = MAC_queue.GetFirstPacket();
@@ -465,8 +465,6 @@ void AccessPoint :: in_from_wireless(data_packet &packet)
 {
 
 	PRINTF_COLOR(MAGENTA, "[AP UL] PACKET %d RECEIVED from STA%d\n", packet.ID_PACKET_BG_DBG, packet.source); 
-
-
 
 	if (packet.is_from_sta_in_ul == true) {
 

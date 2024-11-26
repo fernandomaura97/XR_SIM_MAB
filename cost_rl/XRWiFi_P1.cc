@@ -347,21 +347,21 @@ void XRWiFisim:: Stop()
 	// printf("Video Frame Delay: Average = %f | 99th = %f | S = %f | Thoughput = %f\n",XRc[0].mean_VFD,XRc[0].p99th_VFD,XRc[0].VideoFramesFullReceived/XRc[0].VideoFramesReceived,XRc[0].avRxPacketSize/SimTime());
 	printf("Av A-MPDU size = %f | Tx prob = %f | Coll prob = %f | Buffer size = %f | RSSI = %f \n",AP[0].avAMPDU_size/AP[0].successful,AP[0].transmission_attempts/AP[0].slots,AP[0].collisions/AP[0].transmission_attempts,AP[0].queue_occupation/AP[0].arrived,RSSI[0]);
 
-	int s_NXR = NXR_;
-	int s_dist = distance_;
-	double s_LoadXR = LoadXR_;
-	int s_NBG = NBG_;
-	double s_LoadBG = BGLoad_;
+	// int s_NXR = NXR_;
+	// int s_dist = distance_;
+	// double s_LoadXR = LoadXR_;
+	// int s_NBG = NBG_;
+	// double s_LoadBG = BGLoad_;
 	// double s_avVFDelay = XRc[0].mean_VFD;
 	// double s_99VFDelay = XRc[0].p99th_VFD;
 	// double s_Fraction = XRc[0].VideoFramesFullReceived/XRc[0].VideoFramesReceived;
 	// double s_Throughput = XRc[0].avRxPacketSize/SimTime();
-	double s_avMPDU = AP[0].avAMPDU_size/AP[0].successful;
-	double s_txprob = AP[0].transmission_attempts/AP[0].slots;
-	double s_collprob = AP[0].collisions/AP[0].transmission_attempts;
-	double s_BufferSize = AP[0].queue_occupation/AP[0].arrived;
-	double s_RSSI = RSSI[0];
-	int s_Control = RCA_;
+	// double s_avMPDU = AP[0].avAMPDU_size/AP[0].successful;
+	// double s_txprob = AP[0].transmission_attempts/AP[0].slots;
+	// double s_collprob = AP[0].collisions/AP[0].transmission_attempts;
+	// double s_BufferSize = AP[0].queue_occupation/AP[0].arrived;
+	// double s_RSSI = RSSI[0];
+	// int s_Control = RCA_;
 
 	// FILE *XRWiFisim1_results;
 	// XRWiFisim1_results = fopen("Results/PaperXRWiFiSim1.txt","at");

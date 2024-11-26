@@ -168,7 +168,7 @@ void Station :: in_from_app(data_packet &packet)
 	}
 	else
 	{
-		PRINTF_COLOR(LIGHT_MAGENTA, "%.6f [STA IN (APP)] Packet %.0f dropped!\n", SimTime(), packet.ID_packet); 
+		PRINTF_COLOR(LIGHT_MAGENTA, "%.6f [STA IN (APP)] Packet %d dropped!\n", SimTime(), packet.ID_PACKET_BG_DBG); 
 		blocking_prob++;
 	}
 
@@ -194,7 +194,7 @@ void Station :: in_slot(SLOT_indicator &slot)
 		//printf("%f - Successful Transmission || Mode = %d | BO = %d\n",SimTime(),mode,backoff_counter);
 		if(device_has_transmitted == 1)
 		{
-			if(traces_on) printf("%f - STA (%d) : DBG Successful Transmission | AMPDU size = %d, out_to_w: %d \n",SimTime(),id,current_ampdu_size);
+			if(traces_on) printf("%f - STA (%d) : DBG Successful Transmission | AMPDU size = %d \n",SimTime(),id,current_ampdu_size);
 			mode=0; // Move to not transmitting
 			device_has_transmitted = 0; 
 			av_MPDUsize+=current_ampdu_size;
@@ -202,7 +202,7 @@ void Station :: in_slot(SLOT_indicator &slot)
 			// data_packet frame_test;
 
 			double queueing_service_delay_aux=0; // to calculate the queueing service delay of each packet
-			int packet_queue_index = 0;
+			// int packet_queue_index = 0;
 
 
 
@@ -213,14 +213,14 @@ void Station :: in_slot(SLOT_indicator &slot)
 				if (Random() > pe){
 					queueing_service_delay_aux += (SimTime() - packet_iter.queueing_service_delay - SLOT); 
 					// update_stats_AMPDU(packet_iter, MAC_queue.QueueSize() - mpdu_counter); // although in this case the queue
-					PRINTF_COLOR(RED , "%.6f [STA OUT W]      Packet %.0f from STA %d (%.0f/%d)\n",SimTime(), packet_iter.ID_packet ,packet_iter.destination, mpdu_counter, current_ampdu_size);
+					PRINTF_COLOR(RED , "%.6f [STA OUT W]      Packet %d from STA %d (%.0f/%d)\n",SimTime(), packet_iter.ID_PACKET_BG_DBG ,packet_iter.destination, mpdu_counter, current_ampdu_size);
 					packet_iter.is_from_sta_in_ul = true; 
 					packet_iter.queue_size_in_ul = MAC_queue.size(); 
-					
+
 					out_to_wireless[packet_iter.destination](packet_iter); 
 				}
 				else{
-					printf("%f - AP - Packet to STA %d with errors (packet ID = %.0f, PER = %.2f)\n",SimTime(),packet_iter.destination,packet_iter.ID_packet, pe );
+					printf("%f - AP - Packet to STA %d with errors (packet ID = %d, PER = %.2f)\n",SimTime(),packet_iter.destination,packet_iter.ID_PACKET_BG_DBG, pe );
 				}
 			}
 			
